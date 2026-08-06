@@ -53,13 +53,11 @@ use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
-use winit_core::popup::{
-    Popup as CorePopup, PopupAnchor, PopupConstraintAdjustment, PopupGravity, place_popup,
-};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel, WindowType,
+    UserAttentionType, Window as CoreWindow, WindowAnchor, WindowAttributes, WindowButtons,
+    WindowConstraintAdjustment, WindowGravity, WindowId, WindowLevel, WindowPositioner, WindowType,
+    place_popup,
 };
 
 use crate::dark_mode::try_theme;
@@ -125,17 +123,17 @@ impl Window {
         self.window_state.lock().unwrap()
     }
 
-    // If we have a popup the position is relative to the parent window and not
+    // If the window is anchored the position is relative to the parent window and not
     // relative to the screen. Therefore we have to translate it from the parent
     // coordinate system to the display coordinate system
     fn translate_outer_position(&self, position: Position) -> PhysicalPosition<i32> {
         translate_outer_position(self.hwnd(), &self.window_state, position, self.scale_factor())
     }
 
-    // Inverse of `translate_outer_position`: if we have a popup the position is
+    // Inverse of `translate_outer_position`: if the window is anchored the position is
     // reported relative to the parent window instead of the screen. Therefore we
     // translate it from the display coordinate system back to the parent
-    // coordinate system. Non-popup windows are left in screen coordinates.
+    // coordinate system. Non-anchored windows are left in screen coordinates.
     fn translate_outer_position_to_parent(
         &self,
         position: PhysicalPosition<i32>,
@@ -143,7 +141,9 @@ impl Window {
         let mut point = POINT { x: position.x, y: position.y };
 
         let window_flags = self.window_state_lock().window_flags;
-        if window_flags.contains(WindowFlags::POPUP) && !window_flags.contains(WindowFlags::CHILD) {
+        if window_flags.contains(WindowFlags::ANCHORED)
+            && !window_flags.contains(WindowFlags::CHILD)
+        {
             let parent = unsafe { GetParent(self.hwnd()) };
             if !parent.is_null() {
                 unsafe {
@@ -155,14 +155,17 @@ impl Window {
         PhysicalPosition::new(point.x, point.y)
     }
 
-    /// Recomputes this popup's position (and, if constrained, its size) from its positioner
-    /// state, using [`winit_core::popup::place_popup`], and applies the result. No-op if this
-    /// window isn't a popup, or if it has no parent (which the Win32 backend never allows for a
+    /// Recomputes this window's position (and, if constrained, its size) from its positioner
+    /// state, using [`winit_core::window::place_popup`], and applies the result. No-op if this
+    /// window isn't anchored, or if it has no parent (which the Win32 backend never allows for a
     /// popup, see `init`).
     fn reposition_popup(&self) {
-        let window_type = self.window_state_lock().window_type.clone();
+        let (anchored, popup_positioner) = {
+            let window_state = self.window_state_lock();
+            (window_state.anchored, window_state.popup_positioner)
+        };
         let Some((origin, size, popup_size)) =
-            compute_popup_placement(self.hwnd(), &window_type, self.scale_factor())
+            compute_popup_placement(self.hwnd(), anchored, &popup_positioner, self.scale_factor())
         else {
             return;
         };
@@ -472,11 +475,37 @@ impl rwh_06::HasWindowHandle for Window {
 
 impl CoreWindow for Window {
     fn window_type(&self) -> WindowType {
-        self.window_state_lock().window_type.clone()
+        self.window_state_lock().window_type
     }
 
-    fn as_popup(&self) -> Option<&dyn CorePopup> {
-        matches!(self.window_type(), WindowType::Popup { .. }).then_some(self)
+    fn anchor_rect(&self) -> Option<(Position, Size)> {
+        self.window_state_lock().popup_positioner.anchor_rect
+    }
+
+    fn set_anchor(&self, anchor: WindowAnchor) {
+        self.window_state_lock().popup_positioner.anchor = Some(anchor);
+        self.reposition_popup();
+    }
+
+    fn set_anchor_rect(&self, position: Position, size: Size) {
+        self.window_state_lock().popup_positioner.anchor_rect = Some((position, size));
+        self.reposition_popup();
+    }
+
+    fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
+        self.window_state_lock().popup_positioner.constraint_adjustment =
+            Some(constraint_adjustment);
+        self.reposition_popup();
+    }
+
+    fn set_gravity(&self, gravity: WindowGravity) {
+        self.window_state_lock().popup_positioner.gravity = Some(gravity);
+        self.reposition_popup();
+    }
+
+    fn set_positioner_offset(&self, position: Position) {
+        self.window_state_lock().popup_positioner.positioner_offset = Some(position);
+        self.reposition_popup();
     }
 
     fn set_title(&self, text: &str) {
@@ -1221,71 +1250,6 @@ impl CoreWindow for Window {
     }
 }
 
-impl CorePopup for Window {
-    fn anchor_rect(&self) -> Option<(Position, Size)> {
-        let window_state = self.window_state_lock();
-        if let WindowType::Popup { anchor_rect: Some((position, size)), .. } =
-            &window_state.window_type
-        {
-            Some((*position, *size))
-        } else {
-            None
-        }
-    }
-
-    fn set_anchor(&self, anchor: PopupAnchor) {
-        {
-            let mut window_state = self.window_state_lock();
-            if let WindowType::Popup { anchor: stored, .. } = &mut window_state.window_type {
-                *stored = Some(anchor);
-            }
-        }
-        self.reposition_popup();
-    }
-
-    fn set_anchor_rect(&self, position: Position, size: Size) {
-        {
-            let mut window_state = self.window_state_lock();
-            if let WindowType::Popup { anchor_rect, .. } = &mut window_state.window_type {
-                *anchor_rect = Some((position, size));
-            }
-        }
-        self.reposition_popup();
-    }
-
-    fn set_constraint_adjustment(&self, constraint_adjustment: PopupConstraintAdjustment) {
-        {
-            let mut window_state = self.window_state_lock();
-            if let WindowType::Popup { constraint_adjustment: stored, .. } =
-                &mut window_state.window_type
-            {
-                *stored = Some(constraint_adjustment);
-            }
-        }
-        self.reposition_popup();
-    }
-
-    fn set_gravity(&self, gravity: PopupGravity) {
-        {
-            let mut window_state = self.window_state_lock();
-            if let WindowType::Popup { gravity: stored, .. } = &mut window_state.window_type {
-                *stored = Some(gravity);
-            }
-        }
-        self.reposition_popup();
-    }
-
-    fn set_positioner_offset(&self, position: Position) {
-        {
-            let mut window_state = self.window_state_lock();
-            if let WindowType::Popup { positioner_offset, .. } = &mut window_state.window_type {
-                *positioner_offset = Some(position);
-            }
-        }
-        self.reposition_popup();
-    }
-}
-
 fn outer_size_of(hwnd: HWND) -> PhysicalSize<u32> {
     util::WindowArea::Outer
         .get_rect(hwnd)
@@ -1295,8 +1259,8 @@ fn outer_size_of(hwnd: HWND) -> PhysicalSize<u32> {
         .unwrap()
 }
 
-// If we have a popup the position is relative to the parent window and not relative to the
-// screen. Therefore we have to translate it from the parent coordinate system to the display
+// If the window is anchored the position is relative to the parent window and not relative to
+// the screen. Therefore we have to translate it from the parent coordinate system to the display
 // coordinate system. Free function so it can be used both from `Window` and from an owned
 // popup's `hwnd`/`WindowState` alone (see `reposition_owned_popup`).
 fn translate_outer_position(
@@ -1309,7 +1273,7 @@ fn translate_outer_position(
     let mut point = POINT { x: position.x, y: position.y };
 
     let window_flags = window_state.lock().unwrap().window_flags;
-    if window_flags.contains(WindowFlags::POPUP) && !window_flags.contains(WindowFlags::CHILD) {
+    if window_flags.contains(WindowFlags::ANCHORED) && !window_flags.contains(WindowFlags::CHILD) {
         let parent = unsafe { GetParent(hwnd) };
         if !parent.is_null() {
             unsafe {
@@ -1321,43 +1285,38 @@ fn translate_outer_position(
     PhysicalPosition::new(point.x, point.y)
 }
 
-/// Computes a popup's new outer position and size from its positioner state, using
-/// [`winit_core::popup::place_popup`]. Returns `None` if `window_type` isn't
-/// [`WindowType::Popup`], the popup has no parent (which the Win32 backend never allows, see
-/// `init`), or its monitor's position can't be determined.
+/// Computes an anchored window's new outer position and size from its positioner state, using
+/// [`winit_core::window::place_popup`]. Returns `None` if the window isn't anchored, has no
+/// parent (which the Win32 backend never allows for a [`WindowType::Popup`], see `init`), or its
+/// monitor's position can't be determined.
 ///
 /// On success, returns `(origin, size, current_size)`:
-/// - `origin`: the popup's new outer position, in logical coordinates relative to the parent's
+/// - `origin`: the window's new outer position, in logical coordinates relative to the parent's
 ///   content area (see `translate_outer_position`/`set_outer_position`).
-/// - `size`: the popup's new outer size, as constrained by [`place_popup`]. Only differs from
-///   `current_size` when `constraint_adjustment` resizes the popup to fit its clip region.
-/// - `current_size`: the popup's outer size *before* this placement, i.e. `hwnd`'s current outer
+/// - `size`: the window's new outer size, as constrained by [`place_popup`]. Only differs from
+///   `current_size` when `constraint_adjustment` resizes the window to fit its clip region.
+/// - `current_size`: the window's outer size *before* this placement, i.e. `hwnd`'s current outer
 ///   size. Callers compare this against `size` to decide whether a resize is actually needed.
 fn compute_popup_placement(
     hwnd: HWND,
-    window_type: &WindowType,
+    anchored: bool,
+    popup_positioner: &WindowPositioner,
     scale_factor: f64,
 ) -> Option<(LogicalPosition<f64>, LogicalSize<f64>, LogicalSize<f64>)> {
-    let WindowType::Popup {
-        anchor,
-        anchor_rect,
-        positioner_offset,
-        gravity,
-        constraint_adjustment,
-    } = window_type
-    else {
+    if !anchored {
         return None;
-    };
+    }
 
-    let anchor = anchor.unwrap_or_default();
-    let gravity = gravity.unwrap_or_default();
-    let constraint_adjustment = constraint_adjustment.unwrap_or_default();
-    let anchor_rect = anchor_rect.unwrap_or((
+    let anchor = popup_positioner.anchor.unwrap_or_default();
+    let gravity = popup_positioner.gravity.unwrap_or_default();
+    let constraint_adjustment = popup_positioner.constraint_adjustment.unwrap_or_default();
+    let anchor_rect = popup_positioner.anchor_rect.unwrap_or((
         Position::Logical(LogicalPosition::new(0.0, 0.0)),
         Size::Logical(LogicalSize::new(1.0, 1.0)),
     ));
-    let positioner_offset =
-        positioner_offset.unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0)));
+    let positioner_offset = popup_positioner
+        .positioner_offset
+        .unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0)));
 
     let parent = unsafe { GetParent(hwnd) };
     if parent.is_null() {
@@ -1411,13 +1370,13 @@ fn compute_popup_placement(
 /// `WM_WINDOWPOSCHANGED`), so it's safe to update the OS window and `WindowState` directly
 /// instead of going through `EventLoopThreadExecutor` like the public `Window` API does.
 pub(crate) fn reposition_owned_popup(hwnd: HWND, window_state: &Mutex<WindowState>) {
-    let (window_type, scale_factor) = {
+    let (anchored, popup_positioner, scale_factor) = {
         let state = window_state.lock().unwrap();
-        (state.window_type.clone(), state.scale_factor)
+        (state.anchored, state.popup_positioner, state.scale_factor)
     };
 
     let Some((origin, size, popup_size)) =
-        compute_popup_placement(hwnd, &window_type, scale_factor)
+        compute_popup_placement(hwnd, anchored, &popup_positioner, scale_factor)
     else {
         return;
     };
@@ -1661,10 +1620,20 @@ unsafe fn init(
     let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
-    let is_popup = matches!(attributes.window_type, WindowType::Popup { .. });
+    let is_popup = matches!(attributes.window_type, WindowType::Popup);
+    // Whether this window is positioned relative to its parent via the anchor/gravity/
+    // positioner system -- either because it's a `WindowType::Popup`, or because anchor
+    // attributes were explicitly set on a `WindowType::Window` (Windows supports both).
+    let anchored = is_popup
+        || attributes.anchor.is_some()
+        || attributes.anchor_rect.is_some()
+        || attributes.positioner_offset.is_some()
+        || attributes.gravity.is_some()
+        || attributes.constraint_adjustment.is_some();
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::POPUP, is_popup);
+    window_flags.set(WindowFlags::ANCHORED, anchored);
     window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
         .set(WindowFlags::ALWAYS_ON_TOP, attributes.window_level == WindowLevel::AlwaysOnTop);

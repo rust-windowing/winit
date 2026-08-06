@@ -1,24 +1,14 @@
-//! The [`Popup`] trait and associated types
-//! The anchoring system is inspired from the wayland protocol
-//! ([XDG Positioner](https://wayland.app/protocols/xdg-shell#xdg_positioner))
-//! and implemented for the following platforms:
-//! - Linux Wayland
-//! - Windows
-//! - MacOs
+//! Anchor-based window placement: the types describing a placement request, and the
+//! `xdg_positioner`-style algorithm ([`place_popup`]) that resolves them into a concrete
+//! position and size.
 
-use core::fmt;
-
-use dpi::{LogicalPosition, LogicalSize, Position, Size};
-
-use crate::as_any::AsAny;
-
-impl_dyn_casting!(Popup);
+use dpi::{LogicalPosition, LogicalSize};
 
 /// Anchor rect within the parent surface
 /// See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_anchor_rect
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[non_exhaustive]
-pub enum PopupAnchor {
+pub enum WindowAnchor {
     #[default]
     Center,
     Top,
@@ -35,7 +25,7 @@ pub enum PopupAnchor {
 /// See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_gravity
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[non_exhaustive]
-pub enum PopupGravity {
+pub enum WindowGravity {
     #[default]
     Center,
     Top,
@@ -53,7 +43,7 @@ bitflags::bitflags! {
     /// surface to be constrained See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_constraint_adjustment
     /// For all other platforms than wayland the behaviour is simulated on the winit side
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-    pub struct PopupConstraintAdjustment: u32 {
+    pub struct WindowConstraintAdjustment: u32 {
         const SLIDE_X = 1 << 0;
         const SLIDE_Y = 1 << 1;
         const FLIP_X = 1 << 2;
@@ -63,67 +53,37 @@ bitflags::bitflags! {
     }
 }
 
-/// Represents a popup window
-pub trait Popup: AsAny + Send + Sync + fmt::Debug {
-    fn anchor_rect(&self) -> Option<(Position, Size)>;
-
-    /// Sets the anchor edge of the parent surface the popup is positioned relative to.
-    ///
-    /// See [`PopupAnchor`] for the available edges and corners.
-    fn set_anchor(&self, anchor: PopupAnchor);
-
-    /// Sets the anchor rectangle within the parent surface the popup is positioned relative to.
-    ///
-    /// `position` is the top-left corner of the rectangle relative to the parent window's content
-    /// area, and `size` its dimensions.
-    fn set_anchor_rect(&self, position: Position, size: Size);
-
-    /// Sets how the compositor should reposition the popup when it would be constrained by screen
-    /// edges.
-    ///
-    /// See [`PopupConstraintAdjustment`] for the available adjustment flags.
-    fn set_constraint_adjustment(&self, constraint_adjustment: PopupConstraintAdjustment);
-
-    /// Sets the direction the popup surface extends from the anchor point.
-    ///
-    /// See [`PopupGravity`] for the available directions.
-    fn set_gravity(&self, gravity: PopupGravity);
-
-    /// Set the popup position relative to the anchor rect
-    fn set_positioner_offset(&self, position: Position);
-}
-
 /// Returns, as fractions of the anchor rectangle's width/height, the point within that rectangle
 /// that the popup is anchored to (0.0 = left/top edge, 0.5 = center, 1.0 = right/bottom edge).
 /// Mirrors the Wayland `xdg_positioner` anchor semantics.
-fn anchor_fraction(anchor: PopupAnchor) -> (f64, f64) {
+fn anchor_fraction(anchor: WindowAnchor) -> (f64, f64) {
     match anchor {
-        PopupAnchor::Center => (0.5, 0.5),
-        PopupAnchor::Top => (0.5, 0.0),
-        PopupAnchor::Bottom => (0.5, 1.0),
-        PopupAnchor::Left => (0.0, 0.5),
-        PopupAnchor::Right => (1.0, 0.5),
-        PopupAnchor::TopLeft => (0.0, 0.0),
-        PopupAnchor::BottomLeft => (0.0, 1.0),
-        PopupAnchor::TopRight => (1.0, 0.0),
-        PopupAnchor::BottomRight => (1.0, 1.0),
+        WindowAnchor::Center => (0.5, 0.5),
+        WindowAnchor::Top => (0.5, 0.0),
+        WindowAnchor::Bottom => (0.5, 1.0),
+        WindowAnchor::Left => (0.0, 0.5),
+        WindowAnchor::Right => (1.0, 0.5),
+        WindowAnchor::TopLeft => (0.0, 0.0),
+        WindowAnchor::BottomLeft => (0.0, 1.0),
+        WindowAnchor::TopRight => (1.0, 0.0),
+        WindowAnchor::BottomRight => (1.0, 1.0),
     }
 }
 
 /// Returns, as fractions of the popup's own width/height, the offset from the anchor point to
 /// the popup's origin (top-left corner). For example a gravity of `BottomRight` places the
 /// popup's top-left corner at the anchor point, so the popup grows down and to the right.
-fn gravity_fraction(gravity: PopupGravity) -> (f64, f64) {
+fn gravity_fraction(gravity: WindowGravity) -> (f64, f64) {
     match gravity {
-        PopupGravity::Center => (-0.5, -0.5),
-        PopupGravity::Top => (-0.5, -1.0),
-        PopupGravity::Bottom => (-0.5, 0.0),
-        PopupGravity::Left => (-1.0, -0.5),
-        PopupGravity::Right => (0.0, -0.5),
-        PopupGravity::TopLeft => (-1.0, -1.0),
-        PopupGravity::BottomLeft => (-1.0, 0.0),
-        PopupGravity::TopRight => (0.0, -1.0),
-        PopupGravity::BottomRight => (0.0, 0.0),
+        WindowGravity::Center => (-0.5, -0.5),
+        WindowGravity::Top => (-0.5, -1.0),
+        WindowGravity::Bottom => (-0.5, 0.0),
+        WindowGravity::Left => (-1.0, -0.5),
+        WindowGravity::Right => (0.0, -0.5),
+        WindowGravity::TopLeft => (-1.0, -1.0),
+        WindowGravity::BottomLeft => (-1.0, 0.0),
+        WindowGravity::TopRight => (0.0, -1.0),
+        WindowGravity::BottomRight => (0.0, 0.0),
     }
 }
 
@@ -165,7 +125,7 @@ fn constrain_axis(
 
 /// Finds a placement for a popup of `popup_size`, anchored to a rectangle `anchor` (in the same
 /// coordinate space as `clip`), nudged by `offset` (the user-facing offset from the anchor point,
-/// set via [`Popup::set_positioner_offset`] -- not part of the anchor rectangle's geometry), and
+/// set via [`Window::set_positioner_offset`] -- not part of the anchor rectangle's geometry), and
 /// constrained to stay within the `clip` rectangle according to `constraint_adjustment`.
 ///
 /// This mirrors the Wayland `xdg_positioner` placement algorithm used natively on Wayland, for
@@ -177,10 +137,12 @@ fn constrain_axis(
 /// or shrunk (resize) to fit. Axes are adjusted independently. If none of the flags are set for an
 /// axis, that axis is left as computed even if it doesn't fit, matching the protocol's "none"
 /// behavior.
+///
+/// [`Window::set_positioner_offset`]: super::Window::set_positioner_offset
 pub fn place_popup(
-    anchor: PopupAnchor,
-    gravity: PopupGravity,
-    constraint_adjustment: PopupConstraintAdjustment,
+    anchor: WindowAnchor,
+    gravity: WindowGravity,
+    constraint_adjustment: WindowConstraintAdjustment,
     (anchor_position, anchor_size): (LogicalPosition<f64>, LogicalSize<f64>),
     offset: LogicalPosition<f64>,
     popup_size: LogicalSize<f64>,
@@ -213,9 +175,9 @@ pub fn place_popup(
         (clip_min_x, clip_max_x),
         flipped_x,
         (
-            constraint_adjustment.contains(PopupConstraintAdjustment::FLIP_X),
-            constraint_adjustment.contains(PopupConstraintAdjustment::SLIDE_X),
-            constraint_adjustment.contains(PopupConstraintAdjustment::RESIZE_X),
+            constraint_adjustment.contains(WindowConstraintAdjustment::FLIP_X),
+            constraint_adjustment.contains(WindowConstraintAdjustment::SLIDE_X),
+            constraint_adjustment.contains(WindowConstraintAdjustment::RESIZE_X),
         ),
     );
     let (y, height) = constrain_axis(
@@ -224,9 +186,9 @@ pub fn place_popup(
         (clip_min_y, clip_max_y),
         flipped_y,
         (
-            constraint_adjustment.contains(PopupConstraintAdjustment::FLIP_Y),
-            constraint_adjustment.contains(PopupConstraintAdjustment::SLIDE_Y),
-            constraint_adjustment.contains(PopupConstraintAdjustment::RESIZE_Y),
+            constraint_adjustment.contains(WindowConstraintAdjustment::FLIP_Y),
+            constraint_adjustment.contains(WindowConstraintAdjustment::SLIDE_Y),
+            constraint_adjustment.contains(WindowConstraintAdjustment::RESIZE_Y),
         ),
     );
 
@@ -243,7 +205,7 @@ mod tests {
 
     /// Prints an ASCII rendering of the clip region (`.`), the anchor rect (`A`), and the
     /// resulting popup rect (`P`, `X` where it overlaps the anchor) for a quick visual sanity
-    /// check. Run with `cargo test -p winit-core popup -- --nocapture` to see it.
+    /// check. Run with `cargo test -p winit-core positioner -- --nocapture` to see it.
     // `println!` (rather than `tracing`) is intentional: this is only meant to be read directly
     // via `--nocapture`, which doesn't require a tracing subscriber to be installed.
     #[allow(clippy::disallowed_macros)]
@@ -323,11 +285,11 @@ mod tests {
         let clip_position = LogicalPosition::new(0., 0.);
         let clip_size = LogicalSize::new(0., 0.);
 
-        let place = |anchor: PopupAnchor, gravity: PopupGravity| {
+        let place = |anchor: WindowAnchor, gravity: WindowGravity| {
             place_popup(
                 anchor,
                 gravity,
-                PopupConstraintAdjustment::empty(),
+                WindowConstraintAdjustment::empty(),
                 (anchor_position, anchor_size),
                 LogicalPosition::new(0., 0.),
                 popup_size,
@@ -337,7 +299,7 @@ mod tests {
 
         // BottomRight gravity anchored to the anchor's bottom-right corner: the popup's top-left
         // corner sits exactly at the anchor rect's bottom-right corner.
-        let (origin, size) = place(PopupAnchor::BottomRight, PopupGravity::BottomRight);
+        let (origin, size) = place(WindowAnchor::BottomRight, WindowGravity::BottomRight);
         draw(
             "gravity: BottomRight anchor + BottomRight gravity",
             (clip_position, clip_size),
@@ -350,7 +312,7 @@ mod tests {
         // TopLeft gravity anchored to the anchor's top-left corner: the popup's bottom-right
         // corner sits exactly at the anchor rect's top-left corner, so the popup extends
         // up-left.
-        let (origin, size) = place(PopupAnchor::TopLeft, PopupGravity::TopLeft);
+        let (origin, size) = place(WindowAnchor::TopLeft, WindowGravity::TopLeft);
         draw(
             "gravity: TopLeft anchor + TopLeft gravity",
             (clip_position, clip_size),
@@ -361,7 +323,7 @@ mod tests {
 
         // Bottom anchor + Bottom gravity: horizontally centered on the anchor, growing downward
         // from its bottom edge.
-        let (origin, size) = place(PopupAnchor::Bottom, PopupGravity::Bottom);
+        let (origin, size) = place(WindowAnchor::Bottom, WindowGravity::Bottom);
         draw(
             "gravity: Bottom anchor + Bottom gravity",
             (clip_position, clip_size),
@@ -374,7 +336,7 @@ mod tests {
         );
 
         // Center anchor + Center gravity centers the popup exactly on the anchor rect's center.
-        let (origin, size) = place(PopupAnchor::Center, PopupGravity::Center);
+        let (origin, size) = place(WindowAnchor::Center, WindowGravity::Center);
         draw(
             "gravity: Center anchor + Center gravity",
             (clip_position, clip_size),
@@ -405,14 +367,14 @@ mod tests {
         let anchor_size = LogicalSize::new(10., 10.);
         let popup_size = LogicalSize::new(50., 50.);
 
-        let flip_only = PopupConstraintAdjustment::FLIP_X | PopupConstraintAdjustment::FLIP_Y;
+        let flip_only = WindowConstraintAdjustment::FLIP_X | WindowConstraintAdjustment::FLIP_Y;
 
         // Without flipping the popup would start at x=290 and end at x=340, past the clip's
         // right edge (300); flipping mirrors both anchor edge and gravity, so it should end up
         // entirely to the left of the anchor rect instead, fully inside the clip region.
         let (origin, size) = place_popup(
-            PopupAnchor::TopRight,
-            PopupGravity::BottomRight,
+            WindowAnchor::TopRight,
+            WindowGravity::BottomRight,
             flip_only,
             (anchor_position, anchor_size),
             LogicalPosition::new(0., 0.),
@@ -439,11 +401,11 @@ mod tests {
         let anchor_position = LogicalPosition::new(280., 280.);
         let popup_size = LogicalSize::new(50., 50.);
 
-        let slide_only = PopupConstraintAdjustment::SLIDE_X | PopupConstraintAdjustment::SLIDE_Y;
+        let slide_only = WindowConstraintAdjustment::SLIDE_X | WindowConstraintAdjustment::SLIDE_Y;
 
         let (origin, size) = place_popup(
-            PopupAnchor::BottomRight,
-            PopupGravity::BottomRight,
+            WindowAnchor::BottomRight,
+            WindowGravity::BottomRight,
             slide_only,
             (anchor_position, LogicalSize::new(0., 0.)),
             LogicalPosition::new(0., 0.),
@@ -470,11 +432,12 @@ mod tests {
         let anchor_position = LogicalPosition::new(0., 0.);
         let popup_size = LogicalSize::new(500., 500.);
 
-        let resize_only = PopupConstraintAdjustment::RESIZE_X | PopupConstraintAdjustment::RESIZE_Y;
+        let resize_only =
+            WindowConstraintAdjustment::RESIZE_X | WindowConstraintAdjustment::RESIZE_Y;
 
         let (origin, size) = place_popup(
-            PopupAnchor::TopLeft,
-            PopupGravity::BottomRight,
+            WindowAnchor::TopLeft,
+            WindowGravity::BottomRight,
             resize_only,
             (anchor_position, LogicalSize::new(0., 0.)),
             LogicalPosition::new(0., 0.),
@@ -501,9 +464,9 @@ mod tests {
         let popup_size = LogicalSize::new(50., 50.);
 
         let (origin, size) = place_popup(
-            PopupAnchor::TopLeft,
-            PopupGravity::BottomRight,
-            PopupConstraintAdjustment::empty(),
+            WindowAnchor::TopLeft,
+            WindowGravity::BottomRight,
+            WindowConstraintAdjustment::empty(),
             (anchor_position, LogicalSize::new(0., 0.)),
             LogicalPosition::new(0., 0.),
             popup_size,
@@ -529,9 +492,9 @@ mod tests {
         let popup_size = LogicalSize::new(50., 50.);
 
         let (origin, size) = place_popup(
-            PopupAnchor::TopLeft,
-            PopupGravity::BottomRight,
-            PopupConstraintAdjustment::all(),
+            WindowAnchor::TopLeft,
+            WindowGravity::BottomRight,
+            WindowConstraintAdjustment::all(),
             (anchor_position, LogicalSize::new(0., 0.)),
             LogicalPosition::new(0., 0.),
             popup_size,

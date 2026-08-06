@@ -51,11 +51,19 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
-- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`), with a
-  cross-platform `Popup` trait for controlling anchor, gravity, and constraint
-  adjustment (`Window::as_popup`). On Windows and macOS, which have no native
-  positioner concept, the anchor/gravity/constraint-adjustment placement is
-  computed by winit itself, mirroring Wayland's `xdg_positioner` behavior.
+- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`), with
+  `WindowAttributes::with_anchor`, `with_anchor_rect`, `with_positioner_offset`,
+  `with_gravity` and `with_constraint_adjustment` for configuring their placement
+  (using the new `WindowAnchor`, `WindowGravity` and `WindowConstraintAdjustment`
+  types), and matching `Window::anchor_rect`/`set_anchor`/`set_anchor_rect`/
+  `set_gravity`/`set_constraint_adjustment`/`set_positioner_offset` methods for
+  controlling them at runtime. These work on every `Window`, popup or not; use
+  `Window::window_type` to tell whether a given window is a genuine
+  `WindowType::Popup`. On Windows and macOS, which have no native positioner
+  concept, the placement is computed by winit itself, mirroring Wayland's
+  `xdg_positioner` behavior, and it also works for a plain `WindowType::Window`
+  that has a parent; on Wayland the positioner is part of the `xdg_popup`
+  protocol, so it only applies to `WindowType::Popup`.
 
 ### Changed
 

@@ -32,9 +32,9 @@ use tracing::{info, warn};
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::popup::{PopupAnchor, PopupConstraintAdjustment, PopupGravity};
 use winit_core::window::{
-    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
+    CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
+    WindowAnchor, WindowConstraintAdjustment, WindowGravity, WindowId,
 };
 
 use crate::event_loop::OwnedDisplayHandle;
@@ -70,10 +70,10 @@ pub enum WindowType {
         parent_origin: LogicalPosition<i32>,
 
         anchor_rect: (LogicalPosition<i32>, LogicalSize<i32>),
-        anchor: Option<PopupAnchor>,
+        anchor: Option<WindowAnchor>,
         positioner_offset: Option<Position>,
-        gravity: Option<PopupGravity>,
-        constraint_adjustment: Option<PopupConstraintAdjustment>,
+        gravity: Option<WindowGravity>,
+        constraint_adjustment: Option<WindowConstraintAdjustment>,
     },
 }
 

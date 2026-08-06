@@ -1,4 +1,6 @@
 //! The [`Window`] trait and associated types.
+mod positioner;
+
 use std::fmt;
 
 use bitflags::bitflags;
@@ -6,6 +8,7 @@ use cursor_icon::CursorIcon;
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
+pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity, place_popup};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +17,6 @@ use crate::cursor::Cursor;
 use crate::error::RequestError;
 use crate::icon::Icon;
 use crate::monitor::{Fullscreen, MonitorHandle};
-use crate::popup::{Popup, PopupAnchor, PopupConstraintAdjustment, PopupGravity};
 
 /// Identifier of a window. Unique for each window.
 ///
@@ -49,7 +51,7 @@ impl fmt::Debug for WindowId {
 
 /// The role of a window, used to request platform-specific window behavior.
 #[non_exhaustive]
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum WindowType {
     /// A normal, top-level window.
     #[default]
@@ -58,38 +60,30 @@ pub enum WindowType {
     /// tooltip. Requires a parent set via [`WindowAttributes::with_parent_window`], and its
     /// position is interpreted relative to that parent.
     ///
+    /// The anchor/gravity/positioning system described on [`WindowAttributes::with_anchor`] and
+    /// its siblings always applies to a `Popup`. On macOS and Windows it can also be used with
+    /// [`WindowType::Window`], see those methods for details.
+    ///
     /// ## Platform-specific
     ///
     /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
     ///   corners for it. To get a rounded, native-looking popup, create it transparent (via
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
-    Popup {
-        /// Sets the edge or corner of the anchor rect used to position the popup relative to it
-        ///
-        /// Combined with [`gravity`](Self::gravity), this controls which corner/edge of
-        /// the anchor rectangle the popup is pinned to.
-        anchor: Option<PopupAnchor>,
-        /// Set the anchor rectangle the popup is positioned relative to.
-        ///
-        /// `position` is the top-left corner of the rectangle relative to the parent window's
-        /// content area, and `size` its dimensions. Defaults to a `1x1` rectangle at the
-        /// content origin. This value overwrites the position value set with
-        /// `with_position` in the window attributes
-        anchor_rect: Option<(Position, Size)>,
-        /// Position relative to the anchor rect
-        positioner_offset: Option<Position>,
-        /// Sets the direction the popup surface extends away from the anchor point.
-        ///
-        /// Combined with [`anchor`](Self::anchor), this determines the final position of the
-        /// popup relative to its anchor rectangle
-        gravity: Option<PopupGravity>,
-        /// Sets how the compositor should reposition the popup when it would be constrained.
-        ///
-        /// The flags in [`PopupConstraintAdjustment`] can be combined to allow sliding, flipping,
-        /// and/or resizing the popup independently on each axis
-        constraint_adjustment: Option<PopupConstraintAdjustment>,
-    },
+    Popup,
+}
+
+/// The positioner state backing a window's anchor-based placement.
+///
+/// Groups the properties settable via [`WindowAttributes::with_anchor`] and its siblings, and
+/// mutated at runtime through [`Window::set_anchor`] and its siblings.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct WindowPositioner {
+    pub anchor: Option<WindowAnchor>,
+    pub anchor_rect: Option<(Position, Size)>,
+    pub positioner_offset: Option<Position>,
+    pub gravity: Option<WindowGravity>,
+    pub constraint_adjustment: Option<WindowConstraintAdjustment>,
 }
 
 /// Attributes used when creating a window.
@@ -131,6 +125,16 @@ pub struct WindowAttributes {
     pub fullscreen: Option<Fullscreen>,
     pub platform: Option<Box<dyn PlatformWindowAttributes>>,
     pub window_type: WindowType,
+    /// See [`WindowAttributes::with_anchor`].
+    pub anchor: Option<WindowAnchor>,
+    /// See [`WindowAttributes::with_anchor_rect`].
+    pub anchor_rect: Option<(Position, Size)>,
+    /// See [`WindowAttributes::with_positioner_offset`].
+    pub positioner_offset: Option<Position>,
+    /// See [`WindowAttributes::with_gravity`].
+    pub gravity: Option<WindowGravity>,
+    /// See [`WindowAttributes::with_constraint_adjustment`].
+    pub constraint_adjustment: Option<WindowConstraintAdjustment>,
 }
 
 impl WindowAttributes {
@@ -462,7 +466,103 @@ impl WindowAttributes {
     /// Returns if the window type is a popup or a normal window
     #[inline]
     pub fn window_type(&self) -> WindowType {
-        self.window_type.clone()
+        self.window_type
+    }
+
+    /// Sets the edge or corner of the anchor rect used to position the window relative to it.
+    ///
+    /// Combined with [`with_gravity`](Self::with_gravity), this controls which corner/edge of
+    /// the anchor rectangle the window is pinned to.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`], as
+    ///   long as a parent window is set via [`with_parent_window`](Self::with_parent_window).
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_anchor(mut self, anchor: WindowAnchor) -> Self {
+        self.anchor = Some(anchor);
+        self
+    }
+
+    /// Set the anchor rectangle the window is positioned relative to.
+    ///
+    /// `position` is the top-left corner of the rectangle relative to the parent window's
+    /// content area, and `size` its dimensions. Defaults to a `1x1` rectangle at the content
+    /// origin. This value overwrites the position value set with
+    /// [`with_position`](Self::with_position).
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`], as
+    ///   long as a parent window is set via [`with_parent_window`](Self::with_parent_window).
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_anchor_rect<P: Into<Position>, S: Into<Size>>(
+        mut self,
+        position: P,
+        size: S,
+    ) -> Self {
+        self.anchor_rect = Some((position.into(), size.into()));
+        self
+    }
+
+    /// Sets the window's position relative to the anchor rect.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`], as
+    ///   long as a parent window is set via [`with_parent_window`](Self::with_parent_window).
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_positioner_offset<P: Into<Position>>(mut self, position: P) -> Self {
+        self.positioner_offset = Some(position.into());
+        self
+    }
+
+    /// Sets the direction the window surface extends away from the anchor point.
+    ///
+    /// Combined with [`with_anchor`](Self::with_anchor), this determines the final position of
+    /// the window relative to its anchor rectangle.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`], as
+    ///   long as a parent window is set via [`with_parent_window`](Self::with_parent_window).
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_gravity(mut self, gravity: WindowGravity) -> Self {
+        self.gravity = Some(gravity);
+        self
+    }
+
+    /// Sets how the window should be repositioned when it would be constrained.
+    ///
+    /// The flags in [`WindowConstraintAdjustment`] can be combined to allow sliding, flipping,
+    /// and/or resizing the window independently on each axis.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`], as
+    ///   long as a parent window is set via [`with_parent_window`](Self::with_parent_window).
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_constraint_adjustment(
+        mut self,
+        constraint_adjustment: WindowConstraintAdjustment,
+    ) -> Self {
+        self.constraint_adjustment = Some(constraint_adjustment);
+        self
     }
 }
 
@@ -491,7 +591,12 @@ impl Clone for WindowAttributes {
             parent_window: self.parent_window.clone(),
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
-            window_type: self.window_type.clone(),
+            window_type: self.window_type,
+            anchor: self.anchor,
+            anchor_rect: self.anchor_rect,
+            positioner_offset: self.positioner_offset,
+            gravity: self.gravity,
+            constraint_adjustment: self.constraint_adjustment,
         }
     }
 }
@@ -523,6 +628,11 @@ impl Default for WindowAttributes {
             cursor: Cursor::default(),
             blur: Default::default(),
             window_type: Default::default(),
+            anchor: Default::default(),
+            anchor_rect: Default::default(),
+            positioner_offset: Default::default(),
+            gravity: Default::default(),
+            constraint_adjustment: Default::default(),
         }
     }
 }
@@ -567,14 +677,87 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     /// Returns the window type of this window
     fn window_type(&self) -> WindowType;
 
-    /// Returns this window as a [`Popup`] if the window is a Popup, otherwise None
+    /// Returns the anchor rectangle the window is positioned relative to, if it has one.
     ///
-    /// Distinct implementation for:
-    /// - **Wayland**
-    /// - **Windows**
-    /// - **macOs**
-    fn as_popup(&self) -> Option<&dyn Popup> {
+    /// `position` is the top-left corner of the rectangle relative to the parent window's
+    /// content area, and `size` its dimensions. Returns `None` if this window doesn't use
+    /// anchor positioning, see [`WindowAttributes::with_anchor_rect`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Always `None` unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn anchor_rect(&self) -> Option<(Position, Size)> {
         None
+    }
+
+    /// Sets the edge or corner of the anchor rect used to position the window relative to it.
+    ///
+    /// Combined with [`set_gravity`](Self::set_gravity), this controls which corner/edge of the
+    /// anchor rectangle the window is pinned to. No-op if this window doesn't use anchor
+    /// positioning, see [`WindowAttributes::with_anchor`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_anchor(&self, anchor: WindowAnchor) {
+        let _ = anchor;
+    }
+
+    /// Sets the anchor rectangle the window is positioned relative to.
+    ///
+    /// `position` is the top-left corner of the rectangle relative to the parent window's
+    /// content area, and `size` its dimensions. No-op if this window doesn't use anchor
+    /// positioning, see [`WindowAttributes::with_anchor_rect`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_anchor_rect(&self, position: Position, size: Size) {
+        let _ = (position, size);
+    }
+
+    /// Sets how the window should be repositioned when it would be constrained.
+    ///
+    /// The flags in [`WindowConstraintAdjustment`] can be combined to allow sliding, flipping,
+    /// and/or resizing the window independently on each axis. No-op if this window doesn't use
+    /// anchor positioning, see [`WindowAttributes::with_constraint_adjustment`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
+        let _ = constraint_adjustment;
+    }
+
+    /// Sets the direction the window surface extends away from the anchor point.
+    ///
+    /// Combined with [`set_anchor`](Self::set_anchor), this determines the final position of the
+    /// window relative to its anchor rectangle. No-op if this window doesn't use anchor
+    /// positioning, see [`WindowAttributes::with_gravity`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_gravity(&self, gravity: WindowGravity) {
+        let _ = gravity;
+    }
+
+    /// Sets the window's position relative to the anchor rect.
+    ///
+    /// No-op if this window doesn't use anchor positioning, see
+    /// [`WindowAttributes::with_positioner_offset`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_positioner_offset(&self, position: Position) {
+        let _ = position;
     }
 
     /// Returns an identifier unique to the window.
