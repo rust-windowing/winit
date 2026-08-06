@@ -1,5 +1,5 @@
 use std::any::Any;
-use std::cell::{Cell, Ref, RefCell};
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -14,25 +14,17 @@ use windows_sys::Win32::System::Ole::{
 use winit_core::application::ApplicationHandler;
 use winit_core::data_transfer::DataTransferId;
 use winit_core::event::{DeviceEvent, DeviceId, StartCause, SurfaceSizeWriter, WindowEvent};
-use winit_core::event_loop::{ActiveEventLoop as RootActiveEventLoop, DndAction};
+use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
 use winit_core::window::WindowId;
 
 use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
-use crate::dnd::{DataObject, DropEffect, DropSource, SourceDataObject, drop_effect_to_dnd_action};
+use crate::data_transfer::{
+    DataTransferState, DropEffect, DropSource, SourceDataObject, drop_effect_to_dnd_action,
+};
 use crate::event_loop::{GWL_USERDATA, WindowData};
 use crate::util::get_window_long;
 
 type EventHandler = Cell<Option<&'static mut (dyn ApplicationHandler + 'static)>>;
-
-/// State for the single drag-and-drop transfer currently in flight (OLE guarantees at most one
-/// active drag per process).
-#[derive(Debug)]
-pub(super) struct DragState {
-    pub(super) id: DataTransferId,
-    pub(super) window_id: WindowId,
-    pub(super) data: Arc<DataObject>,
-    pub(super) actions: Vec<DndAction>,
-}
 
 pub(super) struct PendingDrag {
     pub(super) window_id: WindowId,
@@ -68,9 +60,11 @@ pub(crate) struct EventLoopRunner {
     event_handler: Rc<EventHandler>,
     event_buffer: RefCell<VecDeque<Event>>,
 
-    /// The currently in-flight drag transfer, if any, alive between `DragEntered` and
-    /// `DragLeft`/`DragDropped`.
-    pub(super) drag_state: RefCell<Option<DragState>>,
+    /// The in-progress drag-and-drop and clipboard transfers.
+    data_transfer: DataTransferState,
+
+    /// All currently-open windows, for events that are not tied to a single window.
+    windows: RefCell<Vec<WindowId>>,
 
     /// `Some(_)` while `start_drag` has `DoDragDrop` on the call stack.
     pub(crate) source_drag: Cell<Option<SourceDrag>>,
@@ -141,7 +135,8 @@ impl EventLoopRunner {
             last_events_cleared: Cell::new(Instant::now()),
             event_handler: Rc::new(Cell::new(None)),
             event_buffer: RefCell::new(VecDeque::new()),
-            drag_state: RefCell::new(None),
+            data_transfer: DataTransferState::default(),
+            windows: RefCell::new(Vec::new()),
             source_drag: Cell::new(None),
             pending_drag: RefCell::new(None),
             pending_source_drag_cleanup: Cell::new(None),
@@ -211,50 +206,20 @@ impl EventLoopRunner {
         self.pending_source_drag_cleanup.set(Some(id));
     }
 
-    pub(crate) fn register_data_transfer(
-        &self,
-        id: DataTransferId,
-        window_id: WindowId,
-        data: Arc<DataObject>,
-    ) {
-        // By default, no actions have been set as valid by the target.
-        *self.drag_state.borrow_mut() =
-            Some(DragState { id, window_id, data, actions: Default::default() });
+    pub(crate) fn data_transfer(&self) -> &DataTransferState {
+        &self.data_transfer
     }
 
-    pub(crate) fn remove_data_transfer(&self, id: DataTransferId) {
-        let mut state = self.drag_state.borrow_mut();
-        if state.as_ref().is_some_and(|s| s.id == id) {
-            *state = None;
-        }
+    pub(crate) fn register_window(&self, id: WindowId) {
+        self.windows.borrow_mut().push(id);
     }
 
-    pub(super) fn drag_state(&self, id: DataTransferId) -> Option<Ref<'_, DragState>> {
-        Ref::filter_map(self.drag_state.borrow(), |state| state.as_ref().filter(|s| s.id == id))
-            .ok()
+    pub(crate) fn unregister_window(&self, id: WindowId) {
+        self.windows.borrow_mut().retain(|window| *window != id);
     }
 
-    pub(crate) fn current_drag_actions(&self, id: DataTransferId) -> Ref<'_, [DndAction]> {
-        Ref::map(self.drag_state.borrow(), |state| {
-            state.as_ref().filter(|s| s.id == id).map(|s| &s.actions[..]).unwrap_or_default()
-        })
-    }
-
-    pub(crate) fn proposed_dnd_action(
-        &self,
-        id: DataTransferId,
-        effects: DropEffect,
-    ) -> Option<DndAction> {
-        self.current_drag_actions(id).iter().copied().find(|action| {
-            let effect = match action {
-                DndAction::Move => DROPEFFECT_MOVE,
-                DndAction::Copy => DROPEFFECT_COPY,
-                DndAction::Link => DROPEFFECT_LINK,
-                _ => return false,
-            };
-
-            (effects & effect) != 0
-        })
+    pub(super) fn window_ids(&self) -> Vec<WindowId> {
+        self.windows.borrow().clone()
     }
 
     /// Associate the application's event handler with the runner.
@@ -305,7 +270,8 @@ impl EventLoopRunner {
             last_events_cleared: _,
             event_handler,
             event_buffer: _,
-            drag_state,
+            data_transfer,
+            windows: _,
             source_drag,
             pending_drag,
             pending_source_drag_cleanup,
@@ -315,7 +281,7 @@ impl EventLoopRunner {
         panic_error.set(None);
         exit.set(None);
         event_handler.set(None);
-        drag_state.take();
+        data_transfer.reset();
         source_drag.set(None);
         pending_drag.take();
         pending_source_drag_cleanup.set(None);
@@ -463,7 +429,7 @@ impl EventLoopRunner {
         // The app's buffered `DragDropped` handler (if any) has now had its chance to call
         // `data_transfer(id)`; safe to release the cached `DragState` for a deferred self-drop.
         if let Some(id) = self.pending_source_drag_cleanup.take() {
-            self.remove_data_transfer(id);
+            self.data_transfer.remove_drag(id);
         }
     }
 

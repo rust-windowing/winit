@@ -9,9 +9,7 @@ use std::{io, panic, ptr};
 
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::warn;
-use windows_sys::Win32::Foundation::{
-    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
-};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, POINT, POINTS, RECT, S_OK, WPARAM};
 use windows_sys::Win32::Graphics::Dwm::{
     DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_SYSTEMBACKDROP_TYPE,
     DWM_WINDOW_CORNER_PREFERENCE, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
@@ -26,7 +24,7 @@ use windows_sys::Win32::Graphics::Gdi::{
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
 };
-use windows_sys::Win32::System::Ole::{OleInitialize, RegisterDragDrop};
+use windows_sys::Win32::System::Ole::RegisterDragDrop;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     EnableWindow, GetActiveWindow, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, MapVirtualKeyW, ReleaseCapture,
@@ -58,10 +56,10 @@ use winit_core::window::{
 };
 
 use crate::dark_mode::try_theme;
+use crate::data_transfer::FileDropHandler;
 use crate::definitions::{
     CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
 };
-use crate::dnd::FileDropHandler;
 use crate::dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi};
 use crate::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID, Event, EventLoopRunner};
 use crate::icon::{IconType, WinCursor};
@@ -1272,17 +1270,8 @@ impl InitData<'_> {
 
     unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData {
         let file_drop_handler = if self.win_attributes.drag_and_drop {
-            let ole_init_result = unsafe { OleInitialize(ptr::null_mut()) };
-            // It is ok if the initialize result is `S_FALSE` because it might happen that
-            // multiple windows are created on the same thread.
-            if ole_init_result == OLE_E_WRONGCOMPOBJ {
-                panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
-            } else if ole_init_result == RPC_E_CHANGED_MODE {
-                panic!(
-                    "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. Make sure other \
-                     crates are not using multithreaded COM library on the same thread or disable \
-                     drag and drop support."
-                );
+            if let Err(err) = crate::data_transfer::ensure_ole_initialized() {
+                panic!("{err}");
             }
 
             let file_drop_runner = self.runner.clone();
@@ -1327,6 +1316,7 @@ impl InitData<'_> {
         });
 
         result.map(|(win, userdata)| {
+            self.runner.register_window(win.id());
             self.window = Some(win);
             let userdata = Box::into_raw(Box::new(userdata));
             userdata as _

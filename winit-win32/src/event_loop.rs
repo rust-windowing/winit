@@ -13,13 +13,14 @@ use std::{fmt, mem, panic, ptr};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use windows_sys::Win32::Foundation::{
-    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
+    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, S_OK, WAIT_FAILED, WPARAM,
 };
 use windows_sys::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, MonitorFromWindow,
     RDW_INTERNALPAINT, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
 };
-use windows_sys::Win32::System::Ole::RevokeDragDrop;
+use windows_sys::Win32::System::DataExchange::CountClipboardFormats;
+use windows_sys::Win32::System::Ole::{OleFlushClipboard, OleSetClipboard, RevokeDragDrop};
 use windows_sys::Win32::System::Threading::{
     CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, CreateWaitableTimerExW, GetCurrentThreadId, INFINITE,
     SetWaitableTimer, TIMER_ALL_ACCESS,
@@ -85,7 +86,9 @@ pub(super) use self::runner::{Event, EventLoopRunner};
 use super::SelectedCursor;
 use super::window::set_skip_taskbar;
 use crate::dark_mode::try_theme;
-use crate::dnd::{DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData};
+use crate::data_transfer::{
+    DataObject, DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData,
+};
 use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::event_loop::runner::PendingDrag;
 use crate::icon::WinCursor;
@@ -429,6 +432,12 @@ impl EventLoopProvider for EventLoop {
 
 impl Drop for EventLoop {
     fn drop(&mut self) {
+        // Flush data we promised to the clipboard so it can outlive the application.
+        // see https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-oleflushclipboard
+        if self.runner.data_transfer().owns_clipboard() {
+            unsafe { OleFlushClipboard() };
+        }
+
         unsafe {
             DestroyWindow(self.runner.thread_msg_target);
         }
@@ -444,6 +453,14 @@ impl ActiveEventLoop {
         // SAFETY: `ActiveEventLoop` is `#[repr(transparent)]` over `Rc<EventLoopRunner>`.
         // FIXME(madsmtm): Implement `ActiveEventLoop` for `Rc<EventLoopRunner>` directly.
         unsafe { mem::transmute::<&Rc<EventLoopRunner>, &Self>(shared_runner) }
+    }
+
+    fn clipboard_by_id(&self, id: DataTransferId) -> Option<Arc<DataObject>> {
+        if self.0.data_transfer().clipboard_transfer_id() != id {
+            return None;
+        }
+
+        crate::data_transfer::snapshot_clipboard().map(Arc::new)
     }
 }
 
@@ -523,30 +540,61 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
-        let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+        let (data, window_ids) = match self.0.data_transfer().drag_state(id) {
+            Some(state) => (state.data.clone(), vec![state.window_id]),
+            None => {
+                let data = self.clipboard_by_id(id).ok_or(RequestError::Ignored)?;
+                // The clipboard is not tied to a window, so dispatch to all of them.
+                (data, self.0.window_ids())
+            },
         };
         let hint = type_.hint().ok_or(RequestError::Ignored)?;
-        let typed_data = WinTypedData::new(state.data.clone(), hint)
+        let typed_data = WinTypedData::new(data, hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
             .ok_or(RequestError::Ignored)?;
 
         let serial = AsyncRequestSerial::get();
 
-        self.0.send_event(Event::Window {
-            window_id: state.window_id,
-            event: WindowEvent::DataTransferReceived { id, serial, value: typed_data },
-        });
+        for window_id in window_ids {
+            self.0.send_event(Event::Window {
+                window_id,
+                event: WindowEvent::DataTransferReceived { id, serial, value: typed_data.clone() },
+            });
+        }
 
         Ok(serial)
     }
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
+        if let Some(state) = self.0.data_transfer().drag_state(id) {
+            return Ok(Box::new(WinDataTransfer::new(state.data.clone())));
+        }
 
-        Ok(Box::new(WinDataTransfer::new(state.data.clone())))
+        let data = self.clipboard_by_id(id).ok_or(RequestError::Ignored)?;
+
+        Ok(Box::new(WinDataTransfer::new(data)))
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, RequestError> {
+        if unsafe { CountClipboardFormats() } == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(self.0.data_transfer().clipboard_transfer_id()))
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), RequestError> {
+        crate::data_transfer::ensure_ole_initialized().map_err(|err| os_error!(err))?;
+
+        let data_object = SourceDataObject::new(send_data);
+        let hr = unsafe { OleSetClipboard(data_object.interface_ptr()) };
+        if hr != S_OK {
+            return Err(os_error!(format!("OleSetClipboard failed: 0x{hr:08x}")).into());
+        }
+
+        self.0.data_transfer().set_owns_clipboard();
+
+        Ok(())
     }
 
     fn set_valid_dnd_actions(
@@ -554,12 +602,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
-        let mut state = self.0.drag_state.borrow_mut();
-        let Some(state) = state.as_mut().filter(|s| s.id == id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
-        state.actions = actions.to_vec();
-        Ok(())
+        if self.0.data_transfer().set_valid_dnd_actions(id, actions) {
+            Ok(())
+        } else {
+            Err(os_error!(UnknownDataTransfer(id)).into())
+        }
     }
 
     fn start_drag(
@@ -569,7 +616,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         allowed_actions: &[DndAction],
         icon: Option<DragIcon>,
     ) -> Result<DataTransferId, RequestError> {
-        let allowed_effects = crate::dnd::dnd_actions_to_dropeffect_mask(allowed_actions);
+        let allowed_effects = crate::data_transfer::dnd_actions_to_dropeffect_mask(allowed_actions);
         // Win32 would happily run a modal `DoDragDrop` with `allowed_effects == 0`, but every
         // target would see "no action allowed" and the drag would end in a guaranteed cancel
         // after burning a full modal pump. Fail fast instead - the caller asked for a drag
@@ -580,7 +627,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             );
         }
 
-        let id = crate::dnd::next_data_transfer_id();
+        let id = crate::data_transfer::next_data_transfer_id();
         let data_object = SourceDataObject::new(send_data);
         let drop_source = DropSource::new();
 
@@ -589,7 +636,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         if let Some(icon) = icon {
             if let Some(rgba) = icon.icon.cast_ref::<winit_core::icon::RgbaIcon>() {
                 let result = unsafe {
-                    crate::dnd::apply_drag_image(
+                    crate::data_transfer::apply_drag_image(
                         data_object.interface_ptr() as *mut _,
                         rgba.width(),
                         rgba.height(),
@@ -1324,6 +1371,7 @@ unsafe fn public_window_callback_inner(
 
         WM_NCDESTROY => {
             unsafe { util::set_window_long(window, GWL_USERDATA, 0) };
+            userdata.event_loop_runner.unregister_window(WindowId::from_raw(window as usize));
             userdata.userdata_removed.set(true);
             result = ProcResult::Value(0);
         },
