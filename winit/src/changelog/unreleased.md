@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
