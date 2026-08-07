@@ -64,6 +64,11 @@ changelog entry.
   `xdg_positioner` behavior, and it also works for a plain `WindowType::Window`
   that has a parent; on Wayland the positioner is part of the `xdg_popup`
   protocol, so it only applies to `WindowType::Popup`.
+- On macOS, add `WindowAttributesMacOS::with_fullscreen_auxiliary` and
+  `WindowExtMacOS::set_fullscreen_auxiliary` / `WindowExtMacOS::fullscreen_auxiliary`, allowing a
+  window to be shown on the same Space as a fullscreen window
+  (`NSWindowCollectionBehaviorFullScreenAuxiliary`) instead of triggering a Space switch or Split
+  View tiling.
 
 ### Changed
 
