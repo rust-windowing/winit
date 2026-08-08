@@ -112,4 +112,5 @@ changelog entry.
 - On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
 - On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
 - On Redox, fix `run_app_on_demand` exiting immediately after a previous `run_app_on_demand` called `exit`.
+- On Redox, fill in logical key for keyboard events rather than emitting a separate fake IME event.
 - On Redox, handle window closes during `ApplicationHandler` drop.
