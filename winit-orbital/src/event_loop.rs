@@ -525,7 +525,7 @@ impl EventLoop {
         mut app: A,
     ) -> Result<(), EventLoopError> {
         self.window_target.exit.set(false);
-        loop {
+        let res = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
@@ -537,7 +537,20 @@ impl EventLoop {
                     continue;
                 },
             }
+        };
+
+        drop(app);
+
+        // Handle window destroys that happened when dropping the app.
+        while let Some(destroy_id) = {
+            let mut destroys = self.window_target.destroys.lock().unwrap();
+            destroys.pop_front()
+        } {
+            self.windows
+                .retain(|(window, _event_state)| WindowId::from_raw(window.fd()) != destroy_id);
         }
+
+        res
     }
 
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {

@@ -113,3 +113,4 @@ changelog entry.
 - On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
 - On Redox, fix `run_app_on_demand` exiting immediately after a previous `run_app_on_demand` called `exit`.
 - On Redox, fill in logical key for keyboard events rather than emitting a separate fake IME event.
+- On Redox, handle window closes during `ApplicationHandler` drop.
