@@ -64,6 +64,9 @@ pub enum WindowType {
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
+    Dialog {
+        modal: bool,
+    },
 }
 
 /// Attributes used when creating a window.
