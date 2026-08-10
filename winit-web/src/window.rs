@@ -46,7 +46,7 @@ impl Window {
         target: &ActiveEventLoop,
         attr: WindowAttributes,
     ) -> Result<Self, RequestError> {
-        if matches!(attr.window_type(), WindowType::Popup) {
+        if attr.window_type() == WindowType::Popup {
             return Err(RequestError::NotSupported(NotSupportedError::new(
                 "Popups are not implemented for Web",
             )));
