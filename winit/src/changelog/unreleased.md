@@ -106,6 +106,10 @@ changelog entry.
 - On Windows, fix getting the window's DPI internally leaks `HDC` handles.
   Also only call `GetDC` when on < Windows 8.1 which improves its performance.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
+- On X11, fix all pointer input being dropped for absolute pointing devices
+  without pressure or tilt axes, such as the emulated tablets of
+  QEMU/VMware/VirtualBox virtual machines and SPICE/VDI viewers. These were
+  misclassified as pens, whose events the motion/button handlers discard.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
