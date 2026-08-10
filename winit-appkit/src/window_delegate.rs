@@ -160,7 +160,7 @@ define_class!(
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
             // `windowDidMove:` isn't triggered when a move is part of a resize (e.g. dragging the
-            // top or left edge), so popups need repositioning here too.
+            // top or left edge), so anchored children need repositioning here too.
             self.reposition_child_windows();
         }
 
@@ -1222,7 +1222,7 @@ impl WindowDelegate {
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
         let position =
-            self.translate_popup_position_to_parent(LogicalPosition::new(position.x, position.y));
+            self.translate_anchored_position_to_parent(LogicalPosition::new(position.x, position.y));
         Ok(position.to_physical(self.scale_factor()))
     }
 
@@ -1247,7 +1247,7 @@ impl WindowDelegate {
 
     pub fn set_outer_position(&self, position: Position) {
         let position = position.to_logical(self.scale_factor());
-        let position = self.translate_popup_position(position);
+        let position = self.translate_anchored_position(position);
         let point = flip_window_screen_coordinates(NSRect::new(
             NSPoint::new(position.x, position.y),
             self.window().frame().size,
@@ -1258,7 +1258,7 @@ impl WindowDelegate {
     /// Anchored windows receive their position relative to the top-left of the parent window's
     /// content area (matching the Win32 and Wayland backends). macOS positions windows
     /// in global screen coordinates, so add the parent content area's origin.
-    fn translate_popup_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
+    fn translate_anchored_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
         if !self.ivars().anchored {
             return position;
         }
@@ -1270,11 +1270,11 @@ impl WindowDelegate {
         LogicalPosition::new(parent_origin.x + position.x, parent_origin.y + position.y)
     }
 
-    /// Inverse of [`Self::translate_popup_position`]. Anchored windows report their position
+    /// Inverse of [`Self::translate_anchored_position`]. Anchored windows report their position
     /// relative to the top-left of the parent window's content area (matching the
     /// Win32 and Wayland backends), so subtract the parent content area's origin from
     /// the global screen coordinates. Non-anchored windows are returned unchanged.
-    fn translate_popup_position_to_parent(
+    fn translate_anchored_position_to_parent(
         &self,
         position: LogicalPosition<f64>,
     ) -> LogicalPosition<f64> {
@@ -1310,12 +1310,12 @@ impl WindowDelegate {
 
     pub fn set_popup_anchor(&self, anchor: WindowAnchor) {
         self.ivars().positioner.borrow_mut().anchor = Some(anchor);
-        self.reposition_popup();
+        self.reposition();
     }
 
     pub fn set_popup_anchor_rect(&self, position: Position, size: Size) {
         self.ivars().positioner.borrow_mut().anchor_rect = Some((position, size));
-        self.reposition_popup();
+        self.reposition();
     }
 
     pub fn set_popup_constraint_adjustment(
@@ -1324,23 +1324,23 @@ impl WindowDelegate {
     ) {
         self.ivars().positioner.borrow_mut().constraint_adjustment =
             Some(constraint_adjustment);
-        self.reposition_popup();
+        self.reposition();
     }
 
     pub fn set_popup_gravity(&self, gravity: WindowGravity) {
         self.ivars().positioner.borrow_mut().gravity = Some(gravity);
-        self.reposition_popup();
+        self.reposition();
     }
 
     pub fn set_popup_positioner_offset(&self, position: Position) {
         self.ivars().positioner.borrow_mut().positioner_offset = Some(position);
-        self.reposition_popup();
+        self.reposition();
     }
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
     /// state, using [`winit_core::window::place_popup`], and applies the result. No-op if this
     /// window isn't anchored, or if it has no parent.
-    pub(crate) fn reposition_popup(&self) {
+    pub(crate) fn reposition(&self) {
         if !self.ivars().anchored {
             return;
         }
@@ -1373,8 +1373,8 @@ impl WindowDelegate {
         let scale_factor = self.scale_factor();
 
         // The anchor rect's position is relative to the parent's content area, and
-        // `set_outer_position` re-adds the parent's screen origin for popups (see
-        // `translate_popup_position`). To stay in the same coordinate space, the clip region
+        // `set_outer_position` re-adds the parent's screen origin for anchored windows (see
+        // `translate_anchored_position`). To stay in the same coordinate space, the clip region
         // also needs to be expressed relative to the parent's content area.
         let monitor_position = monitor_position.to_logical::<f64>(scale_factor);
         let clip_position = LogicalPosition::new(
@@ -1387,7 +1387,7 @@ impl WindowDelegate {
         let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
         let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
         let offset = positioner_offset.to_logical::<f64>(scale_factor);
-        let popup_size = self.outer_size().to_logical::<f64>(scale_factor);
+        let current_size = self.outer_size().to_logical::<f64>(scale_factor);
 
         let (origin, size) = place_popup(
             anchor,
@@ -1395,12 +1395,12 @@ impl WindowDelegate {
             constraint_adjustment,
             (anchor_position, anchor_size),
             offset,
-            popup_size,
+            current_size,
             (clip_position, clip_size),
         );
 
         self.set_outer_position(Position::Logical(origin));
-        if size != popup_size {
+        if size != current_size {
             let _ = self.request_surface_size(Size::Logical(size));
         }
     }
@@ -1414,7 +1414,7 @@ impl WindowDelegate {
             let Some(child_delegate) = child.delegate() else { continue };
             let Ok(child_delegate) = child_delegate.downcast::<WindowDelegate>() else { continue };
             if child_delegate.ivars().anchored {
-                child_delegate.reposition_popup();
+                child_delegate.reposition();
             }
         }
     }

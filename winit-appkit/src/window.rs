@@ -42,15 +42,15 @@ impl Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
         };
-        window.reposition_popup();
+        window.reposition();
         Ok(window)
     }
 
-    /// Recomputes this popup's position (and, if constrained, its size) from its positioner
+    /// Recomputes this window's position (and, if constrained, its size) from its positioner
     /// state, using [`winit_core::window::place_popup`], and applies the result. No-op if this
-    /// window isn't a popup, or if it has no parent.
-    fn reposition_popup(&self) {
-        self.maybe_wait_on_main(|delegate| delegate.reposition_popup());
+    /// window isn't anchored, or if it has no parent.
+    fn reposition(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.reposition());
     }
 
     pub(crate) fn maybe_wait_on_main<R: Send>(
