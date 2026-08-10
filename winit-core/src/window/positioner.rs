@@ -454,6 +454,43 @@ mod tests {
         assert_eq!(size, clip_size);
     }
 
+    /// Popup that only overflows the clip region on its leading edge (its trailing edge
+    /// already fits comfortably). With only `resize` enabled, it should shrink down to the
+    /// intersection with the clip region -- i.e. stay anchored to its original trailing edge --
+    /// rather than growing all the way out to the far side of the clip region.
+    #[test]
+    fn test_place_popup_resize_leading_edge_only() {
+        let clip_position = LogicalPosition::new(0., 0.);
+        let clip_size = LogicalSize::new(300., 300.);
+        // TopLeft anchor + BottomRight gravity places the popup's origin exactly at the anchor
+        // position, so this popup starts at x=-20 (off the left edge) and ends at x=30 (well
+        // within the clip region).
+        let anchor_position = LogicalPosition::new(-20., 0.);
+        let popup_size = LogicalSize::new(50., 50.);
+
+        let resize_only = WindowConstraintAdjustment::RESIZE_X;
+
+        let (origin, size) = place_popup(
+            WindowAnchor::TopLeft,
+            WindowGravity::BottomRight,
+            resize_only,
+            (anchor_position, LogicalSize::new(0., 0.)),
+            LogicalPosition::new(0., 0.),
+            popup_size,
+            (clip_position, clip_size),
+        );
+        draw(
+            "resize (leading edge only)",
+            (clip_position, clip_size),
+            (anchor_position, LogicalSize::new(0., 0.)),
+            (origin, size),
+        );
+        assert_eq!(origin, LogicalPosition::new(0., 0.));
+        // Trailing edge (originally at x=30) must stay put -- the popup should shrink to width
+        // 30, not grow out to the clip region's full width of 300.
+        assert_eq!(size, LogicalSize::new(30., 50.));
+    }
+
     /// With no constraint-adjustment flags set, an overflowing popup is left exactly where
     /// the anchor/gravity math puts it, matching the `xdg_positioner` "none" behavior.
     #[test]
