@@ -493,8 +493,7 @@ impl CoreWindow for Window {
     }
 
     fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
-        self.window_state_lock().positioner.constraint_adjustment =
-            Some(constraint_adjustment);
+        self.window_state_lock().positioner.constraint_adjustment = Some(constraint_adjustment);
         self.reposition();
     }
 
@@ -1314,9 +1313,8 @@ fn compute_anchored_placement(
         Position::Logical(LogicalPosition::new(0.0, 0.0)),
         Size::Logical(LogicalSize::new(1.0, 1.0)),
     ));
-    let positioner_offset = positioner
-        .positioner_offset
-        .unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0)));
+    let positioner_offset =
+        positioner.positioner_offset.unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0)));
 
     let parent = unsafe { GetParent(hwnd) };
     if parent.is_null() {

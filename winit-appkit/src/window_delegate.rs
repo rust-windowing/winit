@@ -1221,8 +1221,8 @@ impl WindowDelegate {
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        let position =
-            self.translate_anchored_position_to_parent(LogicalPosition::new(position.x, position.y));
+        let position = self
+            .translate_anchored_position_to_parent(LogicalPosition::new(position.x, position.y));
         Ok(position.to_physical(self.scale_factor()))
     }
 
@@ -1322,8 +1322,7 @@ impl WindowDelegate {
         &self,
         constraint_adjustment: WindowConstraintAdjustment,
     ) {
-        self.ivars().positioner.borrow_mut().constraint_adjustment =
-            Some(constraint_adjustment);
+        self.ivars().positioner.borrow_mut().constraint_adjustment = Some(constraint_adjustment);
         self.reposition();
     }
 
