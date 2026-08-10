@@ -116,7 +116,11 @@ fn constrain_axis(
     let mut extent = extent;
     if resize && !fits(origin) {
         let clamped_origin = origin.max(clip_min);
-        extent = (clip_max - clamped_origin).max(0.0);
+        // Intersect with the clip rectangle on both ends, not just `clip_max`: if only the
+        // leading edge overflows (`origin < clip_min`) while the trailing edge already fits,
+        // this must shrink down to the original trailing edge rather than growing all the way
+        // out to `clip_max`.
+        extent = (clip_max.min(origin + extent) - clamped_origin).max(0.0);
         origin = clamped_origin;
     }
 
