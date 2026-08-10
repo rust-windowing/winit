@@ -98,8 +98,8 @@ impl Popup {
                 // This is important for client side decorations
                 let geometry_origin = parent_window_state.content_surface_origin();
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-                positioner.set_anchor(from_anchor(anchor.unwrap_or(WindowAnchor::TopLeft)));
-                positioner.set_gravity(from_gravity(gravity.unwrap_or(WindowGravity::BottomRight)));
+                positioner.set_anchor(from_anchor(anchor.unwrap_or_default()));
+                positioner.set_gravity(from_gravity(gravity.unwrap_or_default()));
                 constraint_adjustment.inspect(|c| {
                     positioner.set_constraint_adjustment(from_constraint_adjustment(*c))
                 });
