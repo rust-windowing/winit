@@ -8,6 +8,7 @@ use objc2_ui_kit::{
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
 
+#[cfg(not(target_os = "tvos"))]
 use super::app_state::{self};
 use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
 use crate::window::WindowAttributes;
@@ -69,9 +70,14 @@ declare_class!(
     }
 );
 
+// tvOS has no status bar, home indicator, system-gesture edges or device rotation,
+// so the setters below are cfg'd out; the `os_capabilities` version checks don't
+// catch them, and calling them raises unrecognized-selector. The `#[method(..)]`
+// overrides above stay, since tvOS simply never sends them.
 impl WinitViewController {
     pub(crate) fn set_prefers_status_bar_hidden(&self, val: bool) {
         self.ivars().prefers_status_bar_hidden.set(val);
+        #[cfg(not(target_os = "tvos"))]
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
@@ -82,16 +88,20 @@ impl WinitViewController {
             StatusBarStyle::DarkContent => UIStatusBarStyle::DarkContent,
         };
         self.ivars().preferred_status_bar_style.set(val);
+        #[cfg(not(target_os = "tvos"))]
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
     pub(crate) fn set_prefers_home_indicator_auto_hidden(&self, val: bool) {
         self.ivars().prefers_home_indicator_auto_hidden.set(val);
-        let os_capabilities = app_state::os_capabilities();
-        if os_capabilities.home_indicator_hidden {
-            self.setNeedsUpdateOfHomeIndicatorAutoHidden();
-        } else {
-            os_capabilities.home_indicator_hidden_err_msg("ignoring")
+        #[cfg(not(target_os = "tvos"))]
+        {
+            let os_capabilities = app_state::os_capabilities();
+            if os_capabilities.home_indicator_hidden {
+                self.setNeedsUpdateOfHomeIndicatorAutoHidden();
+            } else {
+                os_capabilities.home_indicator_hidden_err_msg("ignoring")
+            }
         }
     }
 
@@ -101,11 +111,14 @@ impl WinitViewController {
             UIRectEdge(val.bits().into())
         };
         self.ivars().preferred_screen_edges_deferring_system_gestures.set(val);
-        let os_capabilities = app_state::os_capabilities();
-        if os_capabilities.defer_system_gestures {
-            self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
-        } else {
-            os_capabilities.defer_system_gestures_err_msg("ignoring")
+        #[cfg(not(target_os = "tvos"))]
+        {
+            let os_capabilities = app_state::os_capabilities();
+            if os_capabilities.defer_system_gestures {
+                self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
+            } else {
+                os_capabilities.defer_system_gestures_err_msg("ignoring")
+            }
         }
     }
 
@@ -129,6 +142,7 @@ impl WinitViewController {
             },
         };
         self.ivars().supported_orientations.set(mask);
+        #[cfg(not(target_os = "tvos"))]
         #[allow(deprecated)]
         UIViewController::attemptRotationToDeviceOrientation(mtm);
     }

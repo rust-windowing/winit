@@ -11,6 +11,8 @@ use objc2_ui_kit::{
     UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer,
     UITextInputTraits, UITouch, UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
+#[cfg(target_os = "tvos")]
+use objc2_ui_kit::{UIPress, UIPressType, UIPressesEvent};
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
@@ -166,6 +168,31 @@ declare_class!(
         #[method(touchesCancelled:withEvent:)]
         fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
+        }
+
+        // The Siri Remote's buttons arrive as `UIPress`, not as `UITouch`. Always
+        // forwarded to `super` afterwards, so that the responder chain keeps its
+        // default behaviour (most importantly Menu returning to the Home screen).
+        #[cfg(target_os = "tvos")]
+        #[method(pressesBegan:withEvent:)]
+        fn presses_began(&self, presses: &NSSet<UIPress>, event: Option<&UIPressesEvent>) {
+            self.handle_presses(presses, ElementState::Pressed);
+            let _: () = unsafe { msg_send![super(self), pressesBegan: presses, withEvent: event] };
+        }
+
+        #[cfg(target_os = "tvos")]
+        #[method(pressesEnded:withEvent:)]
+        fn presses_ended(&self, presses: &NSSet<UIPress>, event: Option<&UIPressesEvent>) {
+            self.handle_presses(presses, ElementState::Released);
+            let _: () = unsafe { msg_send![super(self), pressesEnded: presses, withEvent: event] };
+        }
+
+        #[cfg(target_os = "tvos")]
+        #[method(pressesCancelled:withEvent:)]
+        fn presses_cancelled(&self, presses: &NSSet<UIPress>, event: Option<&UIPressesEvent>) {
+            self.handle_presses(presses, ElementState::Released);
+            let _: () =
+                unsafe { msg_send![super(self), pressesCancelled: presses, withEvent: event] };
         }
 
         #[method(pinchGesture:)]
@@ -538,6 +565,55 @@ impl WinitView {
         }
         let mtm = MainThreadMarker::new().unwrap();
         app_state::handle_nonuser_events(mtm, touch_events);
+    }
+
+    /// Reported as keyboard events, so that an application handling keys needs no
+    /// tvOS-specific code. Press types without a matching key are ignored.
+    #[cfg(target_os = "tvos")]
+    fn handle_presses(&self, presses: &NSSet<UIPress>, state: ElementState) {
+        let window = self.window().unwrap();
+        let window_id = RootWindowId(window.id());
+        let mtm = MainThreadMarker::new().unwrap();
+        let events: Vec<_> = presses
+            .iter()
+            .filter_map(|press| {
+                // SAFETY: `press` is valid for the duration of the callback.
+                let (physical, logical) = match unsafe { press.r#type() } {
+                    UIPressType::UpArrow => (KeyCode::ArrowUp, NamedKey::ArrowUp),
+                    UIPressType::DownArrow => (KeyCode::ArrowDown, NamedKey::ArrowDown),
+                    UIPressType::LeftArrow => (KeyCode::ArrowLeft, NamedKey::ArrowLeft),
+                    UIPressType::RightArrow => (KeyCode::ArrowRight, NamedKey::ArrowRight),
+                    UIPressType::Select => (KeyCode::Enter, NamedKey::Enter),
+                    UIPressType::Menu => (KeyCode::Escape, NamedKey::Escape),
+                    UIPressType::PlayPause => (KeyCode::MediaPlayPause, NamedKey::MediaPlayPause),
+                    _ => return None,
+                };
+                Some(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        event: KeyEvent {
+                            state,
+                            logical_key: Key::Named(logical),
+                            physical_key: PhysicalKey::Code(physical),
+                            platform_specific: KeyEventExtra {},
+                            repeat: false,
+                            location: KeyLocation::Standard,
+                            text: match state {
+                                ElementState::Pressed => {
+                                    logical.to_text().map(smol_str::SmolStr::new)
+                                },
+                                ElementState::Released => None,
+                            },
+                        },
+                        is_synthetic: false,
+                    },
+                }))
+            })
+            .collect();
+        if !events.is_empty() {
+            app_state::handle_nonuser_events(mtm, events);
+        }
     }
 
     fn handle_insert_text(&self, text: &NSString) {
