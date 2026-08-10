@@ -47,7 +47,7 @@ impl Window {
     }
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
-    /// state, using [`winit_core::window::place_popup`], and applies the result. No-op if this
+    /// state, using [`winit_core::window::place_window`], and applies the result. No-op if this
     /// window isn't anchored, or if it has no parent.
     fn reposition(&self) {
         self.maybe_wait_on_main(|delegate| delegate.reposition());

@@ -53,7 +53,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, Monito
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, WindowAnchor, WindowAttributes, WindowButtons, WindowConstraintAdjustment,
-    WindowGravity, WindowId, WindowLevel, WindowPositioner, WindowType, place_popup,
+    WindowGravity, WindowId, WindowLevel, WindowPositioner, WindowType, place_window,
 };
 
 use super::app_state::AppState;
@@ -1337,7 +1337,7 @@ impl WindowDelegate {
     }
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
-    /// state, using [`winit_core::window::place_popup`], and applies the result. No-op if this
+    /// state, using [`winit_core::window::place_window`], and applies the result. No-op if this
     /// window isn't anchored, or if it has no parent.
     pub(crate) fn reposition(&self) {
         if !self.ivars().anchored {
@@ -1388,7 +1388,7 @@ impl WindowDelegate {
         let offset = positioner_offset.to_logical::<f64>(scale_factor);
         let current_size = self.outer_size().to_logical::<f64>(scale_factor);
 
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             anchor,
             gravity,
             constraint_adjustment,

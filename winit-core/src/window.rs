@@ -8,7 +8,7 @@ use cursor_icon::CursorIcon;
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
-pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity, place_popup};
+pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity, place_window};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -701,9 +701,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
     ///   positioner is part of the `xdg_popup` protocol role.
-    fn set_anchor(&self, anchor: WindowAnchor) {
-        let _ = anchor;
-    }
+    fn set_anchor(&self, _anchor: WindowAnchor) {}
 
     /// Sets the anchor rectangle the window is positioned relative to.
     ///
@@ -715,9 +713,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
     ///   positioner is part of the `xdg_popup` protocol role.
-    fn set_anchor_rect(&self, position: Position, size: Size) {
-        let _ = (position, size);
-    }
+    fn set_anchor_rect(&self, _position: Position, _size: Size) {}
 
     /// Sets how the window should be repositioned when it would be constrained.
     ///
@@ -729,9 +725,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
     ///   positioner is part of the `xdg_popup` protocol role.
-    fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
-        let _ = constraint_adjustment;
-    }
+    fn set_constraint_adjustment(&self, _constraint_adjustment: WindowConstraintAdjustment) {}
 
     /// Sets the direction the window surface extends away from the anchor point.
     ///
@@ -743,9 +737,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
     ///   positioner is part of the `xdg_popup` protocol role.
-    fn set_gravity(&self, gravity: WindowGravity) {
-        let _ = gravity;
-    }
+    fn set_gravity(&self, _gravity: WindowGravity) {}
 
     /// Sets the window's position relative to the anchor rect.
     ///
@@ -756,9 +748,7 @@ pub trait Window: AsAny + Send + Sync + fmt::Debug {
     ///
     /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
     ///   positioner is part of the `xdg_popup` protocol role.
-    fn set_positioner_offset(&self, position: Position) {
-        let _ = position;
-    }
+    fn set_positioner_offset(&self, _position: Position) {}
 
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;

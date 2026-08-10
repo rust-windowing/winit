@@ -364,10 +364,9 @@ impl CoreWindow for Popup {
             return;
         };
 
-        let scale_factor = state.lock().unwrap().scale_factor();
-        if let WindowType::Popup { popup, positioner, positioner_offset, .. } =
-            &mut state.lock().unwrap().window
-        {
+        let mut state = state.lock().unwrap();
+        let scale_factor = state.scale_factor();
+        if let WindowType::Popup { popup, positioner, positioner_offset, .. } = &mut state.window {
             *positioner_offset = Some(position);
 
             let position: LogicalPosition<i32> = position.to_logical(scale_factor);

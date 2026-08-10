@@ -57,7 +57,7 @@ use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAnchor, WindowAttributes, WindowButtons,
     WindowConstraintAdjustment, WindowGravity, WindowId, WindowLevel, WindowPositioner, WindowType,
-    place_popup,
+    place_window,
 };
 
 use crate::dark_mode::try_theme;
@@ -156,7 +156,7 @@ impl Window {
     }
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
-    /// state, using [`winit_core::window::place_popup`], and applies the result. No-op if this
+    /// state, using [`winit_core::window::place_window`], and applies the result. No-op if this
     /// window isn't anchored, or if it has no parent (which the Win32 backend never allows for a
     /// popup, see `init`).
     fn reposition(&self) {
@@ -1285,14 +1285,14 @@ fn translate_outer_position(
 }
 
 /// Computes an anchored window's new outer position and size from its positioner state, using
-/// [`winit_core::window::place_popup`]. Returns `None` if the window isn't anchored, has no
+/// [`winit_core::window::place_window`]. Returns `None` if the window isn't anchored, has no
 /// parent (which the Win32 backend never allows for a [`WindowType::Popup`], see `init`), or its
 /// monitor's position can't be determined.
 ///
 /// On success, returns `(origin, size, current_size)`:
 /// - `origin`: the window's new outer position, in logical coordinates relative to the parent's
 ///   content area (see `translate_outer_position`/`set_outer_position`).
-/// - `size`: the window's new outer size, as constrained by [`place_popup`]. Only differs from
+/// - `size`: the window's new outer size, as constrained by [`place_window`]. Only differs from
 ///   `current_size` when `constraint_adjustment` resizes the window to fit its clip region.
 /// - `current_size`: the window's outer size *before* this placement, i.e. `hwnd`'s current outer
 ///   size. Callers compare this against `size` to decide whether a resize is actually needed.
@@ -1345,7 +1345,7 @@ fn compute_anchored_placement(
     let offset = positioner_offset.to_logical::<f64>(scale_factor);
     let current_size = outer_size_of(hwnd).to_logical::<f64>(scale_factor);
 
-    let (origin, size) = place_popup(
+    let (origin, size) = place_window(
         anchor,
         gravity,
         constraint_adjustment,

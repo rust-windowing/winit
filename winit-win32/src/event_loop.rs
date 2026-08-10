@@ -1078,10 +1078,10 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     userdata.send_window_event(window, Focused(false));
 }
 
-/// Repositions any popups owned by `parent`. Win32 does not reposition owned windows when their
-/// owner moves (unlike Wayland subsurfaces or X11's override-redirect popups), so this has to be
-/// done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
-unsafe fn reposition_owned_popups(parent: HWND) {
+/// Repositions any anchored windows owned by `parent`. Win32 does not reposition owned windows
+/// when their owner moves (unlike Wayland subsurfaces or X11's override-redirect popups), so this
+/// has to be done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
+unsafe fn reposition_owned_windows(parent: HWND) {
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         if unsafe { GetWindow(hwnd, GW_OWNER) } != lparam as HWND {
             return true.into(); // continue enumeration
@@ -1090,7 +1090,7 @@ unsafe fn reposition_owned_popups(parent: HWND) {
         let userdata = unsafe { util::get_window_long(hwnd, GWL_USERDATA) };
         if userdata != 0 {
             let userdata = unsafe { &*(userdata as *const WindowData) };
-            if userdata.window_state_lock().window_flags.contains(WindowFlags::POPUP) {
+            if userdata.window_state_lock().window_flags.contains(WindowFlags::ANCHORED) {
                 window::reposition_owned_popup(hwnd, &userdata.window_state);
             }
         }
@@ -1440,7 +1440,7 @@ unsafe fn public_window_callback_inner(
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
                 userdata.send_window_event(window, Moved(physical_position));
 
-                unsafe { reposition_owned_popups(window) };
+                unsafe { reposition_owned_windows(window) };
             }
 
             // This is necessary for us to still get sent WM_SIZE.

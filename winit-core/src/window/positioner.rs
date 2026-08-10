@@ -1,5 +1,5 @@
 //! Anchor-based window placement: the types describing a placement request, and the
-//! `xdg_positioner`-style algorithm ([`place_popup`]) that resolves them into a concrete
+//! `xdg_positioner`-style algorithm ([`place_window`]) that resolves them into a concrete
 //! position and size.
 
 use dpi::{LogicalPosition, LogicalSize};
@@ -127,7 +127,7 @@ fn constrain_axis(
     (origin, extent)
 }
 
-/// Finds a placement for a popup of `popup_size`, anchored to a rectangle `anchor` (in the same
+/// Finds a placement for a window of `window_size`, anchored to a rectangle `anchor` (in the same
 /// coordinate space as `clip`), nudged by `offset` (the user-facing offset from the anchor point,
 /// set via [`Window::set_positioner_offset`] -- not part of the anchor rectangle's geometry), and
 /// constrained to stay within the `clip` rectangle according to `constraint_adjustment`.
@@ -143,13 +143,13 @@ fn constrain_axis(
 /// behavior.
 ///
 /// [`Window::set_positioner_offset`]: super::Window::set_positioner_offset
-pub fn place_popup(
+pub fn place_window(
     anchor: WindowAnchor,
     gravity: WindowGravity,
     constraint_adjustment: WindowConstraintAdjustment,
     (anchor_position, anchor_size): (LogicalPosition<f64>, LogicalSize<f64>),
     offset: LogicalPosition<f64>,
-    popup_size: LogicalSize<f64>,
+    window_size: LogicalSize<f64>,
     (clip_position, clip_size): (LogicalPosition<f64>, LogicalSize<f64>),
 ) -> (LogicalPosition<f64>, LogicalSize<f64>) {
     let (anchor_fx, anchor_fy) = anchor_fraction(anchor);
@@ -158,15 +158,15 @@ pub fn place_popup(
     let anchor_point_x = anchor_position.x + anchor_size.width * anchor_fx;
     let anchor_point_y = anchor_position.y + anchor_size.height * anchor_fy;
 
-    let origin_x = anchor_point_x + popup_size.width * gravity_fx + offset.x;
-    let origin_y = anchor_point_y + popup_size.height * gravity_fy + offset.y;
+    let origin_x = anchor_point_x + window_size.width * gravity_fx + offset.x;
+    let origin_y = anchor_point_y + window_size.height * gravity_fy + offset.y;
 
     // Flipping mirrors both the anchor edge and the gravity on that axis, effectively placing the
     // popup on the opposite side of the anchor rectangle.
     let flipped_anchor_point_x = anchor_position.x + anchor_size.width * (1.0 - anchor_fx);
     let flipped_anchor_point_y = anchor_position.y + anchor_size.height * (1.0 - anchor_fy);
-    let flipped_x = flipped_anchor_point_x + popup_size.width * (-1.0 - gravity_fx) + offset.x;
-    let flipped_y = flipped_anchor_point_y + popup_size.height * (-1.0 - gravity_fy) + offset.y;
+    let flipped_x = flipped_anchor_point_x + window_size.width * (-1.0 - gravity_fx) + offset.x;
+    let flipped_y = flipped_anchor_point_y + window_size.height * (-1.0 - gravity_fy) + offset.y;
 
     let clip_min_x = clip_position.x;
     let clip_max_x = clip_position.x + clip_size.width;
@@ -175,7 +175,7 @@ pub fn place_popup(
 
     let (x, width) = constrain_axis(
         origin_x,
-        popup_size.width,
+        window_size.width,
         (clip_min_x, clip_max_x),
         flipped_x,
         (
@@ -186,7 +186,7 @@ pub fn place_popup(
     );
     let (y, height) = constrain_axis(
         origin_y,
-        popup_size.height,
+        window_size.height,
         (clip_min_y, clip_max_y),
         flipped_y,
         (
@@ -290,7 +290,7 @@ mod tests {
         let clip_size = LogicalSize::new(0., 0.);
 
         let place = |anchor: WindowAnchor, gravity: WindowGravity| {
-            place_popup(
+            place_window(
                 anchor,
                 gravity,
                 WindowConstraintAdjustment::empty(),
@@ -376,7 +376,7 @@ mod tests {
         // Without flipping the popup would start at x=290 and end at x=340, past the clip's
         // right edge (300); flipping mirrors both anchor edge and gravity, so it should end up
         // entirely to the left of the anchor rect instead, fully inside the clip region.
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             WindowAnchor::TopRight,
             WindowGravity::BottomRight,
             flip_only,
@@ -407,7 +407,7 @@ mod tests {
 
         let slide_only = WindowConstraintAdjustment::SLIDE_X | WindowConstraintAdjustment::SLIDE_Y;
 
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             WindowAnchor::BottomRight,
             WindowGravity::BottomRight,
             slide_only,
@@ -439,7 +439,7 @@ mod tests {
         let resize_only =
             WindowConstraintAdjustment::RESIZE_X | WindowConstraintAdjustment::RESIZE_Y;
 
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             WindowAnchor::TopLeft,
             WindowGravity::BottomRight,
             resize_only,
@@ -474,7 +474,7 @@ mod tests {
 
         let resize_only = WindowConstraintAdjustment::RESIZE_X;
 
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             WindowAnchor::TopLeft,
             WindowGravity::BottomRight,
             resize_only,
@@ -504,7 +504,7 @@ mod tests {
         let anchor_position = LogicalPosition::new(90., 90.);
         let popup_size = LogicalSize::new(50., 50.);
 
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             WindowAnchor::TopLeft,
             WindowGravity::BottomRight,
             WindowConstraintAdjustment::empty(),
@@ -532,7 +532,7 @@ mod tests {
         let anchor_position = LogicalPosition::new(100., 100.);
         let popup_size = LogicalSize::new(50., 50.);
 
-        let (origin, size) = place_popup(
+        let (origin, size) = place_window(
             WindowAnchor::TopLeft,
             WindowGravity::BottomRight,
             WindowConstraintAdjustment::all(),
