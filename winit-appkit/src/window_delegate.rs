@@ -122,7 +122,7 @@ pub(crate) struct State {
     /// attributes were set on a [`WindowType::Window`]. Gates the parent-relative coordinate
     /// frame used when applying anchor/gravity/positioner-offset changes.
     anchored: bool,
-    popup_positioner: RefCell<WindowPositioner>,
+    positioner: RefCell<WindowPositioner>,
 }
 
 define_class!(
@@ -161,7 +161,7 @@ define_class!(
             self.emit_move_event();
             // `windowDidMove:` isn't triggered when a move is part of a resize (e.g. dragging the
             // top or left edge), so popups need repositioning here too.
-            self.reposition_child_popups();
+            self.reposition_child_windows();
         }
 
         #[unsafe(method(windowWillStartLiveResize:))]
@@ -183,7 +183,7 @@ define_class!(
         fn window_did_move(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidMove:").entered();
             self.emit_move_event();
-            self.reposition_child_popups();
+            self.reposition_child_windows();
         }
 
         #[unsafe(method(windowDidChangeBackingProperties:))]
@@ -1005,7 +1005,7 @@ impl WindowDelegate {
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
             window_type,
             anchored,
-            popup_positioner: RefCell::new(WindowPositioner {
+            positioner: RefCell::new(WindowPositioner {
                 anchor: attrs.anchor,
                 anchor_rect: attrs.anchor_rect,
                 positioner_offset: attrs.positioner_offset,
@@ -1305,16 +1305,16 @@ impl WindowDelegate {
     }
 
     pub fn popup_anchor_rect(&self) -> Option<(Position, Size)> {
-        self.ivars().popup_positioner.borrow().anchor_rect
+        self.ivars().positioner.borrow().anchor_rect
     }
 
     pub fn set_popup_anchor(&self, anchor: WindowAnchor) {
-        self.ivars().popup_positioner.borrow_mut().anchor = Some(anchor);
+        self.ivars().positioner.borrow_mut().anchor = Some(anchor);
         self.reposition_popup();
     }
 
     pub fn set_popup_anchor_rect(&self, position: Position, size: Size) {
-        self.ivars().popup_positioner.borrow_mut().anchor_rect = Some((position, size));
+        self.ivars().positioner.borrow_mut().anchor_rect = Some((position, size));
         self.reposition_popup();
     }
 
@@ -1322,18 +1322,18 @@ impl WindowDelegate {
         &self,
         constraint_adjustment: WindowConstraintAdjustment,
     ) {
-        self.ivars().popup_positioner.borrow_mut().constraint_adjustment =
+        self.ivars().positioner.borrow_mut().constraint_adjustment =
             Some(constraint_adjustment);
         self.reposition_popup();
     }
 
     pub fn set_popup_gravity(&self, gravity: WindowGravity) {
-        self.ivars().popup_positioner.borrow_mut().gravity = Some(gravity);
+        self.ivars().positioner.borrow_mut().gravity = Some(gravity);
         self.reposition_popup();
     }
 
     pub fn set_popup_positioner_offset(&self, position: Position) {
-        self.ivars().popup_positioner.borrow_mut().positioner_offset = Some(position);
+        self.ivars().positioner.borrow_mut().positioner_offset = Some(position);
         self.reposition_popup();
     }
 
@@ -1346,7 +1346,7 @@ impl WindowDelegate {
         }
 
         let (anchor, gravity, constraint_adjustment, anchor_rect, positioner_offset) = {
-            let positioner = self.ivars().popup_positioner.borrow();
+            let positioner = self.ivars().positioner.borrow();
 
             (
                 positioner.anchor.unwrap_or_default(),
@@ -1408,7 +1408,7 @@ impl WindowDelegate {
     /// Repositions any anchored children owned by this window. AppKit's `addChildWindow:ordered:`
     /// only manages ordering and visibility for child windows -- it doesn't keep their position
     /// in sync with the parent -- so this has to be done manually whenever this window moves.
-    fn reposition_child_popups(&self) {
+    fn reposition_child_windows(&self) {
         let Some(children) = self.window().childWindows() else { return };
         for child in children.iter() {
             let Some(child_delegate) = child.delegate() else { continue };

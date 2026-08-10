@@ -160,12 +160,12 @@ impl Window {
     /// window isn't anchored, or if it has no parent (which the Win32 backend never allows for a
     /// popup, see `init`).
     fn reposition_popup(&self) {
-        let (anchored, popup_positioner) = {
+        let (anchored, positioner) = {
             let window_state = self.window_state_lock();
-            (window_state.anchored, window_state.popup_positioner)
+            (window_state.anchored, window_state.positioner)
         };
         let Some((origin, size, popup_size)) =
-            compute_popup_placement(self.hwnd(), anchored, &popup_positioner, self.scale_factor())
+            compute_popup_placement(self.hwnd(), anchored, &positioner, self.scale_factor())
         else {
             return;
         };
@@ -479,32 +479,32 @@ impl CoreWindow for Window {
     }
 
     fn anchor_rect(&self) -> Option<(Position, Size)> {
-        self.window_state_lock().popup_positioner.anchor_rect
+        self.window_state_lock().positioner.anchor_rect
     }
 
     fn set_anchor(&self, anchor: WindowAnchor) {
-        self.window_state_lock().popup_positioner.anchor = Some(anchor);
+        self.window_state_lock().positioner.anchor = Some(anchor);
         self.reposition_popup();
     }
 
     fn set_anchor_rect(&self, position: Position, size: Size) {
-        self.window_state_lock().popup_positioner.anchor_rect = Some((position, size));
+        self.window_state_lock().positioner.anchor_rect = Some((position, size));
         self.reposition_popup();
     }
 
     fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
-        self.window_state_lock().popup_positioner.constraint_adjustment =
+        self.window_state_lock().positioner.constraint_adjustment =
             Some(constraint_adjustment);
         self.reposition_popup();
     }
 
     fn set_gravity(&self, gravity: WindowGravity) {
-        self.window_state_lock().popup_positioner.gravity = Some(gravity);
+        self.window_state_lock().positioner.gravity = Some(gravity);
         self.reposition_popup();
     }
 
     fn set_positioner_offset(&self, position: Position) {
-        self.window_state_lock().popup_positioner.positioner_offset = Some(position);
+        self.window_state_lock().positioner.positioner_offset = Some(position);
         self.reposition_popup();
     }
 
@@ -1300,21 +1300,21 @@ fn translate_outer_position(
 fn compute_popup_placement(
     hwnd: HWND,
     anchored: bool,
-    popup_positioner: &WindowPositioner,
+    positioner: &WindowPositioner,
     scale_factor: f64,
 ) -> Option<(LogicalPosition<f64>, LogicalSize<f64>, LogicalSize<f64>)> {
     if !anchored {
         return None;
     }
 
-    let anchor = popup_positioner.anchor.unwrap_or_default();
-    let gravity = popup_positioner.gravity.unwrap_or_default();
-    let constraint_adjustment = popup_positioner.constraint_adjustment.unwrap_or_default();
-    let anchor_rect = popup_positioner.anchor_rect.unwrap_or((
+    let anchor = positioner.anchor.unwrap_or_default();
+    let gravity = positioner.gravity.unwrap_or_default();
+    let constraint_adjustment = positioner.constraint_adjustment.unwrap_or_default();
+    let anchor_rect = positioner.anchor_rect.unwrap_or((
         Position::Logical(LogicalPosition::new(0.0, 0.0)),
         Size::Logical(LogicalSize::new(1.0, 1.0)),
     ));
-    let positioner_offset = popup_positioner
+    let positioner_offset = positioner
         .positioner_offset
         .unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0)));
 
@@ -1370,13 +1370,13 @@ fn compute_popup_placement(
 /// `WM_WINDOWPOSCHANGED`), so it's safe to update the OS window and `WindowState` directly
 /// instead of going through `EventLoopThreadExecutor` like the public `Window` API does.
 pub(crate) fn reposition_owned_popup(hwnd: HWND, window_state: &Mutex<WindowState>) {
-    let (anchored, popup_positioner, scale_factor) = {
+    let (anchored, positioner, scale_factor) = {
         let state = window_state.lock().unwrap();
-        (state.anchored, state.popup_positioner, state.scale_factor)
+        (state.anchored, state.positioner, state.scale_factor)
     };
 
     let Some((origin, size, popup_size)) =
-        compute_popup_placement(hwnd, anchored, &popup_positioner, scale_factor)
+        compute_popup_placement(hwnd, anchored, &positioner, scale_factor)
     else {
         return;
     };

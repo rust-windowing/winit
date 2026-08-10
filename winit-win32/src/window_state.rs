@@ -64,7 +64,7 @@ pub(crate) struct WindowState {
 
     /// The positioner state backing `anchored` placement, meaningful only when `anchored` is
     /// `true`.
-    pub popup_positioner: WindowPositioner,
+    pub positioner: WindowPositioner,
 
     pub ime_state: ImeState,
     pub ime_capabilities: Option<ImeCapabilities>,
@@ -214,7 +214,7 @@ impl WindowState {
                 || attributes.positioner_offset.is_some()
                 || attributes.gravity.is_some()
                 || attributes.constraint_adjustment.is_some(),
-            popup_positioner: WindowPositioner {
+            positioner: WindowPositioner {
                 anchor: attributes.anchor,
                 anchor_rect: attributes.anchor_rect,
                 positioner_offset: attributes.positioner_offset,
