@@ -11,11 +11,103 @@ use std::time::Duration;
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 
 use crate::Instant;
+use crate::application::ApplicationHandler;
 use crate::as_any::AsAny;
 use crate::cursor::{CustomCursor, CustomCursorSource};
-use crate::error::RequestError;
+use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
+use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
-use crate::window::{Theme, Window, WindowAttributes};
+use crate::window::{Theme, Window, WindowAttributes, WindowId};
+
+/// Common methods to implement for the platform event loop.
+pub trait EventLoopProvider: fmt::Debug {
+    /// Run the event loop with the given application on the calling thread.
+    ///
+    /// The `app` is dropped when the event loop is shut down.
+    ///
+    /// ## Event loop flow
+    ///
+    /// This function internally handles the different parts of a traditional event-handling loop.
+    /// You can imagine this method as being implemented like this:
+    ///
+    /// ```rust,ignore
+    /// let mut start_cause = StartCause::Init;
+    ///
+    /// // Run the event loop.
+    /// while !event_loop.exiting() {
+    ///     // Wake up.
+    ///     app.new_events(event_loop, start_cause);
+    ///
+    ///     // Indicate that surfaces can now safely be created.
+    ///     if start_cause == StartCause::Init {
+    ///         app.can_create_surfaces(event_loop);
+    ///     }
+    ///
+    ///     // Handle proxy wake-up event.
+    ///     if event_loop.proxy_wake_up_set() {
+    ///         event_loop.proxy_wake_up_clear();
+    ///         app.proxy_wake_up(event_loop);
+    ///     }
+    ///
+    ///     // Handle actions done by the user / system such as moving the cursor, resizing the
+    ///     // window, changing the window theme, etc.
+    ///     for event in event_loop.events() {
+    ///         match event {
+    ///             window event => app.window_event(event_loop, window_id, event),
+    ///             device event => app.device_event(event_loop, device_id, event),
+    ///         }
+    ///     }
+    ///
+    ///     // Handle redraws.
+    ///     for window_id in event_loop.pending_redraws() {
+    ///         app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+    ///     }
+    ///
+    ///     // Done handling events, wait until we're woken up again.
+    ///     app.about_to_wait(event_loop);
+    ///     start_cause = event_loop.wait_if_necessary();
+    /// }
+    ///
+    /// // Finished running, drop application state.
+    /// drop(app);
+    /// ```
+    ///
+    /// This is of course a very coarse-grained overview, and leaves out timing details like
+    /// [`ControlFlow::WaitUntil`] and life-cycle methods like [`ApplicationHandler::resumed`], but
+    /// it should give you an idea of how things fit together.
+    ///
+    /// ## Returns
+    ///
+    /// The semantics of this function is defined by the target platform. Consult the implementor
+    /// docs for details.
+    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError>;
+
+    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
+    /// to the main event loop, possibly from another thread.
+    fn create_proxy(&self) -> EventLoopProxy;
+
+    /// Gets a persistent reference to the underlying platform display.
+    ///
+    /// See the [`OwnedDisplayHandle`] type for more information.
+    fn owned_display_handle(&self) -> OwnedDisplayHandle;
+
+    /// Change if or when [`DeviceEvent`]s are captured.
+    ///
+    /// See [`ActiveEventLoop::listen_device_events`] for details.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    fn listen_device_events(&self, allowed: DeviceEvents);
+
+    /// Sets the [`ControlFlow`].
+    fn set_control_flow(&self, control_flow: ControlFlow);
+
+    /// Create custom cursor.
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError>;
+}
 
 pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -114,7 +206,135 @@ pub trait ActiveEventLoop: AsAny + fmt::Debug {
 
     /// Get the raw-window-handle handle.
     fn rwh_06_handle(&self) -> &dyn HasDisplayHandle;
+
+    /// Request to fetch a type from a [data transfer](crate::data_transfer::DataTransfer).
+    ///
+    /// This may be called multiple times on the same [`DataTransferId`] with different types,
+    /// and may be called at any point during the drag operation, including during handling the
+    /// [`DragDropped`](crate::event::WindowEvent::DragDropped) event. After that event has been
+    /// received, though, the data transfer is not guaranteed to be available. The data is
+    /// _not_ guaranteed to be available during (or after) handling of
+    /// [`DragLeft](crate::event::WindowEvent::DragLeft).
+    ///
+    /// Once available, the data will be supplied to the application with the
+    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived) event.
+    fn fetch_data_transfer(
+        &self,
+        id: DataTransferId,
+        type_: &dyn TransferType,
+    ) -> Result<AsyncRequestSerial, RequestError> {
+        let _ = id;
+        let _ = type_;
+        Err(RequestError::NotSupported(NotSupportedError::new(
+            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
+        )))
+    }
+
+    /// Get a [data transfer](DataTransfer) by its ID.
+    ///
+    /// If the ID is invalid (e.g. if the lifetime of the data transfer has expired), this will
+    /// return an error.
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+        let _ = id;
+        Err(RequestError::NotSupported(NotSupportedError::new(
+            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
+        )))
+    }
+
+    /// Set a given set of `DndAction`s as the valid actions for the given [`DataTransferId`],
+    /// if the transfer ID is from an incoming drag-and-drop operation.
+    ///
+    /// This allows the OS/compositor to display the correct UI, indicating that the dragged data
+    /// can be dropped. If the data transfer does not exist or is not from a drag-and-drop
+    /// operation, will return an error.
+    ///
+    /// The operating system will consider the drag either accepted or rejected based on the
+    /// set of valid actions supplied using this method, combined with the set of valid actions
+    /// on the drag source. If the drag is rejected at the point that the user finalizes the drop,
+    /// the application will receive [`DragLeft`](crate::event::WindowEvent::DragLeft) instead
+    /// of [`DragDropped`](crate::event::WindowEvent::DragDropped).
+    ///
+    /// Note that _rejecting_ the drag is not the same as _canceling_ the drag. A rejected drag can
+    /// be accepted later and the user can continue dragging it over other potential targets. On
+    /// most platforms, there is no way for an application to explicitly cancel a drag
+    /// operation.
+    ///
+    /// The set of actions is expected to be ordered by preference.
+    fn set_valid_dnd_actions(
+        &self,
+        id: DataTransferId,
+        actions: &[DndAction],
+    ) -> Result<(), RequestError> {
+        let _ = id;
+        let _ = actions;
+        Err(RequestError::NotSupported(NotSupportedError::new(
+            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
+        )))
+    }
+
+    /// Initiate a new drag-and-drop operation.
+    ///
+    /// See [`DataTransferSendBuilder`](crate::data_transfer::DataTransferSendBuilder) for how to
+    /// create a new cross-platform data transfer, or [`DataTransferSend`] for a generic trait
+    /// which can be implemented manually.
+    ///
+    /// The [`DataTransferId`] returned from this method, identifying the outgoing drag, is
+    /// currently only used for identifying the drag in the
+    /// [`OutgoingDragDropped`](crate::event::WindowEvent::OutgoingDragDropped) event. In most
+    /// cases, a drag will be started while the mouse is over the window which started it. This
+    /// means that, directly after this method is called, the window will then receive a
+    /// [`DragEntered`](crate::event::WindowEvent::DragEntered) event. However, the ID identifying
+    /// the incoming drag is not guaranteed to be the same as the ID returned from this method.
+    ///
+    /// For most cases, applications can treat all `DragEntered` events the same, whether they were
+    /// initiated by the same application or a different application. However, if the user wants to
+    /// have some kind of special handling for internal drag-and-drop, they will currently need
+    /// to implement it via workaround. On all systems where drag-and-drop is implemented in
+    /// Winit, the application can make the assumption that only a single drag operation can
+    /// occur at one time. Therefore, if `DragEntered` is received between calling this method
+    /// and receiving `OutgoingDragDropped`, then you can assume that it's the same drag.
+    /// In theory, Wayland allows multiple simultaneous drag operations at a time, but Winit does
+    /// not currently guarantee that this is supported correctly for either internal or external
+    /// drag.
+    ///
+    /// ### Arguments
+    ///
+    /// - `source` - The ID of the window that initiated the drag operation.
+    /// - `send_data` - The data provided by this drag operation. See
+    ///   [`DataTransferSendBuilder`](crate::data_transfer::DataTransferSendBuilder).
+    /// - `actions` - The set of valid actions for this drag operation. See [`DndAction`]. On
+    ///   Wayland, this is expected to be ordered by preference.
+    /// - `icon` - The icon to show while dragging.
+    ///
+    /// Some platforms have a more-expressive way of setting the visual component of a drag
+    /// operation. For those platforms, consider using the platform-specific implementation of
+    /// [`DataTransferSend`] for `send_data` and set this field to `None`.
+    ///
+    /// ### Returns
+    ///
+    /// A unique identifier for this drag operation, which will be later supplied by
+    /// [`OutgoingDragDropped`](crate::event::WindowEvent::OutgoingDragDropped).
+    fn start_drag(
+        &self,
+        source: WindowId,
+        send_data: Box<dyn DataTransferSend>,
+        actions: &[DndAction],
+        icon: Option<DragIcon>,
+    ) -> Result<DataTransferId, RequestError> {
+        let _ = source;
+        let _ = send_data;
+        let _ = actions;
+        let _ = icon;
+        Err(RequestError::NotSupported(NotSupportedError::new(
+            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
+        )))
+    }
 }
+
+const DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE: &str = {
+    "Cross-application data transfer (e.g. drag-and-drop, clipboard) is unsupported on this \
+     platform"
+};
 
 impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
@@ -123,6 +343,74 @@ impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
 }
 
 impl_dyn_casting!(ActiveEventLoop);
+
+/// Information needed to initiate a new drag operation.
+pub struct DragIcon {
+    /// The icon to apply to the cursor.
+    pub icon: Icon,
+    /// An x offset applied to the dragged icon.
+    ///
+    /// This is specified in image pixels. 0 means that the left side of the icon will be at
+    /// the cursor.
+    pub offset_x: i32,
+    /// A y offset applied to the dragged icon.
+    ///
+    /// This is specified in image pixels. 0 means that the top of the icon will be at the
+    /// cursor.
+    pub offset_y: i32,
+}
+
+impl From<Icon> for DragIcon {
+    fn from(value: Icon) -> Self {
+        Self { icon: value, offset_x: 0, offset_y: 0 }
+    }
+}
+
+/// The set of available actions for a drag operation.
+///
+/// This is _not_ a bitset, as on some platforms (e.g. Wayland, macOS) the source and/or destination
+/// are expected to provide some kind of order of preference.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum DndAction {
+    /// Move the dragged item from the source to the destination.
+    ///
+    /// # Platforms
+    ///
+    /// - Wayland
+    /// - macOS
+    /// - Windows
+    Move,
+    /// Copy the dragged item from the source to the destination.
+    ///
+    /// # Platforms
+    ///
+    /// - X11
+    /// - Wayland
+    /// - macOS
+    /// - Windows
+    Copy,
+    /// A link is established between the source and the destination.
+    ///
+    /// # Platforms
+    ///
+    /// - macOS
+    /// - Windows
+    Link,
+    /// The user will be prompted for what should be done
+    ///
+    /// # Platforms
+    ///
+    /// - Wayland
+    Ask,
+    /// The source and destination will negotiate the drag operation privately
+    ///
+    /// # Platforms
+    ///
+    /// - macOS
+    Private,
+}
 
 /// Control the [`ActiveEventLoop`], possibly from a different thread, without referencing it
 /// directly.
@@ -217,6 +505,7 @@ impl Eq for OwnedDisplayHandle {}
 /// [`Wait`]: Self::Wait
 /// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[allow(clippy::exhaustive_enums)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
@@ -256,6 +545,7 @@ impl ControlFlow {
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum DeviceEvents {
     /// Report device events regardless of window focus.
     Always,

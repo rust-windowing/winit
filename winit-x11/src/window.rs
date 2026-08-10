@@ -31,7 +31,14 @@ use x11rb::protocol::sync::{ConnectionExt as _, Int64};
 use x11rb::protocol::xproto::{self, ClipOrdering, ConnectionExt as _, Rectangle};
 use x11rb::protocol::{randr, xinput};
 
-use crate::atoms::*;
+use crate::atoms::{
+    _GTK_THEME_VARIANT, _NET_ACTIVE_WINDOW, _NET_WM_ICON, _NET_WM_MOVERESIZE, _NET_WM_NAME,
+    _NET_WM_PID, _NET_WM_PING, _NET_WM_STATE, _NET_WM_STATE_ABOVE, _NET_WM_STATE_BELOW,
+    _NET_WM_STATE_FULLSCREEN, _NET_WM_STATE_HIDDEN, _NET_WM_STATE_MAXIMIZED_HORZ,
+    _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_SYNC_REQUEST, _NET_WM_SYNC_REQUEST_COUNTER,
+    _NET_WM_WINDOW_TYPE, _XEMBED, AtomName, CARD32, UTF8_STRING, WM_CHANGE_STATE,
+    WM_CLIENT_MACHINE, WM_DELETE_WINDOW, WM_PROTOCOLS, WM_STATE, XdndAware,
+};
 use crate::event_loop::{
     ALL_MASTER_DEVICES, ActivationItem, ActiveEventLoop, CookieResultExt, ICONIC_STATE, VoidCookie,
     WakeSender, X11Error, xinput_fp1616_to_float,
@@ -59,13 +66,26 @@ impl Window {
         event_loop: &ActiveEventLoop,
         attribs: WindowAttributes,
     ) -> Result<Self, RequestError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
+        use winit_core::window::WindowType;
+        match attribs.window_type() {
+            WindowType::Window => {
+                let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
+                event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
+                Ok(Window(window))
+            },
+            WindowType::Popup => Err(RequestError::NotSupported(NotSupportedError::new(
+                "Popups are not implemented for X11",
+            ))),
+            _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
+        }
     }
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.0.id()
     }
@@ -1085,9 +1105,7 @@ impl UnownedWindow {
                             let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
                             (Cow::Borrowed(monitor), None)
                         },
-                        Fullscreen::Borderless(None) => {
-                            (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None)
-                        },
+                        _ => (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None),
                     };
 
                 // Don't set fullscreen on an invalid dummy monitor handle
@@ -2124,6 +2142,7 @@ impl UnownedWindow {
                 self.set_ime_allowed(false);
                 return Ok(());
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         if let Some((position, size)) = state.cursor_area {

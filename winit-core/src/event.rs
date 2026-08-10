@@ -2,8 +2,7 @@
 use std::cell::LazyCell;
 use std::cmp::Ordering;
 use std::f64;
-use std::path::PathBuf;
-use std::sync::{Mutex, Weak};
+use std::sync::{Arc, Mutex, Weak};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
@@ -11,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::Instant;
+use crate::data_transfer::{DataTransferId, TypedData};
 use crate::error::RequestError;
-use crate::event_loop::AsyncRequestSerial;
+use crate::event_loop::{AsyncRequestSerial, DndAction};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
@@ -20,6 +20,7 @@ use crate::window::{ActivationToken, Theme};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -44,6 +45,7 @@ pub enum StartCause {
 
 /// Describes an event from a [`Window`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
@@ -75,41 +77,103 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file drag operation has entered the window.
+    /// A drag operation has entered the window.
+    ///
+    /// The user can use the `id` to read information about the incoming dragged data, and report
+    /// whether the operation is accepted or rejected back to the operating system (see
+    /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`](`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`)).
+    ///
+    /// To read the data being dragged, see
+    /// [`crate::event_loop::ActiveEventLoop::fetch_data_transfer`](`crate::event_loop::ActiveEventLoop::fetch_data_transfer`).
     DragEntered {
-        /// List of paths that are being dragged onto the window.
-        paths: Vec<PathBuf>,
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
-        position: PhysicalPosition<f64>,
-    },
-    /// A file drag operation has moved over the window.
-    DragMoved {
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
-        position: PhysicalPosition<f64>,
-    },
-    /// The file drag operation has dropped file(s) on the window.
-    DragDropped {
-        /// List of paths that are being dragged onto the window.
-        paths: Vec<PathBuf>,
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
-        position: PhysicalPosition<f64>,
-    },
-    /// The file drag operation has been cancelled or left the window.
-    DragLeft {
-        /// (x,y) coordinates in pixels relative to the top-left corner of the window. May be
-        /// negative on some platforms if something is dragged over a window's decorations (title
-        /// bar, frame, etc).
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`](`crate::event_loop::ActiveEventLoop::data_transfer`).
+        id: DataTransferId,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window.
         ///
-        /// ## Platform-specific
+        /// May be negative on some platforms if something is dragged over a window's decorations
+        /// (title bar, frame, etc).
         ///
-        /// - **Windows:** Always emits [`None`].
+        /// Some platforms will provide this on enter, others do not. If
+        /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`](`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`)
+        /// is never called, the default state is for the drag operation to be rejected. The
+        /// position is provided here when available to allow the application to accept a drag
+        /// operation as soon as possible, preventing the cursor from flickering from rejected to
+        /// accepted.
         position: Option<PhysicalPosition<f64>>,
+    },
+    /// The position of an ongoing drag operation has changed.
+    DragPosition {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`](`crate::event_loop::ActiveEventLoop::data_transfer`).
+        id: DataTransferId,
+        /// (x,y) coordinates in pixels relative to the top-left corner of the window.
+        ///
+        /// May be negative on some platforms if something is dragged over a window's decorations
+        /// (title bar, frame, etc).
+        position: PhysicalPosition<f64>,
+        /// The drag action proposed by the OS, based on the actions supplied in
+        /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`], the actions available on
+        /// the source, and the held modifier keys.
+        ///
+        /// This may be `None` if the backend has not supplied a valid action. On some platforms
+        /// (in particular, X11), the application is only informed of the proposed action once
+        /// the operation completes.
+        proposed_action: Option<DndAction>,
+    },
+    /// A drag operation has dropped file(s) on the window.
+    DragDropped {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
+        id: DataTransferId,
+        /// The drag action proposed by the OS, based on the actions supplied in
+        /// [`crate::event_loop::ActiveEventLoop::set_valid_dnd_actions`], the actions available on
+        /// the source, and the held modifier keys.
+        ///
+        /// This may be `None` if the backend has not supplied a valid action. This is different
+        /// from the drag being canceled: the drag completed successfully, we just don't know
+        /// what action was selected.
+        proposed_action: Option<DndAction>,
+    },
+    /// A drag operation has been canceled or left the window.
+    DragLeft {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
+        id: DataTransferId,
+    },
+    /// Data is available for a specific fetch request, see
+    /// [`fetch_data_transfer`](crate::event_loop::ActiveEventLoop::data_transfer).
+    ///
+    /// While winit makes a best effort to only send this event precisely once, on some platforms it
+    /// may not be possible to uniquely determine the window that should receive it. In these
+    /// cases, winit may dispatch the event to all  windows that have access to the data
+    /// transfer. If your application should only process this event once per data transfer, the
+    /// `serial` field can be used to deduplicate it.
+    DataTransferReceived {
+        /// ID of the data transfer object, see
+        /// [`crate::event_loop::ActiveEventLoop::data_transfer`].
+        id: DataTransferId,
+        /// Serial returned from `fetch_data_transfer`.
+        serial: AsyncRequestSerial,
+        /// The data for the transfer, with a specific type.
+        value: Arc<dyn TypedData>,
+    },
+
+    /// A drag operation started with `start_drag` has been dropped.
+    OutgoingDragDropped {
+        /// The ID returned from `start_drag`
+        id: DataTransferId,
+        /// The operation selected by the drop destination.
+        ///
+        /// This may be `None` if the backend has not supplied a valid action. This is different
+        /// from the drag being canceled: the drag completed successfully, we just don't know
+        /// what action was selected.
+        action: Option<DndAction>,
+    },
+    /// A drag operation started with `start_drag` has been canceled.
+    OutgoingDragCanceled {
+        /// The ID returned from `start_drag`
+        id: DataTransferId,
     },
 
     /// The window gained or lost focus.
@@ -267,6 +331,25 @@ pub enum WindowEvent {
         primary: bool,
 
         button: ButtonSource,
+
+        /// Whether this event is part of the click that activated an otherwise inactive window.
+        ///
+        /// On macOS, AppKit normally consumes the click that brings a window forward without
+        /// delivering it as a regular mouse event (controlled by [`acceptsFirstMouse:`]). Winit
+        /// always delivers it, but tags both the activating press *and* its matching release
+        /// with this flag so applications can short-circuit the whole gesture with a single
+        /// check — e.g. ignore activation clicks for destructive or button-like targets while
+        /// accepting them for low-risk actions (selection, scrolling).
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Only available on macOS.** Always `false` on every other platform.
+        /// - Only ever `true` for the left mouse button. Intervening drag motion (delivered as
+        ///   [`WindowEvent::PointerMoved`]) is not tagged; applications that care about drags
+        ///   during the activation gesture must track that state themselves.
+        ///
+        /// [`acceptsFirstMouse:`]: https://developer.apple.com/documentation/appkit/nsview/acceptsfirstmouse(_:)
+        is_macos_activation_click: bool,
     },
 
     /// Multi-finger hold gesture on the touchpad or touchscreen without movement.
@@ -450,6 +533,7 @@ pub enum WindowEvent {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PointerKind {
     Mouse,
     /// See [`PointerSource::Touch`] for more details.
@@ -467,6 +551,7 @@ pub enum PointerKind {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PointerSource {
     Mouse,
     /// Represents a touch event.
@@ -535,6 +620,7 @@ impl From<PointerSource> for PointerKind {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ButtonSource {
     /// ## Platform-specific
     ///
@@ -649,6 +735,7 @@ impl FingerId {
 ///
 /// [window events]: WindowEvent
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
@@ -971,6 +1058,7 @@ impl From<ModifiersState> for Modifiers {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum Ime {
     /// Notifies when the IME was enabled.
     ///
@@ -1019,6 +1107,7 @@ pub enum Ime {
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum TouchPhase {
     /// Initial touch contact or gesture start, for example when one or more fingers touch the
     /// screen or touchpad.
@@ -1038,6 +1127,7 @@ pub enum TouchPhase {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[doc(alias = "Pressure")]
+#[allow(clippy::exhaustive_enums)]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -1348,6 +1438,7 @@ impl TabletToolAngle {
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum ElementState {
     Pressed,
     Released,
@@ -1378,6 +1469,7 @@ impl ElementState {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
+#[allow(clippy::exhaustive_enums)]
 pub enum MouseButton {
     /// The primary (usually left) button
     Left = 0,
@@ -1473,6 +1565,7 @@ impl MouseButton {
 /// Describes a button of a tool, e.g. a pen.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum TabletToolButton {
     Contact,
     Barrel,
@@ -1495,6 +1588,7 @@ impl From<TabletToolButton> for Option<MouseButton> {
 /// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum MouseScrollDelta {
     /// Amount in lines or rows to scroll in the horizontal
     /// and vertical directions.
@@ -1582,16 +1676,20 @@ mod tests {
             use crate::event::Ime::Enabled;
             use crate::event::WindowEvent::*;
             use crate::event::{PointerKind, PointerSource};
+            use crate::event_loop::DndAction;
+            use crate::data_transfer::DataTransferId;
+
+            let dnd_data = DataTransferId::from_raw(123);
 
             with_window_event(CloseRequested);
             with_window_event(Destroyed);
             with_window_event(Focused(true));
             with_window_event(Moved((0, 0).into()));
             with_window_event(SurfaceResized((0, 0).into()));
-            with_window_event(DragEntered { paths: vec!["x.txt".into()], position: (0, 0).into() });
-            with_window_event(DragMoved { position: (0, 0).into() });
-            with_window_event(DragDropped { paths: vec!["x.txt".into()], position: (0, 0).into() });
-            with_window_event(DragLeft { position: Some((0, 0).into()) });
+            with_window_event(DragEntered { id: dnd_data, position: None });
+            with_window_event(DragPosition { id: dnd_data, position: (0, 0).into(), proposed_action: Some(DndAction::Copy) });
+            with_window_event(DragDropped { id: dnd_data, proposed_action: Some(DndAction::Copy) });
+            with_window_event(DragLeft { id: dnd_data });
             with_window_event(Ime(Enabled));
             with_window_event(PointerMoved {
                 device_id: None,
@@ -1623,6 +1721,7 @@ mod tests {
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
                 button: event::ButtonSource::Unknown(0),
+                is_macos_activation_click: false,
             });
             with_window_event(PointerButton {
                 device_id: None,
@@ -1633,6 +1732,7 @@ mod tests {
                     finger_id: fid,
                     force: Some(event::Force::Normalized(0.0)),
                 },
+                is_macos_activation_click: false,
             });
             with_window_event(PinchGesture {
                 device_id: None,

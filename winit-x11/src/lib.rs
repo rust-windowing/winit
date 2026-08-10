@@ -1,5 +1,7 @@
 //! # X11
 
+#![warn(clippy::exhaustive_enums)]
+
 use dpi::Size;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -26,10 +28,13 @@ mod window;
 mod xdisplay;
 mod xsettings;
 
+pub use dnd::{Selection, SelectionReader, SelectionType, UriListParseError};
+
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum WindowType {
     /// A desktop feature. This can include a single window containing desktop icons with the same
     /// dimensions as the screen, allowing the desktop environment to have full control of the

@@ -8,8 +8,9 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea,
-    NSTrackingAreaOptions, NSView, NSViewLayerContentsRedrawPolicy, NSWindow,
+    NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
+    NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -114,6 +115,12 @@ pub struct ViewState {
     /// Strong reference to the global application state.
     app_state: Rc<AppState>,
 
+    /// This is for a dragging session that we initiated
+    dragging_session: RefCell<Option<Retained<NSDraggingSession>>>,
+
+    /// This is for a dragging session that we initiated
+    drag_operations: Cell<NSDragOperation>,
+
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
     ime_size: Cell<NSSize>,
@@ -131,7 +138,10 @@ pub struct ViewState {
     /// to the application, even during IME
     forward_key_to_app: Cell<bool>,
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
-    accepts_first_mouse: bool,
+
+    /// Set by `acceptsFirstMouse:` so the next `mouseDown:` can tag its
+    /// [`WindowEvent::PointerButton`] with `is_macos_activation_click: true`.
+    next_click_is_activation: Cell<bool>,
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
@@ -773,9 +783,18 @@ define_class!(
         }
 
         #[unsafe(method(acceptsFirstMouse:))]
-        fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
+        fn accepts_first_mouse(&self, event: Option<&NSEvent>) -> bool {
             let _entered = debug_span!("acceptsFirstMouse:").entered();
-            self.ivars().accepts_first_mouse
+            // Always accept the click. The following `mouseDown:` is tagged with
+            // `is_macos_activation_click: true` so the application can decide per click
+            // whether to act on it.
+            //
+            // AppKit may pass nil here for synthetic queries that are not tied to a
+            // specific click; only set the flag when we actually have an event.
+            if event.is_some() {
+                self.ivars().next_click_is_activation.set(true);
+            }
+            true
         }
     }
 );
@@ -783,12 +802,13 @@ define_class!(
 impl WinitView {
     pub(super) fn new(
         app_state: &Rc<AppState>,
-        accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(ViewState {
             app_state: Rc::clone(app_state),
+            dragging_session: Default::default(),
+            drag_operations: Cell::new(NSDragOperation::empty()),
             cursor_state: Default::default(),
             ime_position: Default::default(),
             ime_size: Default::default(),
@@ -799,7 +819,7 @@ impl WinitView {
             ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
-            accepts_first_mouse,
+            next_click_is_activation: Default::default(),
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
@@ -898,7 +918,7 @@ impl WinitView {
         }
     }
 
-    fn scale_factor(&self) -> f64 {
+    pub(crate) fn scale_factor(&self) -> f64 {
         self.window().backingScaleFactor() as f64
     }
 
@@ -1117,11 +1137,44 @@ impl WinitView {
         self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
     }
 
+    pub(crate) fn set_dragging_session(
+        &self,
+        drag: Retained<NSDraggingSession>,
+        action_mask: NSDragOperation,
+    ) {
+        let vars = self.ivars();
+        vars.dragging_session.replace(Some(drag));
+        vars.drag_operations.set(action_mask);
+    }
+
+    pub(crate) fn drag_operations(&self) -> NSDragOperation {
+        self.ivars().drag_operations.get()
+    }
+
+    pub(crate) fn clear_dragging_session(&self, drag: &NSDraggingSession) -> bool {
+        let vars = self.ivars();
+        vars.drag_operations.set(NSDragOperation::empty());
+        let mut dragging_session = vars.dragging_session.borrow_mut();
+        dragging_session
+            .take_if(|session| session.draggingSequenceNumber() == drag.draggingSequenceNumber())
+            .is_some()
+    }
+
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
         let position = self.mouse_view_point(event).to_physical(self.scale_factor());
         let button = mouse_button(event);
 
         self.update_modifiers(event, false);
+
+        // `acceptsFirstMouse:` fires only for the left button, so the activation flag is
+        // applied to the left press and held until the matching left release. This lets
+        // apps short-circuit both events with a single `if is_macos_activation_click` check
+        // without having to track gesture state themselves.
+        let is_macos_activation_click = matches!(button, MouseButton::Left)
+            && match button_state {
+                ElementState::Pressed => self.ivars().next_click_is_activation.get(),
+                ElementState::Released => self.ivars().next_click_is_activation.replace(false),
+            };
 
         self.queue_event(WindowEvent::PointerButton {
             device_id: None,
@@ -1129,6 +1182,7 @@ impl WinitView {
             state: button_state,
             position,
             button: button.into(),
+            is_macos_activation_click,
         });
     }
 

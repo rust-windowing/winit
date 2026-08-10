@@ -26,6 +26,7 @@ impl_dyn_casting!(IconProvider);
 
 #[derive(Debug)]
 /// An error produced when using [`RgbaIcon::new`] with invalid arguments.
+#[non_exhaustive]
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
     /// safely interpreted as 32bpp RGBA pixels.

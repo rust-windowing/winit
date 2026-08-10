@@ -67,6 +67,7 @@ impl TouchHandler for WinitState {
                 state: ElementState::Pressed,
                 position,
                 button: ButtonSource::Touch { finger_id, force: None },
+                is_macos_activation_click: false,
             },
             window_id,
         );
@@ -120,6 +121,7 @@ impl TouchHandler for WinitState {
                 state: ElementState::Released,
                 position,
                 button: ButtonSource::Touch { finger_id, force: None },
+                is_macos_activation_click: false,
             },
             window_id,
         );
@@ -247,8 +249,6 @@ pub trait TouchDataExt {
 
 impl TouchDataExt for WlTouch {
     fn seat(&self) -> &WlSeat {
-        self.data::<TouchData>().expect("failed to get touch data.").seat()
+        self.data::<TouchData<()>>().expect("failed to get touch data.").seat()
     }
 }
-
-sctk::delegate_touch!(WinitState);

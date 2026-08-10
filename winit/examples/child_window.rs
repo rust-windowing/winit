@@ -1,4 +1,4 @@
-#[cfg(any(x11_platform, macos_platform, windows_platform))]
+#[cfg(any(wayland_platform, x11_platform, macos_platform, windows_platform))]
 #[allow(deprecated)]
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
@@ -10,7 +10,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::event::{ElementState, KeyEvent, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::raw_window_handle::HasRawWindowHandle;
-    use winit::window::{Window, WindowAttributes, WindowId};
+    use winit::window::{Window, WindowAttributes, WindowId, WindowType};
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -39,6 +39,7 @@ fn main() -> Result<(), impl std::error::Error> {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let attributes = WindowAttributes::default()
                 .with_title("parent window")
+                .with_window_type(WindowType::Window)
                 .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
                 .with_surface_size(LogicalSize::new(640.0f32, 480.0f32));
             let window = event_loop.create_window(attributes).unwrap();
@@ -131,10 +132,10 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.run_app(Application { context, parent_window_id: None, windows: HashMap::new() })
 }
 
-#[cfg(not(any(x11_platform, macos_platform, windows_platform)))]
+#[cfg(not(any(wayland_platform, x11_platform, macos_platform, windows_platform)))]
 fn main() {
     panic!(
-        "This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature \
-         enabled."
+        "This example is supported only on wayland, x11, macOS, and Windows, with the `rwh_06` \
+         feature enabled."
     );
 }
