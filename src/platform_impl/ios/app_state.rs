@@ -850,6 +850,7 @@ macro_rules! os_capabilities {
         #[derive(Clone, Debug)]
         pub struct OSCapabilities {
             $(
+                $(#[$attr])*
                 pub $name: bool,
             )*
 
@@ -882,9 +883,11 @@ os_capabilities! {
     safe_area_err_msg: "-[UIView safeAreaInsets]",
     safe_area: 11-0,
     /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc>
+    #[cfg_attr(target_os = "tvos", allow(unused))] // no home indicator on tvOS
     home_indicator_hidden_err_msg: "-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]",
     home_indicator_hidden: 11-0,
     /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc>
+    #[cfg_attr(target_os = "tvos", allow(unused))] // no system gestures on tvOS
     defer_system_gestures_err_msg: "-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystem]",
     defer_system_gestures: 11-0,
     /// <https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc>

@@ -10,9 +10,11 @@ fn main() {
         android_platform: { target_os = "android" },
         web_platform: { all(target_family = "wasm", target_os = "unknown") },
         macos_platform: { target_os = "macos" },
-        ios_platform: { target_os = "ios" },
+        // Vendor-wide, so that tvOS gets the UIKit backend. `apple` must match, or
+        // `free_unix` stays true there and pulls in X11/Wayland.
+        ios_platform: { all(target_vendor = "apple", not(target_os = "macos")) },
         windows_platform: { target_os = "windows" },
-        apple: { any(target_os = "ios", target_os = "macos") },
+        apple: { target_vendor = "apple" },
         free_unix: { all(unix, not(apple), not(android_platform), not(target_os = "emscripten")) },
         redox: { target_os = "redox" },
 

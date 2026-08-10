@@ -39,3 +39,11 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On tvOS, support building the UIKit backend for the `*-apple-tvos` targets.
+- On tvOS, report Siri Remote presses as `WindowEvent::KeyboardInput`. The ring
+  maps to the arrow keys, Select to `Enter`, Menu to `Escape` and Play/Pause to
+  `MediaPlayPause`. Presses are still forwarded to UIKit, so Menu keeps
+  returning to the Home screen.

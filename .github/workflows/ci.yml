@@ -66,6 +66,15 @@ jobs:
         include:
           - toolchain: '1.70.0'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+          # tvOS is a tier 3 target, so std has to be built from source.
+          - toolchain: 'nightly'
+            platform: {
+              name:       'tvOS Aarch64',
+              target:     aarch64-apple-tvos,
+              os:         macos-latest,
+              options:    '-Zbuild-std',
+              components: rust-src,
+            }
           - toolchain: 'nightly'
             platform: {
               name:       'web Atomic',
@@ -162,9 +171,12 @@ jobs:
         matrix.toolchain != '1.70.0'
       run: cargo test -p dpi
 
+    # tvOS is checked, but not linked: `dispatch` 0.2 asks for `-ldispatch`, which
+    # only exists on iOS and macOS as part of libSystem.
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'tvos') &&
         matrix.toolchain != '1.70.0'
       run: cargo $CMD test --no-run $OPTIONS
 
@@ -172,6 +184,7 @@ jobs:
       if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
+        !contains(matrix.platform.target, 'tvos') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.70.0'
@@ -184,6 +197,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'tvos') &&
         matrix.toolchain != '1.70.0'
       run: cargo $CMD test --no-run $OPTIONS --features serde
 
@@ -191,6 +205,7 @@ jobs:
       if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
+        !contains(matrix.platform.target, 'tvos') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.70.0'
