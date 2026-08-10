@@ -1,8 +1,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use winit_core::application::ApplicationHandler;
-use winit_core::error::{EventLoopError, NotSupportedError};
-use winit_core::event_loop::ActiveEventLoop as RootActiveEventLoop;
+use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::event_loop::{
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
+    EventLoopProxy, OwnedDisplayHandle,
+};
 
 use crate::{
     HasMonitorPermissionFuture, MonitorPermissionFuture, PollStrategy, WaitUntilStrategy, backend,
@@ -75,5 +79,35 @@ impl EventLoop {
         HasMonitorPermissionFuture(
             self.elw.runner.monitor().has_detailed_monitor_permission_async(),
         )
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+        self.register_app(app);
+        Ok(())
+    }
+
+    fn create_proxy(&self) -> EventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }

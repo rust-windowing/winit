@@ -17,6 +17,7 @@ const PIXEL_SIZE: usize = 4;
 
 /// See [`Window::set_cursor()`][crate::window::Window::set_cursor] for more details.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[allow(clippy::exhaustive_enums)]
 pub enum Cursor {
     Icon(CursorIcon),
     Custom(CustomCursor),
@@ -111,6 +112,7 @@ impl_dyn_casting!(CustomCursorProvider);
 ///
 /// See [`CustomCursor`] for more details.
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum CustomCursorSource {
     /// Cursor that is backed by RGBA image.
     ///
@@ -167,6 +169,7 @@ impl CustomCursorSource {
 /// An error produced when using [`CustomCursorSource::from_rgba`] with invalid arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum BadImage {
     /// Produced when the image dimensions are larger than [`MAX_CURSOR_SIZE`]. This doesn't
     /// guarantee that the cursor will work, but should avoid many platform and device specific
@@ -217,6 +220,7 @@ impl Error for BadImage {}
 /// An error produced when using [`CustomCursorSource::from_animation`] with invalid arguments.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum BadAnimation {
     /// Produced when no cursors were supplied.
     Empty,

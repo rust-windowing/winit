@@ -1,5 +1,7 @@
 //! Winit implementation helpers.
 
+#![warn(clippy::exhaustive_enums)]
+
 #[cfg(feature = "core-foundation")]
 pub mod core_foundation;
 #[cfg(feature = "event-handler")]

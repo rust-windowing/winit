@@ -19,6 +19,7 @@ pub use smol_str::SmolStr;
 /// - On non-Web platforms, support assigning keybinds to virtually any key through a UI.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum NativeKeyCode {
     Unidentified,
     /// An Android "scancode".
@@ -78,6 +79,7 @@ impl std::fmt::Debug for NativeKeyCode {
 /// define keybinds which work in the presence of identifiers we haven't mapped for you yet.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum NativeKey {
     Unidentified,
     /// An Android "keycode", which is similar to a "virtual-key code" on Windows.
@@ -167,6 +169,7 @@ impl PartialEq<NativeKeyCode> for NativeKey {
 /// emit [`PhysicalKey::Unidentified`] with additional data about the key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum PhysicalKey {
     /// A known key code
     Code(KeyCode),
@@ -248,6 +251,7 @@ impl PartialEq<PhysicalKey> for NativeKeyCode {
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum Key<Str = SmolStr> {
     /// A simple (unparameterised) action
     Named(NamedKey),
@@ -445,6 +449,7 @@ impl ModifiersState {
 /// [^2]: platform-dependent
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum ModifiersKeyState {
     /// The particular modifier is active or logically, but not necessarily physically, pressed.
     Pressed,

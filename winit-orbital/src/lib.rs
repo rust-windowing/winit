@@ -3,6 +3,8 @@
 //! Redox OS has some functionality not yet present that will be implemented
 //! when its orbital display server provides it.
 
+#![warn(clippy::exhaustive_enums)]
+
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Result, Write};
 use std::os::fd::AsRawFd;

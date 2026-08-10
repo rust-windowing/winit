@@ -11,13 +11,103 @@ use std::time::Duration;
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 
 use crate::Instant;
+use crate::application::ApplicationHandler;
 use crate::as_any::AsAny;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use crate::error::{NotSupportedError, RequestError};
+use crate::error::{EventLoopError, NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
+
+/// Common methods to implement for the platform event loop.
+pub trait EventLoopProvider: fmt::Debug {
+    /// Run the event loop with the given application on the calling thread.
+    ///
+    /// The `app` is dropped when the event loop is shut down.
+    ///
+    /// ## Event loop flow
+    ///
+    /// This function internally handles the different parts of a traditional event-handling loop.
+    /// You can imagine this method as being implemented like this:
+    ///
+    /// ```rust,ignore
+    /// let mut start_cause = StartCause::Init;
+    ///
+    /// // Run the event loop.
+    /// while !event_loop.exiting() {
+    ///     // Wake up.
+    ///     app.new_events(event_loop, start_cause);
+    ///
+    ///     // Indicate that surfaces can now safely be created.
+    ///     if start_cause == StartCause::Init {
+    ///         app.can_create_surfaces(event_loop);
+    ///     }
+    ///
+    ///     // Handle proxy wake-up event.
+    ///     if event_loop.proxy_wake_up_set() {
+    ///         event_loop.proxy_wake_up_clear();
+    ///         app.proxy_wake_up(event_loop);
+    ///     }
+    ///
+    ///     // Handle actions done by the user / system such as moving the cursor, resizing the
+    ///     // window, changing the window theme, etc.
+    ///     for event in event_loop.events() {
+    ///         match event {
+    ///             window event => app.window_event(event_loop, window_id, event),
+    ///             device event => app.device_event(event_loop, device_id, event),
+    ///         }
+    ///     }
+    ///
+    ///     // Handle redraws.
+    ///     for window_id in event_loop.pending_redraws() {
+    ///         app.window_event(event_loop, window_id, WindowEvent::RedrawRequested);
+    ///     }
+    ///
+    ///     // Done handling events, wait until we're woken up again.
+    ///     app.about_to_wait(event_loop);
+    ///     start_cause = event_loop.wait_if_necessary();
+    /// }
+    ///
+    /// // Finished running, drop application state.
+    /// drop(app);
+    /// ```
+    ///
+    /// This is of course a very coarse-grained overview, and leaves out timing details like
+    /// [`ControlFlow::WaitUntil`] and life-cycle methods like [`ApplicationHandler::resumed`], but
+    /// it should give you an idea of how things fit together.
+    ///
+    /// ## Returns
+    ///
+    /// The semantics of this function is defined by the target platform. Consult the implementor
+    /// docs for details.
+    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError>;
+
+    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
+    /// to the main event loop, possibly from another thread.
+    fn create_proxy(&self) -> EventLoopProxy;
+
+    /// Gets a persistent reference to the underlying platform display.
+    ///
+    /// See the [`OwnedDisplayHandle`] type for more information.
+    fn owned_display_handle(&self) -> OwnedDisplayHandle;
+
+    /// Change if or when [`DeviceEvent`]s are captured.
+    ///
+    /// See [`ActiveEventLoop::listen_device_events`] for details.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    fn listen_device_events(&self, allowed: DeviceEvents);
+
+    /// Sets the [`ControlFlow`].
+    fn set_control_flow(&self, control_flow: ControlFlow);
+
+    /// Create custom cursor.
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError>;
+}
 
 pub trait ActiveEventLoop: AsAny + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -282,6 +372,7 @@ impl From<Icon> for DragIcon {
 /// are expected to provide some kind of order of preference.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub enum DndAction {
     /// Move the dragged item from the source to the destination.
     ///
@@ -414,6 +505,7 @@ impl Eq for OwnedDisplayHandle {}
 /// [`Wait`]: Self::Wait
 /// [`about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[allow(clippy::exhaustive_enums)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
@@ -453,6 +545,7 @@ impl ControlFlow {
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum DeviceEvents {
     /// Report device events regardless of window focus.
     Always,

@@ -57,12 +57,45 @@ changelog entry.
   window to be shown on the same Space as a fullscreen window
   (`NSWindowCollectionBehaviorFullScreenAuxiliary`) instead of triggering a Space switch or Split
   View tiling.
+- Add `WindowEvent::PointerButton::is_macos_activation_click`. On macOS, both the press and
+  matching release of a click that activated a previously inactive window are tagged, so
+  applications can ignore activation clicks for buttons or destructive actions while accepting
+  them for low-risk actions like selection or scrolling. Always `false` on other platforms.
+- `winit::event_loop::EventLoopProvider` trait with common event loop methods.
 
 ### Changed
 
+- Mark the extensible public enums as `#[non_exhaustive]`: `StartCause`, `WindowEvent`,
+  `DeviceEvent`, `Ime`, `PointerKind`, `PointerSource`, `ButtonSource`, `NativeKey`,
+  `NativeKeyCode`, `CustomCursorSource`, `TypeHint`, `SendData`, `DndAction`, `ImeRequest`,
+  `BadIcon`, `BadImage`, `BadAnimation`, `ImeSurroundingTextError`, `MouseScrollDelta`,
+  and `Fullscreen`.
+
+  When matching on one of these types, add a wildcard arm to cover variants added in the future:
+
+  ```rust,ignore
+  match event {
+      WindowEvent::CloseRequested => (),
+      // ...
+      _ => (),
+  }
+  ```
+- On macOS, mark `ActivationPolicy` as `#[non_exhaustive]`.
+- On X11, mark `WindowType` and `UriListParseError` as `#[non_exhaustive]`.
+- On Web, mark `PollStrategy`, `WaitUntilStrategy`, `CustomCursorError`, `MonitorPermissionError`,
+  and `OrientationLockError` as `#[non_exhaustive]`.
+- On Windows, mark `BackdropType` and `CornerPreference` as `#[non_exhaustive]`.
+- On iOS, mark `ValidOrientations` and `StatusBarStyle` as `#[non_exhaustive]`.
 - Updated `windows-sys` to `v0.61`.
 - On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
 - On macOS, using the private API `CGSSetWindowBackgroundBlurRadius` for `Window::set_blur` is now disabled by default. It can be re-enabled using the Cargo feature `private-apple-apis`.
+
+### Removed
+
+- On macOS, remove `WindowAttributesMacOS::with_accepts_first_mouse`. Use the new per-event
+  `WindowEvent::PointerButton::is_macos_activation_click` flag instead. To preserve the old
+  `with_accepts_first_mouse(false)` behavior, ignore `PointerButton` press events (and their
+  matching releases / drags) where `is_macos_activation_click` is `true`.
 
 ### Fixed
 
@@ -80,3 +113,6 @@ changelog entry.
 - On macOS, prevent an older deferred surface resize from overriding newer sizes after AppKit
   transitions.
 - On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
+- On Redox, fix `run_app_on_demand` exiting immediately after a previous `run_app_on_demand` called `exit`.
+- On Redox, fill in logical key for keyboard events rather than emitting a separate fake IME event.
+- On Redox, handle window closes during `ApplicationHandler` drop.
