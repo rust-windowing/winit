@@ -44,6 +44,7 @@ changelog entry.
 
 - Add `keyboard` support for OpenHarmony.
 - On iOS, add Apple Pencil support with force, altitude, and azimuth data.
+- On iOS, implement `Window::theme`, `Window::set_theme`, and `WindowAttributes::with_theme` (iOS 13.0+), and `WindowEvent::ThemeChanged` (iOS 17.0+).
 - On Redox, add support for missing keyboard scancodes.
 - On Redox, add support for `EventLoopExtPumpEvents::pump_app_events`.
 - Implement `Send` and `Sync` for `OwnedDisplayHandle`.
