@@ -12,7 +12,7 @@ fn main() {
     cfg_aliases! {
         // Systems.
         android_platform: { target_os = "android" },
-        web_platform: { all(target_family = "wasm", target_os = "unknown") },
+        web_platform: { all(target_family = "wasm", any(target_os = "unknown", target_os = "none")) },
         macos_platform: { target_os = "macos" },
         ios_platform: { all(target_vendor = "apple", not(target_os = "macos")) },
         windows_platform: { target_os = "windows" },

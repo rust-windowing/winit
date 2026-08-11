@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, mem, panic};
 
@@ -596,20 +596,14 @@ impl Event {
                 app.device_event(event_loop, Some(device_id), event)
             },
             Self::BufferedScaleFactorChanged(window, scale_factor, new_surface_size) => {
-                let user_new_surface_size = Arc::new(Mutex::new(new_surface_size));
+                let (surface_size_writer, user_new_surface_size) =
+                    SurfaceSizeWriter::new(new_surface_size);
                 app.window_event(
                     event_loop,
                     WindowId::from_raw(window as usize),
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
-                            &user_new_surface_size,
-                        )),
-                    },
+                    WindowEvent::ScaleFactorChanged { scale_factor, surface_size_writer },
                 );
-                let surface_size = *user_new_surface_size.lock().unwrap();
-
-                drop(user_new_surface_size);
+                let surface_size = user_new_surface_size.take();
 
                 if surface_size != new_surface_size {
                     let window_flags = unsafe {

@@ -1,18 +1,23 @@
-use std::cell::{OnceCell, Ref, RefCell};
-use std::cmp::Ordering;
-use std::fmt::{self, Debug, Formatter};
-use std::future::Future;
-use std::hash::{Hash, Hasher};
-use std::mem;
-use std::num::NonZeroU16;
-use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::rc::{Rc, Weak};
-use std::sync::{Arc, OnceLock};
-use std::task::{Context, Poll, ready};
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::rc::{Rc, Weak};
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::cell::{OnceCell, Ref, RefCell};
+use core::cmp::Ordering;
+use core::fmt::{self, Debug, Formatter};
+use core::future::Future;
+use core::hash::{Hash, Hasher};
+use core::mem;
+use core::num::NonZeroU16;
+use core::ops::{Deref, DerefMut};
+use core::pin::Pin;
+use core::task::{Context, Poll, ready};
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use js_sys::{Object, Promise};
+use once_cell::race::OnceBool;
 use tracing::error;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -135,7 +140,7 @@ impl MonitorHandleProvider for MonitorHandle {
         self.inner.queue(|inner| inner.position())
     }
 
-    fn name(&self) -> Option<std::borrow::Cow<'_, str>> {
+    fn name(&self) -> Option<Cow<'_, str>> {
         self.inner.queue(|inner| inner.name().map(Into::into))
     }
 
@@ -359,7 +364,7 @@ impl Inner {
     }
 
     fn has_lock_support(&self) -> bool {
-        *HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation_raw().has_lock().is_undefined())
+        HAS_LOCK_SUPPORT.get_or_init(|| !self.orientation_raw().has_lock().is_undefined())
     }
 }
 
@@ -839,23 +844,14 @@ fn unreachable_error(error: &JsValue, message: &str) -> ! {
     }
 }
 
-static HAS_LOCK_SUPPORT: OnceLock<bool> = OnceLock::new();
+static HAS_LOCK_SUPPORT: OnceBool = OnceBool::new();
 
 fn has_previous_lock_support() -> Option<bool> {
-    HAS_LOCK_SUPPORT.get().cloned()
+    HAS_LOCK_SUPPORT.get()
 }
 
 pub fn has_screen_details_support(window: &Window) -> bool {
-    thread_local! {
-        static HAS_SCREEN_DETAILS: OnceCell<bool> = const { OnceCell::new() };
-    }
-
-    HAS_SCREEN_DETAILS.with(|support| {
-        *support.get_or_init(|| {
-            let window: &WindowExt = window.unchecked_ref();
-            !window.has_screen_details().is_undefined()
-        })
-    })
+    !window.unchecked_ref::<WindowExt>().has_screen_details().is_undefined()
 }
 
 #[wasm_bindgen]

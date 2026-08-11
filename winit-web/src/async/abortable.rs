@@ -1,10 +1,10 @@
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::task::{Context, Poll};
+use alloc::sync::Arc;
+use core::error::Error;
+use core::fmt::{self, Display, Formatter};
+use core::future::Future;
+use core::pin::Pin;
+use core::sync::atomic::{AtomicBool, Ordering};
+use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 

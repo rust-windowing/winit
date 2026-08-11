@@ -1,7 +1,10 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::{Arc, OnceLock};
-use std::task::{Context, Poll, Waker};
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll, Waker};
+
+use once_cell::race::OnceBox;
 
 use super::{ConcurrentQueue, PushError};
 
@@ -10,11 +13,11 @@ pub struct Notifier<T: Clone>(Arc<Inner<T>>);
 
 impl<T: Clone> Notifier<T> {
     pub fn new() -> Self {
-        Self(Arc::new(Inner { queue: ConcurrentQueue::unbounded(), value: OnceLock::new() }))
+        Self(Arc::new(Inner { queue: ConcurrentQueue::unbounded(), value: OnceBox::new() }))
     }
 
     pub fn notify(self, value: T) {
-        if self.0.value.set(value).is_err() {
+        if self.0.value.set(Box::new(value)).is_err() {
             unreachable!("value set before")
         }
     }
@@ -58,18 +61,12 @@ impl<T: Clone> Future for Notified<T> {
             }
         }
 
-        match Arc::try_unwrap(this)
-            .map(|mut inner| inner.value.take())
-            .map_err(|this| this.value.get().cloned())
-        {
-            Ok(Some(value)) | Err(Some(value)) => Poll::Ready(Some(value)),
-            _ => Poll::Ready(None),
-        }
+        Poll::Ready(this.value.get().cloned())
     }
 }
 
 #[derive(Debug)]
 struct Inner<T> {
     queue: ConcurrentQueue<Waker>,
-    value: OnceLock<T>,
+    value: OnceBox<T>,
 }

@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use alloc::boxed::Box;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};

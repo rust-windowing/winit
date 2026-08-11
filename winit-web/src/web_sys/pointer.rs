@@ -1,5 +1,5 @@
-use std::cell::Cell;
-use std::rc::Rc;
+use alloc::rc::Rc;
+use core::cell::Cell;
 
 use dpi::PhysicalPosition;
 use web_sys::PointerEvent;

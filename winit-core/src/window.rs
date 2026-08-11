@@ -1,5 +1,7 @@
 //! The [`Window`] trait and associated types.
-use std::fmt;
+use alloc::boxed::Box;
+use alloc::string::String;
+use core::fmt;
 
 use bitflags::bitflags;
 use cursor_icon::CursorIcon;
@@ -513,7 +515,7 @@ pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 unsafe impl Send for SendSyncRawWindowHandle {}
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
-pub trait PlatformWindowAttributes: AsAny + std::fmt::Debug + Send + Sync {
+pub trait PlatformWindowAttributes: AsAny + core::fmt::Debug + Send + Sync {
     fn box_clone(&self) -> Box<dyn PlatformWindowAttributes>;
 }
 
@@ -1521,8 +1523,8 @@ impl PartialEq for dyn Window + '_ {
 
 impl Eq for dyn Window + '_ {}
 
-impl std::hash::Hash for dyn Window + '_ {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl core::hash::Hash for dyn Window + '_ {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.id().hash(state);
     }
 }
@@ -1785,7 +1787,7 @@ impl fmt::Display for ImeSurroundingTextError {
     }
 }
 
-impl std::error::Error for ImeSurroundingTextError {}
+impl core::error::Error for ImeSurroundingTextError {}
 
 /// Defines the text surrounding the caret
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -2136,7 +2138,7 @@ impl fmt::Display for ImeRequestError {
     }
 }
 
-impl std::error::Error for ImeRequestError {}
+impl core::error::Error for ImeRequestError {}
 
 /// An opaque token used to activate the [`Window`].
 ///
@@ -2250,7 +2252,7 @@ mod tests {
         );
 
         let text: &[u8] = ['a' as u8; 8000].as_slice();
-        let text = std::str::from_utf8(text).unwrap();
+        let text = core::str::from_utf8(text).unwrap();
         assert_eq!(
             ImeSurroundingText::new(text.into(), 0, 0),
             Err(ImeSurroundingTextError::TextTooLong),

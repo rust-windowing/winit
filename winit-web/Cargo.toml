@@ -19,21 +19,22 @@ serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 
 [dependencies]
 bitflags.workspace = true
-cursor-icon.workspace = true
-dpi.workspace = true
-rwh_06.workspace = true
-serde = { workspace = true, optional = true }
-smol_str.workspace = true
+cursor-icon = { workspace = true, default-features = false }
+dpi = { workspace = true, default-features = false }
+once_cell = { workspace = true, default-features = false, features = ["race", "alloc"] }
+rwh_06 = { workspace = true, default-features = false }
+serde = { workspace = true, default-features = false, optional = true }
+smol_str = { workspace = true, default-features = false }
 tracing.workspace = true
-winit-core.workspace = true
+winit-core = { workspace = true, default-features = false }
 
 # Platform-specific
-js-sys.workspace = true
+js-sys = { workspace = true, default-features = false }
 pin-project.workspace = true
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
-web-time.workspace = true
-web_sys = { workspace = true, features = [
+wasm-bindgen = { workspace = true, default-features = false }
+wasm-bindgen-futures = { workspace = true, default-features = false }
+web-time = { workspace = true, default-features = false }
+web_sys = { workspace = true, default-features = false, features = [
     "AbortController",
     "AbortSignal",
     "Blob",
