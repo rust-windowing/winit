@@ -211,7 +211,7 @@ impl EventLoop {
                 },
                 MainEvent::ConfigChanged { .. } => {
                     let scale_factor = scale_factor(&self.android_app);
-                    if (scale_factor - self.scale_factor).abs() > f64::EPSILON {
+                    if scale_factor != self.scale_factor {
                         self.scale_factor = scale_factor;
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let event = event::WindowEvent::ScaleFactorChanged {
