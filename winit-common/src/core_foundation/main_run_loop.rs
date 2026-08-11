@@ -131,6 +131,6 @@ impl MainRunLoop {
     /// This is also done automatically when the [`MainRunLoopObserver`] is dropped.
     pub fn remove_observer(&self, observer: &MainRunLoopObserver, mode: &CFRunLoopMode) {
         // Same as in `add_observer`, accessing the main loop's observer is fine.
-        self.main_run_loop.add_observer(Some(&observer.observer), Some(mode));
+        self.main_run_loop.remove_observer(Some(&observer.observer), Some(mode));
     }
 }

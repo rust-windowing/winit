@@ -99,6 +99,8 @@ changelog entry.
 
 ### Fixed
 
+- On Android, only emit `ScaleFactorChanged` when the scale factor actually
+  changes.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
