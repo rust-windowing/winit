@@ -1310,17 +1310,7 @@ impl WindowDelegate {
             return;
         }
 
-        let (anchor, gravity, constraint_adjustment, anchor_rect, positioner_offset) = {
-            let positioner = self.ivars().positioner.borrow();
-
-            (
-                positioner.anchor,
-                positioner.gravity,
-                positioner.constraint_adjustment,
-                positioner.anchor_rect,
-                positioner.positioner_offset,
-            )
-        };
+        let positioner = *self.ivars().positioner.borrow();
 
         let Some(parent_origin) = self.parent_content_origin() else { return };
 
@@ -1343,21 +1333,10 @@ impl WindowDelegate {
         );
         let clip_size = monitor_size.to_logical::<f64>(scale_factor);
 
-        let (anchor_position, anchor_size) = anchor_rect;
-        let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
-        let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
-        let offset = positioner_offset.to_logical::<f64>(scale_factor);
         let current_outer_size = self.outer_size().to_logical::<f64>(scale_factor);
 
-        let (origin, new_outer_size) = place_window(
-            anchor,
-            gravity,
-            constraint_adjustment,
-            (anchor_position, anchor_size),
-            offset,
-            current_outer_size,
-            (clip_position, clip_size),
-        );
+        let (origin, new_outer_size) =
+            place_window(&positioner, scale_factor, current_outer_size, (clip_position, clip_size));
 
         self.set_outer_position(Position::Logical(origin));
         if new_outer_size != current_outer_size {

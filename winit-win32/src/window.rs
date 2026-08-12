@@ -1300,12 +1300,6 @@ fn compute_anchored_placement(
         return None;
     }
 
-    let anchor = positioner.anchor;
-    let gravity = positioner.gravity;
-    let constraint_adjustment = positioner.constraint_adjustment;
-    let anchor_rect = positioner.anchor_rect;
-    let positioner_offset = positioner.positioner_offset;
-
     let parent = unsafe { GetParent(hwnd) };
     if parent.is_null() {
         return None;
@@ -1329,22 +1323,11 @@ fn compute_anchored_placement(
     .to_logical::<f64>(scale_factor);
     let clip_size = monitor_size.to_logical::<f64>(scale_factor);
 
-    let (anchor_position, anchor_size) = anchor_rect;
-    let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
-    let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
-    let offset = positioner_offset.to_logical::<f64>(scale_factor);
     let current_outer_size = outer_size_of(hwnd).to_logical::<f64>(scale_factor);
     let current_size = surface_size_of(hwnd).to_logical::<f64>(scale_factor);
 
-    let (origin, outer_size) = place_window(
-        anchor,
-        gravity,
-        constraint_adjustment,
-        (anchor_position, anchor_size),
-        offset,
-        current_outer_size,
-        (clip_position, clip_size),
-    );
+    let (origin, outer_size) =
+        place_window(positioner, scale_factor, current_outer_size, (clip_position, clip_size));
 
     // The window's non-client insets (title bar, borders, ...), assumed constant regardless of
     // the window's size, to translate `outer_size` back into a surface size.

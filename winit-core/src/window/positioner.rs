@@ -4,6 +4,8 @@
 
 use dpi::{LogicalPosition, LogicalSize};
 
+use super::WindowPositioner;
+
 /// Anchor rect within the parent surface
 /// See: https://wayland.app/protocols/xdg-shell#xdg_positioner:request:set_anchor_rect
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -127,32 +129,36 @@ fn constrain_axis(
     (origin, extent)
 }
 
-/// Finds a placement for a window of `window_size`, anchored to a rectangle `anchor` (in the same
-/// coordinate space as `clip`), nudged by `offset` (the user-facing offset from the anchor point,
-/// set via [`WindowPositioner::positioner_offset`] -- not part of the anchor rectangle's
-/// geometry), and constrained to stay within the `clip` rectangle according to
-/// `constraint_adjustment`.
+/// Finds a placement for a window of `window_size`, anchored per `positioner` (whose
+/// [`anchor_rect`](WindowPositioner::anchor_rect) and
+/// [`positioner_offset`](WindowPositioner::positioner_offset) are converted to logical
+/// coordinates using `scale_factor`, then interpreted in the same coordinate space as `clip`), and
+/// constrained to stay within the `clip` rectangle according to
+/// [`constraint_adjustment`](WindowPositioner::constraint_adjustment).
 ///
 /// This mirrors the Wayland `xdg_positioner` placement algorithm used natively on Wayland, for
 /// backends (such as Win32 and AppKit) that have no equivalent native concept and therefore need
-/// to compute the popup position themselves: `anchor`'s selects a point on the anchor rectangle,
+/// to compute the popup position themselves: `anchor` selects a point on the anchor rectangle,
 /// `gravity` decides which corner/edge of the popup is placed at that point, and if the resulting
 /// rectangle doesn't fit inside the clip rectangle, `constraint_adjustment`'s flags decide whether
 /// (and how) the popup is moved (slide), mirrored to the other side of the anchor point (flip),
 /// or shrunk (resize) to fit. Axes are adjusted independently. If none of the flags are set for an
 /// axis, that axis is left as computed even if it doesn't fit, matching the protocol's "none"
 /// behavior.
-///
-/// [`WindowPositioner::positioner_offset`]: super::WindowPositioner::positioner_offset
 pub fn place_window(
-    anchor: WindowAnchor,
-    gravity: WindowGravity,
-    constraint_adjustment: WindowConstraintAdjustment,
-    (anchor_position, anchor_size): (LogicalPosition<f64>, LogicalSize<f64>),
-    offset: LogicalPosition<f64>,
+    positioner: &WindowPositioner,
+    scale_factor: f64,
     window_size: LogicalSize<f64>,
     (clip_position, clip_size): (LogicalPosition<f64>, LogicalSize<f64>),
 ) -> (LogicalPosition<f64>, LogicalSize<f64>) {
+    let anchor = positioner.anchor;
+    let gravity = positioner.gravity;
+    let constraint_adjustment = positioner.constraint_adjustment;
+    let (anchor_position, anchor_size) = positioner.anchor_rect;
+    let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
+    let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
+    let offset = positioner.positioner_offset.to_logical::<f64>(scale_factor);
+
     let (anchor_fx, anchor_fy) = anchor_fraction(anchor);
     let (gravity_fx, gravity_fy) = gravity_fraction(gravity);
 
@@ -202,6 +208,8 @@ pub fn place_window(
 
 #[cfg(test)]
 mod tests {
+    use dpi::{Position, Size};
+
     use super::*;
 
     const GRID_COLS: usize = 60;
@@ -289,17 +297,17 @@ mod tests {
         let popup_size = LogicalSize::new(40., 30.);
         let clip_position = LogicalPosition::new(0., 0.);
         let clip_size = LogicalSize::new(0., 0.);
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
         let place = |anchor: WindowAnchor, gravity: WindowGravity| {
-            place_window(
+            let positioner = WindowPositioner::new(
                 anchor,
+                (Position::Logical(anchor_position), Size::Logical(anchor_size)),
+                offset,
                 gravity,
                 WindowConstraintAdjustment::empty(),
-                (anchor_position, anchor_size),
-                LogicalPosition::new(0., 0.),
-                popup_size,
-                (clip_position, clip_size),
-            )
+            );
+            place_window(&positioner, 1.0, popup_size, (clip_position, clip_size))
         };
 
         // BottomRight gravity anchored to the anchor's bottom-right corner: the popup's top-left
@@ -373,19 +381,19 @@ mod tests {
         let popup_size = LogicalSize::new(50., 50.);
 
         let flip_only = WindowConstraintAdjustment::FLIP_X | WindowConstraintAdjustment::FLIP_Y;
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
         // Without flipping the popup would start at x=290 and end at x=340, past the clip's
         // right edge (300); flipping mirrors both anchor edge and gravity, so it should end up
         // entirely to the left of the anchor rect instead, fully inside the clip region.
-        let (origin, size) = place_window(
+        let positioner = WindowPositioner::new(
             WindowAnchor::TopRight,
+            (Position::Logical(anchor_position), Size::Logical(anchor_size)),
+            offset,
             WindowGravity::BottomRight,
             flip_only,
-            (anchor_position, anchor_size),
-            LogicalPosition::new(0., 0.),
-            popup_size,
-            (clip_position, clip_size),
         );
+        let (origin, size) = place_window(&positioner, 1.0, popup_size, (clip_position, clip_size));
         draw("flip", (clip_position, clip_size), (anchor_position, anchor_size), (origin, size));
         assert!(origin.x >= 0. && origin.x + size.width <= 300.);
         assert_eq!(size, popup_size);
@@ -407,16 +415,16 @@ mod tests {
         let popup_size = LogicalSize::new(50., 50.);
 
         let slide_only = WindowConstraintAdjustment::SLIDE_X | WindowConstraintAdjustment::SLIDE_Y;
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
-        let (origin, size) = place_window(
+        let positioner = WindowPositioner::new(
             WindowAnchor::BottomRight,
+            (Position::Logical(anchor_position), Size::Logical(LogicalSize::new(0., 0.))),
+            offset,
             WindowGravity::BottomRight,
             slide_only,
-            (anchor_position, LogicalSize::new(0., 0.)),
-            LogicalPosition::new(0., 0.),
-            popup_size,
-            (clip_position, clip_size),
         );
+        let (origin, size) = place_window(&positioner, 1.0, popup_size, (clip_position, clip_size));
         draw(
             "slide",
             (clip_position, clip_size),
@@ -439,16 +447,16 @@ mod tests {
 
         let resize_only =
             WindowConstraintAdjustment::RESIZE_X | WindowConstraintAdjustment::RESIZE_Y;
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
-        let (origin, size) = place_window(
+        let positioner = WindowPositioner::new(
             WindowAnchor::TopLeft,
+            (Position::Logical(anchor_position), Size::Logical(LogicalSize::new(0., 0.))),
+            offset,
             WindowGravity::BottomRight,
             resize_only,
-            (anchor_position, LogicalSize::new(0., 0.)),
-            LogicalPosition::new(0., 0.),
-            popup_size,
-            (clip_position, clip_size),
         );
+        let (origin, size) = place_window(&positioner, 1.0, popup_size, (clip_position, clip_size));
         draw(
             "resize",
             (clip_position, clip_size),
@@ -474,16 +482,16 @@ mod tests {
         let popup_size = LogicalSize::new(50., 50.);
 
         let resize_only = WindowConstraintAdjustment::RESIZE_X;
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
-        let (origin, size) = place_window(
+        let positioner = WindowPositioner::new(
             WindowAnchor::TopLeft,
+            (Position::Logical(anchor_position), Size::Logical(LogicalSize::new(0., 0.))),
+            offset,
             WindowGravity::BottomRight,
             resize_only,
-            (anchor_position, LogicalSize::new(0., 0.)),
-            LogicalPosition::new(0., 0.),
-            popup_size,
-            (clip_position, clip_size),
         );
+        let (origin, size) = place_window(&positioner, 1.0, popup_size, (clip_position, clip_size));
         draw(
             "resize (leading edge only)",
             (clip_position, clip_size),
@@ -504,16 +512,16 @@ mod tests {
         let clip_size = LogicalSize::new(100., 100.);
         let anchor_position = LogicalPosition::new(90., 90.);
         let popup_size = LogicalSize::new(50., 50.);
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
-        let (origin, size) = place_window(
+        let positioner = WindowPositioner::new(
             WindowAnchor::TopLeft,
+            (Position::Logical(anchor_position), Size::Logical(LogicalSize::new(0., 0.))),
+            offset,
             WindowGravity::BottomRight,
             WindowConstraintAdjustment::empty(),
-            (anchor_position, LogicalSize::new(0., 0.)),
-            LogicalPosition::new(0., 0.),
-            popup_size,
-            (clip_position, clip_size),
         );
+        let (origin, size) = place_window(&positioner, 1.0, popup_size, (clip_position, clip_size));
         draw(
             "no adjustment",
             (clip_position, clip_size),
@@ -532,16 +540,16 @@ mod tests {
         let clip_size = LogicalSize::new(300., 300.);
         let anchor_position = LogicalPosition::new(100., 100.);
         let popup_size = LogicalSize::new(50., 50.);
+        let offset = Position::Logical(LogicalPosition::new(0., 0.));
 
-        let (origin, size) = place_window(
+        let positioner = WindowPositioner::new(
             WindowAnchor::TopLeft,
+            (Position::Logical(anchor_position), Size::Logical(LogicalSize::new(0., 0.))),
+            offset,
             WindowGravity::BottomRight,
             WindowConstraintAdjustment::all(),
-            (anchor_position, LogicalSize::new(0., 0.)),
-            LogicalPosition::new(0., 0.),
-            popup_size,
-            (clip_position, clip_size),
         );
+        let (origin, size) = place_window(&positioner, 1.0, popup_size, (clip_position, clip_size));
         draw(
             "all adjustment, already fits",
             (clip_position, clip_size),
