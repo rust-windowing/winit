@@ -1,7 +1,7 @@
 //! This example shows the capabilities of popups
 //! Move the mouse on the window and press 'A' to create a new Popup and 'D' to delete it again.
 //! Move the Window to the border so see how the constraint adjustments behave like flipping or
-//! sliding See `spawn_popup` and play with the various properties
+//! sliding. See `spawn_popup` and play with the various properties
 
 #[cfg(any(x11_platform, macos_platform, windows_platform, wayland_platform))]
 #[allow(deprecated)]
