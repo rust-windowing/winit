@@ -699,8 +699,10 @@ fn new_window(
                 let position = match attrs.position {
                     // An anchored window's position is parent-relative; it's applied in
                     // `WindowDelegate::new` (after the delegate exists) via the shared
-                    // translation in `set_outer_position`.
-                    _ if anchored => NSPoint::new(0.0, 0.0),
+                    // translation in `set_outer_position`. A parentless anchored window can't be
+                    // positioned that way, so it falls through to the same handling as a
+                    // non-anchored window below.
+                    _ if anchored && attrs.parent_window().is_some() => NSPoint::new(0.0, 0.0),
                     Some(position) => {
                         let position = position.to_logical(scale_factor);
                         flip_window_screen_coordinates(NSRect::new(
@@ -851,8 +853,8 @@ fn new_window(
                 window.collectionBehavior() | NSWindowCollectionBehavior::FullScreenAuxiliary,
             );
         }
-        // Anchored windows are positioned relative to their parent in `WindowDelegate::new`.
-        if attrs.position.is_none() && !anchored {
+        // Center window if the position is not set or it doesn't have any parent
+        if attrs.position.is_none() && !(anchored && attrs.parent_window().is_some()) {
             window.center();
         }
 
