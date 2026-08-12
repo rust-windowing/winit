@@ -78,6 +78,7 @@ pub enum WindowType {
 /// through [`Window::positioner`]/[`Window::set_positioner`]. See those methods for
 /// platform-specific behavior, and [`WindowPositioner::default`] for the values used when
 /// [`WindowAttributes::with_positioner`] is never called.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WindowPositioner {
     /// The edge or corner of the anchor rect used to position the window relative to it.
@@ -104,6 +105,18 @@ pub struct WindowPositioner {
     /// The flags in [`WindowConstraintAdjustment`] can be combined to allow sliding, flipping,
     /// and/or resizing the window independently on each axis. Defaults to no adjustment.
     pub constraint_adjustment: WindowConstraintAdjustment,
+}
+
+impl WindowPositioner {
+    pub fn new(
+        anchor: WindowAnchor,
+        anchor_rect: (Position, Size),
+        positioner_offset: Position,
+        gravity: WindowGravity,
+        constraint_adjustment: WindowConstraintAdjustment,
+    ) -> Self {
+        WindowPositioner { anchor, anchor_rect, positioner_offset, gravity, constraint_adjustment }
+    }
 }
 
 impl Default for WindowPositioner {

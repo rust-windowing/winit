@@ -79,6 +79,7 @@ impl Popup {
                     positioner_offset,
                     gravity,
                     constraint_adjustment,
+                    ..
                 } = attributes.positioner.unwrap_or_default();
                 let grab_keyboard = attributes.active;
 
@@ -100,6 +101,7 @@ impl Popup {
                 // This is important for client side decorations
                 let geometry_origin = parent_window_state.content_surface_origin();
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
+                xdg_positioner.set_reactive();
                 xdg_positioner.set_anchor(from_anchor(anchor));
                 xdg_positioner.set_gravity(from_gravity(gravity));
                 xdg_positioner
@@ -159,13 +161,13 @@ impl Popup {
                         xdg_positioner,
                         last_configure: None,
                         parent_origin: geometry_origin,
-                        positioner: WindowPositioner {
+                        positioner: WindowPositioner::new(
                             anchor,
-                            anchor_rect: (anchor_rect_position.into(), anchor_rect_size.into()),
+                            (anchor_rect_position.into(), anchor_rect_size.into()),
                             positioner_offset,
                             gravity,
                             constraint_adjustment,
-                        },
+                        ),
                     },
                     attributes.preferred_theme,
                     false,
