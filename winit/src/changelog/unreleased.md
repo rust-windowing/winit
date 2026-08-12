@@ -52,13 +52,13 @@ changelog entry.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
 - On Wayland, Windows and macOS, added native popups (`WindowType::Popup`), with
-  `WindowAttributes::with_anchor`, `with_anchor_rect`, `with_positioner_offset`,
-  `with_gravity` and `with_constraint_adjustment` for configuring their placement
-  (using the new `WindowAnchor`, `WindowGravity` and `WindowConstraintAdjustment`
-  types), and matching `Window::anchor_rect`/`set_anchor`/`set_anchor_rect`/
-  `set_gravity`/`set_constraint_adjustment`/`set_positioner_offset` methods for
-  controlling them at runtime. These work on every `Window`, popup or not; use
-  `Window::window_type` to tell whether a given window is a genuine
+  `WindowAttributes::with_positioner` for configuring their placement via a
+  `WindowPositioner` (grouping the anchor edge/corner, the anchor rect, the
+  gravity direction, the positioner offset and the constraint adjustment, using
+  the new `WindowAnchor`, `WindowGravity` and `WindowConstraintAdjustment`
+  types), and matching `Window::positioner`/`set_positioner` methods for
+  reading/controlling it at runtime. These work on every `Window`, popup or not;
+  use `Window::window_type` to tell whether a given window is a genuine
   `WindowType::Popup`. On Windows and macOS, which have no native positioner
   concept, the placement is computed by winit itself, mirroring Wayland's
   `xdg_positioner` behavior, and it also works for a plain `WindowType::Window`

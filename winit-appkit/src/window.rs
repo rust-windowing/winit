@@ -15,8 +15,7 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAnchor, WindowAttributes, WindowButtons, WindowConstraintAdjustment, WindowGravity,
-    WindowId, WindowLevel, WindowType,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowPositioner, WindowType,
 };
 
 use super::event_loop::ActiveEventLoop;
@@ -109,30 +108,12 @@ impl CoreWindow for Window {
         self.maybe_wait_on_main(|delegate| delegate.window_type())
     }
 
-    fn anchor_rect(&self) -> Option<(Position, Size)> {
-        self.maybe_wait_on_main(|delegate| delegate.popup_anchor_rect())
+    fn positioner(&self) -> WindowPositioner {
+        self.maybe_wait_on_main(|delegate| delegate.popup_positioner())
     }
 
-    fn set_anchor(&self, anchor: WindowAnchor) {
-        self.maybe_wait_on_main(|delegate| delegate.set_popup_anchor(anchor));
-    }
-
-    fn set_anchor_rect(&self, position: Position, size: Size) {
-        self.maybe_wait_on_main(|delegate| delegate.set_popup_anchor_rect(position, size));
-    }
-
-    fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
-        self.maybe_wait_on_main(|delegate| {
-            delegate.set_popup_constraint_adjustment(constraint_adjustment)
-        });
-    }
-
-    fn set_gravity(&self, gravity: WindowGravity) {
-        self.maybe_wait_on_main(|delegate| delegate.set_popup_gravity(gravity));
-    }
-
-    fn set_positioner_offset(&self, position: Position) {
-        self.maybe_wait_on_main(|delegate| delegate.set_popup_positioner_offset(position));
+    fn set_positioner(&self, positioner: WindowPositioner) {
+        self.maybe_wait_on_main(|delegate| delegate.set_popup_positioner(positioner));
     }
 
     fn id(&self) -> winit_core::window::WindowId {

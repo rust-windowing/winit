@@ -19,7 +19,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAnchor, WindowAttributes, WindowButtons,
-    WindowConstraintAdjustment, WindowGravity, WindowId, WindowLevel,
+    WindowConstraintAdjustment, WindowGravity, WindowId, WindowLevel, WindowPositioner,
 };
 
 use super::ActiveEventLoop;
@@ -66,18 +66,20 @@ impl Popup {
                 .xdg_activation
                 .as_ref()
                 .map(|activation_state| activation_state.global().clone());
-            let positioner = XdgPositioner::new(&state.xdg_shell)
+            let xdg_positioner = XdgPositioner::new(&state.xdg_shell)
                 .map_err(|_| error("Failed to create positioner"))?;
             let parent_window_id =
                 WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
             let (popup, popup_state) = if let Some(parent_window_state) =
                 state.windows.borrow().get(&parent_window_id)
             {
-                let anchor = attributes.anchor;
-                let anchor_rect = attributes.anchor_rect;
-                let positioner_offset = attributes.positioner_offset;
-                let gravity = attributes.gravity;
-                let constraint_adjustment = attributes.constraint_adjustment;
+                let WindowPositioner {
+                    anchor,
+                    anchor_rect,
+                    positioner_offset,
+                    gravity,
+                    constraint_adjustment,
+                } = attributes.positioner.unwrap_or_default();
                 let grab_keyboard = attributes.active;
 
                 let mut parent_window_state = parent_window_state.lock().unwrap();
@@ -98,11 +100,10 @@ impl Popup {
                 // This is important for client side decorations
                 let geometry_origin = parent_window_state.content_surface_origin();
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-                positioner.set_anchor(from_anchor(anchor.unwrap_or_default()));
-                positioner.set_gravity(from_gravity(gravity.unwrap_or_default()));
-                constraint_adjustment.inspect(|c| {
-                    positioner.set_constraint_adjustment(from_constraint_adjustment(*c))
-                });
+                xdg_positioner.set_anchor(from_anchor(anchor));
+                xdg_positioner.set_gravity(from_gravity(gravity));
+                xdg_positioner
+                    .set_constraint_adjustment(from_constraint_adjustment(constraint_adjustment));
                 let (anchor_rect_position, anchor_rect_size) = match anchor_rect {
                     Some((position, size)) => (
                         position.to_logical::<i32>(scale_factor),
@@ -124,23 +125,21 @@ impl Popup {
                     ),
                     LogicalSize::new(anchor_rect_size.width.max(1), anchor_rect_size.height.max(1)),
                 );
-                positioner.set_anchor_rect(
+                xdg_positioner.set_anchor_rect(
                     anchor_rect.0.x,
                     anchor_rect.0.y,
                     anchor_rect.1.width,
                     anchor_rect.1.height,
                 );
-                positioner_offset.inspect(|o| {
-                    let o = o.to_logical(scale_factor);
-                    positioner.set_offset(o.x, o.y);
-                });
-                positioner.set_size(size.width, size.height);
+                let offset: LogicalPosition<i32> = positioner_offset.to_logical(scale_factor);
+                xdg_positioner.set_offset(offset.x, offset.y);
+                xdg_positioner.set_size(size.width, size.height);
 
                 let parent_surface = parent_window_state.window.xdg_surface();
                 let surface = state.compositor_state.create_surface(&queue_handle);
                 let popup = SctkPopup::from_surface(
                     Some(parent_surface),
-                    &positioner,
+                    &xdg_positioner,
                     &queue_handle,
                     surface.clone(),
                     &state.xdg_shell,
@@ -155,14 +154,16 @@ impl Popup {
                     size.into(),
                     WindowType::Popup {
                         popup: popup.clone(),
-                        positioner,
+                        xdg_positioner,
                         last_configure: None,
-                        anchor_rect,
                         parent_origin: geometry_origin,
-                        anchor,
-                        constraint_adjustment,
-                        gravity,
-                        positioner_offset,
+                        positioner: WindowPositioner {
+                            anchor,
+                            anchor_rect: Some((anchor_rect.0.into(), anchor_rect.1.into())),
+                            positioner_offset,
+                            gravity,
+                            constraint_adjustment,
+                        },
                     },
                     attributes.preferred_theme,
                     false,
@@ -284,94 +285,52 @@ impl CoreWindow for Popup {
         winit_core::window::WindowType::Popup
     }
 
-    fn anchor_rect(&self) -> Option<(Position, Size)> {
-        let state = self.popup_state.upgrade()?;
-        if let WindowType::Popup { anchor_rect, .. } = &state.lock().unwrap().window {
-            Some((anchor_rect.0.into(), anchor_rect.1.into()))
+    fn positioner(&self) -> WindowPositioner {
+        let Some(state) = self.popup_state.upgrade() else { return WindowPositioner::default() };
+        if let WindowType::Popup { positioner, .. } = &state.lock().unwrap().window {
+            *positioner
         } else {
-            None
+            WindowPositioner::default()
         }
     }
 
-    fn set_anchor(&self, anchor: WindowAnchor) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        if let WindowType::Popup { popup, positioner, anchor: stored, .. } =
-            &mut state.lock().unwrap().window
-        {
-            *stored = Some(anchor);
-            positioner.set_anchor(from_anchor(anchor));
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn set_anchor_rect(&self, position: Position, size: Size) {
+    fn set_positioner(&self, new_positioner: WindowPositioner) {
         let Some(state) = self.popup_state.upgrade() else {
             return;
         };
 
         let mut state = state.lock().unwrap();
         let scale_factor = state.scale_factor();
-        let size: LogicalSize<i32> = size.to_logical(scale_factor);
-        let position: LogicalPosition<i32> = position.to_logical(scale_factor);
 
-        if let WindowType::Popup { popup, positioner, parent_origin, anchor_rect, .. } =
+        if let WindowType::Popup { popup, xdg_positioner, parent_origin, positioner, .. } =
             &mut state.window
         {
-            *anchor_rect = (position, size);
-            positioner.set_anchor_rect(
+            *positioner = new_positioner;
+
+            xdg_positioner.set_anchor(from_anchor(new_positioner.anchor));
+            xdg_positioner.set_gravity(from_gravity(new_positioner.gravity));
+            xdg_positioner.set_constraint_adjustment(from_constraint_adjustment(
+                new_positioner.constraint_adjustment,
+            ));
+
+            let (position, size) = new_positioner.anchor_rect.unwrap_or((
+                Position::Logical(LogicalPosition::new(0.0, 0.0)),
+                Size::Logical(LogicalSize::new(1.0, 1.0)),
+            ));
+            let size: LogicalSize<i32> = size.to_logical(scale_factor);
+            let position: LogicalPosition<i32> = position.to_logical(scale_factor);
+            xdg_positioner.set_anchor_rect(
                 position.x - parent_origin.x,
                 position.y - parent_origin.y,
                 size.width.max(1),
                 size.height.max(1),
             );
-            popup.reposition(positioner, 0);
-        }
-    }
 
-    fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
+            let offset: LogicalPosition<i32> =
+                new_positioner.positioner_offset.to_logical(scale_factor);
+            xdg_positioner.set_offset(offset.x, offset.y);
 
-        if let WindowType::Popup { popup, positioner, constraint_adjustment: stored, .. } =
-            &mut state.lock().unwrap().window
-        {
-            *stored = Some(constraint_adjustment);
-            positioner.set_constraint_adjustment(from_constraint_adjustment(constraint_adjustment));
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn set_gravity(&self, gravity: WindowGravity) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        if let WindowType::Popup { popup, positioner, gravity: stored, .. } =
-            &mut state.lock().unwrap().window
-        {
-            *stored = Some(gravity);
-            positioner.set_gravity(from_gravity(gravity));
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn set_positioner_offset(&self, position: Position) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        let mut state = state.lock().unwrap();
-        let scale_factor = state.scale_factor();
-        if let WindowType::Popup { popup, positioner, positioner_offset, .. } = &mut state.window {
-            *positioner_offset = Some(position);
-
-            let position: LogicalPosition<i32> = position.to_logical(scale_factor);
-            positioner.set_offset(position.x, position.y);
-            popup.reposition(positioner, 0);
+            popup.reposition(xdg_positioner, 0);
         }
     }
 
@@ -419,19 +378,24 @@ impl CoreWindow for Popup {
         let Some(s) = self.popup_state.upgrade() else { return };
         let mut state = s.lock().unwrap();
         let scale_factor = state.scale_factor();
-        if let WindowType::Popup { popup, positioner, anchor_rect, parent_origin, .. } =
+        if let WindowType::Popup { popup, xdg_positioner, positioner, parent_origin, .. } =
             &mut state.window
         {
-            let position = position.to_logical(scale_factor);
-            anchor_rect.0 = position;
-            positioner.set_anchor_rect(
-                anchor_rect.0.x - parent_origin.x,
-                anchor_rect.0.y - parent_origin.y,
-                anchor_rect.1.width,
-                anchor_rect.1.height,
+            let size = positioner
+                .anchor_rect
+                .map_or(Size::Logical(LogicalSize::new(1.0, 1.0)), |(_, size)| size);
+            positioner.anchor_rect = Some((position, size));
+
+            let logical_position: LogicalPosition<i32> = position.to_logical(scale_factor);
+            let logical_size: LogicalSize<i32> = size.to_logical(scale_factor);
+            xdg_positioner.set_anchor_rect(
+                logical_position.x - parent_origin.x,
+                logical_position.y - parent_origin.y,
+                logical_size.width,
+                logical_size.height,
             );
             if popup.xdg_popup().version() >= 3 {
-                popup.reposition(positioner, 0);
+                popup.reposition(xdg_positioner, 0);
             }
         }
     }

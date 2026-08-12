@@ -55,9 +55,8 @@ use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAnchor, WindowAttributes, WindowButtons,
-    WindowConstraintAdjustment, WindowGravity, WindowId, WindowLevel, WindowPositioner, WindowType,
-    place_window,
+    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    WindowLevel, WindowPositioner, WindowType, place_window,
 };
 
 use crate::dark_mode::try_theme;
@@ -478,32 +477,12 @@ impl CoreWindow for Window {
         self.window_state_lock().window_type
     }
 
-    fn anchor_rect(&self) -> Option<(Position, Size)> {
-        self.window_state_lock().positioner.anchor_rect
+    fn positioner(&self) -> WindowPositioner {
+        self.window_state_lock().positioner
     }
 
-    fn set_anchor(&self, anchor: WindowAnchor) {
-        self.window_state_lock().positioner.anchor = Some(anchor);
-        self.reposition();
-    }
-
-    fn set_anchor_rect(&self, position: Position, size: Size) {
-        self.window_state_lock().positioner.anchor_rect = Some((position, size));
-        self.reposition();
-    }
-
-    fn set_constraint_adjustment(&self, constraint_adjustment: WindowConstraintAdjustment) {
-        self.window_state_lock().positioner.constraint_adjustment = Some(constraint_adjustment);
-        self.reposition();
-    }
-
-    fn set_gravity(&self, gravity: WindowGravity) {
-        self.window_state_lock().positioner.gravity = Some(gravity);
-        self.reposition();
-    }
-
-    fn set_positioner_offset(&self, position: Position) {
-        self.window_state_lock().positioner.positioner_offset = Some(position);
+    fn set_positioner(&self, positioner: WindowPositioner) {
+        self.window_state_lock().positioner = positioner;
         self.reposition();
     }
 
@@ -1306,15 +1285,14 @@ fn compute_anchored_placement(
         return None;
     }
 
-    let anchor = positioner.anchor.unwrap_or_default();
-    let gravity = positioner.gravity.unwrap_or_default();
-    let constraint_adjustment = positioner.constraint_adjustment.unwrap_or_default();
+    let anchor = positioner.anchor;
+    let gravity = positioner.gravity;
+    let constraint_adjustment = positioner.constraint_adjustment;
     let anchor_rect = positioner.anchor_rect.unwrap_or((
         Position::Logical(LogicalPosition::new(0.0, 0.0)),
         Size::Logical(LogicalSize::new(1.0, 1.0)),
     ));
-    let positioner_offset =
-        positioner.positioner_offset.unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0)));
+    let positioner_offset = positioner.positioner_offset;
 
     let parent = unsafe { GetParent(hwnd) };
     if parent.is_null() {
@@ -1622,12 +1600,7 @@ unsafe fn init(
     // Whether this window is positioned relative to its parent via the anchor/gravity/
     // positioner system -- either because it's a `WindowType::Popup`, or because anchor
     // attributes were explicitly set on a `WindowType::Window` (Windows supports both).
-    let anchored = is_popup
-        || attributes.anchor.is_some()
-        || attributes.anchor_rect.is_some()
-        || attributes.positioner_offset.is_some()
-        || attributes.gravity.is_some()
-        || attributes.constraint_adjustment.is_some();
+    let anchored = is_popup || attributes.positioner.is_some();
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::POPUP, is_popup);

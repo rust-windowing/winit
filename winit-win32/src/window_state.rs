@@ -209,18 +209,8 @@ impl WindowState {
 
             window_type: attributes.window_type,
             anchored: matches!(attributes.window_type, WindowType::Popup)
-                || attributes.anchor.is_some()
-                || attributes.anchor_rect.is_some()
-                || attributes.positioner_offset.is_some()
-                || attributes.gravity.is_some()
-                || attributes.constraint_adjustment.is_some(),
-            positioner: WindowPositioner {
-                anchor: attributes.anchor,
-                anchor_rect: attributes.anchor_rect,
-                positioner_offset: attributes.positioner_offset,
-                gravity: attributes.gravity,
-                constraint_adjustment: attributes.constraint_adjustment,
-            },
+                || attributes.positioner.is_some(),
+            positioner: attributes.positioner.unwrap_or_default(),
 
             ime_state: ImeState::Disabled,
             ime_capabilities: None,

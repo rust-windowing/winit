@@ -129,8 +129,9 @@ fn constrain_axis(
 
 /// Finds a placement for a window of `window_size`, anchored to a rectangle `anchor` (in the same
 /// coordinate space as `clip`), nudged by `offset` (the user-facing offset from the anchor point,
-/// set via [`Window::set_positioner_offset`] -- not part of the anchor rectangle's geometry), and
-/// constrained to stay within the `clip` rectangle according to `constraint_adjustment`.
+/// set via [`WindowPositioner::positioner_offset`] -- not part of the anchor rectangle's
+/// geometry), and constrained to stay within the `clip` rectangle according to
+/// `constraint_adjustment`.
 ///
 /// This mirrors the Wayland `xdg_positioner` placement algorithm used natively on Wayland, for
 /// backends (such as Win32 and AppKit) that have no equivalent native concept and therefore need
@@ -142,7 +143,7 @@ fn constrain_axis(
 /// axis, that axis is left as computed even if it doesn't fit, matching the protocol's "none"
 /// behavior.
 ///
-/// [`Window::set_positioner_offset`]: super::Window::set_positioner_offset
+/// [`WindowPositioner::positioner_offset`]: super::WindowPositioner::positioner_offset
 pub fn place_window(
     anchor: WindowAnchor,
     gravity: WindowGravity,

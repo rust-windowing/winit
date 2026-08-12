@@ -52,8 +52,8 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, WindowAnchor, WindowAttributes, WindowButtons, WindowConstraintAdjustment,
-    WindowGravity, WindowId, WindowLevel, WindowPositioner, WindowType, place_window,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowPositioner,
+    WindowType, place_window,
 };
 
 use super::app_state::AppState;
@@ -923,12 +923,7 @@ impl WindowDelegate {
 
         let window_type = attrs.window_type();
         let is_popup = matches!(window_type, WindowType::Popup);
-        let anchored = is_popup
-            || attrs.anchor.is_some()
-            || attrs.anchor_rect.is_some()
-            || attrs.positioner_offset.is_some()
-            || attrs.gravity.is_some()
-            || attrs.constraint_adjustment.is_some();
+        let anchored = is_popup || attrs.positioner.is_some();
         if is_popup {
             // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
             // as such so it flows through the existing borderless + panel paths in `new_window`
@@ -1005,13 +1000,7 @@ impl WindowDelegate {
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
             window_type,
             anchored,
-            positioner: RefCell::new(WindowPositioner {
-                anchor: attrs.anchor,
-                anchor_rect: attrs.anchor_rect,
-                positioner_offset: attrs.positioner_offset,
-                gravity: attrs.gravity,
-                constraint_adjustment: attrs.constraint_adjustment,
-            }),
+            positioner: RefCell::new(attrs.positioner.unwrap_or_default()),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
@@ -1304,35 +1293,12 @@ impl WindowDelegate {
         self.ivars().window_type
     }
 
-    pub fn popup_anchor_rect(&self) -> Option<(Position, Size)> {
-        self.ivars().positioner.borrow().anchor_rect
+    pub fn popup_positioner(&self) -> WindowPositioner {
+        *self.ivars().positioner.borrow()
     }
 
-    pub fn set_popup_anchor(&self, anchor: WindowAnchor) {
-        self.ivars().positioner.borrow_mut().anchor = Some(anchor);
-        self.reposition();
-    }
-
-    pub fn set_popup_anchor_rect(&self, position: Position, size: Size) {
-        self.ivars().positioner.borrow_mut().anchor_rect = Some((position, size));
-        self.reposition();
-    }
-
-    pub fn set_popup_constraint_adjustment(
-        &self,
-        constraint_adjustment: WindowConstraintAdjustment,
-    ) {
-        self.ivars().positioner.borrow_mut().constraint_adjustment = Some(constraint_adjustment);
-        self.reposition();
-    }
-
-    pub fn set_popup_gravity(&self, gravity: WindowGravity) {
-        self.ivars().positioner.borrow_mut().gravity = Some(gravity);
-        self.reposition();
-    }
-
-    pub fn set_popup_positioner_offset(&self, position: Position) {
-        self.ivars().positioner.borrow_mut().positioner_offset = Some(position);
+    pub fn set_popup_positioner(&self, positioner: WindowPositioner) {
+        *self.ivars().positioner.borrow_mut() = positioner;
         self.reposition();
     }
 
@@ -1348,16 +1314,14 @@ impl WindowDelegate {
             let positioner = self.ivars().positioner.borrow();
 
             (
-                positioner.anchor.unwrap_or_default(),
-                positioner.gravity.unwrap_or_default(),
-                positioner.constraint_adjustment.unwrap_or_default(),
+                positioner.anchor,
+                positioner.gravity,
+                positioner.constraint_adjustment,
                 positioner.anchor_rect.unwrap_or((
                     Position::Logical(LogicalPosition::new(0.0, 0.0)),
                     Size::Logical(LogicalSize::new(1.0, 1.0)),
                 )),
-                positioner
-                    .positioner_offset
-                    .unwrap_or(Position::Logical(LogicalPosition::new(0.0, 0.0))),
+                positioner.positioner_offset,
             )
         };
 
