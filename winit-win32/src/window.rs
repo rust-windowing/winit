@@ -1237,6 +1237,15 @@ fn outer_size_of(hwnd: HWND) -> PhysicalSize<u32> {
         .unwrap()
 }
 
+fn surface_size_of(hwnd: HWND) -> PhysicalSize<u32> {
+    util::WindowArea::Inner
+        .get_rect(hwnd)
+        .map(|rect| {
+            PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+        })
+        .unwrap()
+}
+
 // If the window is anchored the position is relative to the parent window and not relative to
 // the screen. Therefore we have to translate it from the parent coordinate system to the display
 // coordinate system. Free function so it can be used both from `Window` and from an owned
@@ -1263,18 +1272,24 @@ fn translate_outer_position(
     PhysicalPosition::new(point.x, point.y)
 }
 
-/// Computes an anchored window's new outer position and size from its positioner state, using
-/// [`winit_core::window::place_window`]. Returns `None` if the window isn't anchored, has no
-/// parent (which the Win32 backend never allows for a [`WindowType::Popup`], see `init`), or its
-/// monitor's position can't be determined.
+/// Computes an anchored window's new outer position and surface size from its positioner state,
+/// using [`winit_core::window::place_window`]. Returns `None` if the window isn't anchored, has
+/// no parent (which the Win32 backend never allows for a [`WindowType::Popup`], see `init`), or
+/// its monitor's position can't be determined.
 ///
 /// On success, returns `(origin, size, current_size)`:
 /// - `origin`: the window's new outer position, in logical coordinates relative to the parent's
 ///   content area (see `translate_outer_position`/`set_outer_position`).
-/// - `size`: the window's new outer size, as constrained by [`place_window`]. Only differs from
-///   `current_size` when `constraint_adjustment` resizes the window to fit its clip region.
-/// - `current_size`: the window's outer size *before* this placement, i.e. `hwnd`'s current outer
-///   size. Callers compare this against `size` to decide whether a resize is actually needed.
+/// - `size`: the window's new surface size, as constrained by [`place_window`] and converted back
+///   from the outer size it operates on (see below). Only differs from `current_size` when
+///   `constraint_adjustment` resizes the window to fit its clip region.
+/// - `current_size`: the window's surface size *before* this placement, i.e. `hwnd`'s current
+///   surface size. Callers compare this against `size` (and pass it to
+///   `request_surface_size`/`set_size`) to decide whether a resize is actually needed.
+///
+/// [`place_window`] positions the window by its outer/window-rect corner, so it's given the outer
+/// size to work with; the result is then translated back to a surface size (by subtracting the
+/// window's non-client insets) since that's what callers resize through.
 fn compute_anchored_placement(
     hwnd: HWND,
     anchored: bool,
@@ -1321,16 +1336,26 @@ fn compute_anchored_placement(
     let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
     let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
     let offset = positioner_offset.to_logical::<f64>(scale_factor);
-    let current_size = outer_size_of(hwnd).to_logical::<f64>(scale_factor);
+    let current_outer_size = outer_size_of(hwnd).to_logical::<f64>(scale_factor);
+    let current_size = surface_size_of(hwnd).to_logical::<f64>(scale_factor);
 
-    let (origin, size) = place_window(
+    let (origin, outer_size) = place_window(
         anchor,
         gravity,
         constraint_adjustment,
         (anchor_position, anchor_size),
         offset,
-        current_size,
+        current_outer_size,
         (clip_position, clip_size),
+    );
+
+    // The window's non-client insets (title bar, borders, ...), assumed constant regardless of
+    // the window's size, to translate `outer_size` back into a surface size.
+    let insets_width = current_outer_size.width - current_size.width;
+    let insets_height = current_outer_size.height - current_size.height;
+    let size = LogicalSize::new(
+        (outer_size.width - insets_width).max(0.0),
+        (outer_size.height - insets_height).max(0.0),
     );
 
     Some((origin, size, current_size))

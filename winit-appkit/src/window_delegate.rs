@@ -1350,21 +1350,30 @@ impl WindowDelegate {
         let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
         let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
         let offset = positioner_offset.to_logical::<f64>(scale_factor);
-        let current_size = self.outer_size().to_logical::<f64>(scale_factor);
+        let current_outer_size = self.outer_size().to_logical::<f64>(scale_factor);
 
-        let (origin, size) = place_window(
+        let (origin, new_outer_size) = place_window(
             anchor,
             gravity,
             constraint_adjustment,
             (anchor_position, anchor_size),
             offset,
-            current_size,
+            current_outer_size,
             (clip_position, clip_size),
         );
 
         self.set_outer_position(Position::Logical(origin));
-        if size != current_size {
-            let _ = self.request_surface_size(Size::Logical(size));
+        if new_outer_size != current_outer_size {
+            // `place_window` positions the window by its outer/frame corner, so it operates on
+            // the outer size; convert back to the surface (content) size that
+            // `request_surface_size` expects, via AppKit's frame/content rect conversion.
+            let frame = NSRect::new(
+                NSPoint::new(0.0, 0.0),
+                NSSize::new(new_outer_size.width, new_outer_size.height),
+            );
+            let content_size = self.window().contentRectForFrameRect(frame).size;
+            let content_size = LogicalSize::new(content_size.width, content_size.height);
+            let _ = self.request_surface_size(Size::Logical(content_size));
         }
     }
 
