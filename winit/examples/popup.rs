@@ -101,8 +101,8 @@ fn main() -> Result<(), impl std::error::Error> {
                             let window_id = if let Some(popup_id) = self.popups.last() {
                                 popup_id
                             } else {
-                                &self.main_window.unwrap() // The mainwindow must exist, otherwise
-                                                           // the event_loop was ended
+                                // The mainwindow must exist, otherwise the event_loop was ended
+                                &self.main_window.unwrap()
                             };
 
                             // Add a new Popup
