@@ -196,8 +196,9 @@
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //! * `private-apple-apis`: Enables private APIs whose usage might cause rejections from the App
-//!   Store. Currently enables the use of `CGSSetWindowBackgroundBlurRadius`, commonly used for
-//!   terminal emulators.
+//!   Store. Currently switches `Window::set_blur` on macOS to use
+//!   `CGSSetWindowBackgroundBlurRadius`, which applies an untinted blur of a fixed radius and is
+//!   commonly used by terminal emulators, instead of the default `NSVisualEffectView` material.
 //!
 //! See the [`platform`] module for documentation on platform-specific cargo
 //! features.
