@@ -9,6 +9,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
     use softbuffer::{Context, Surface};
+    use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, Position};
     use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -50,7 +51,6 @@ fn main() -> Result<(), impl std::error::Error> {
                 .with_surface_size(LogicalSize::new(600.0f32, 600.0f32))
                 .with_decorations(true);
             let window = event_loop.create_window(attributes).unwrap();
-            println!("Parent window id: {:?})", window.id());
             self.parent_window_id = Some(window.id());
 
             if self.main_window.is_none() {
@@ -67,7 +67,6 @@ fn main() -> Result<(), impl std::error::Error> {
         ) {
             use winit::keyboard::{KeyCode, PhysicalKey};
 
-            // println!("Event: {:?}", event);
             match event {
                 WindowEvent::CloseRequested => {
                     self.windows.remove(&window_id);
@@ -76,13 +75,13 @@ fn main() -> Result<(), impl std::error::Error> {
                         event_loop.exit();
                     }
                 },
-                WindowEvent::PointerEntered { device_id: _, .. } => {
+                WindowEvent::PointerEntered { .. } => {
                     // On x11, println when the cursor entered in a window even if the child window
                     // is created by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the
                     // parent window, so we also can see this log when we move
                     // the cursor around (200, 200) in parent window.
-                    // println!("cursor entered in the window {window_id:?}");
+                    info!("cursor entered in the window {window_id:?}");
                 },
                 WindowEvent::PointerMoved { position, .. } => {
                     self.position = position;
@@ -102,7 +101,8 @@ fn main() -> Result<(), impl std::error::Error> {
                             let window_id = if let Some(popup_id) = self.popups.last() {
                                 popup_id
                             } else {
-                                &self.main_window.unwrap() // The mainwindow must exist, otherwise the event_loop was ended
+                                &self.main_window.unwrap() // The mainwindow must exist, otherwise
+                                                           // the event_loop was ended
                             };
 
                             // Add a new Popup
