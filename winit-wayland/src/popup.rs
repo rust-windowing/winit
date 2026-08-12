@@ -104,26 +104,28 @@ impl Popup {
                 xdg_positioner.set_gravity(from_gravity(gravity));
                 xdg_positioner
                     .set_constraint_adjustment(from_constraint_adjustment(constraint_adjustment));
-                let (anchor_rect_position, anchor_rect_size) = match anchor_rect {
-                    Some((position, size)) => (
-                        position.to_logical::<i32>(scale_factor),
-                        size.to_logical::<i32>(scale_factor),
-                    ),
-                    None => {
-                        // anchor rect was not specified use attributes.position
-                        let pos: LogicalPosition<i32> = attributes
-                            .position
-                            .map(|position| position.to_logical(scale_factor))
-                            .unwrap_or_default();
-                        (pos, LogicalSize::new(1, 1))
-                    },
+
+                let (anchor_rect_position, anchor_rect_size) = if attributes.positioner.is_some() {
+                    let size = anchor_rect.1.to_logical::<i32>(scale_factor);
+                    (
+                        anchor_rect.0.to_logical::<i32>(scale_factor),
+                        LogicalSize::new(size.width.max(1), size.height.max(1)),
+                    )
+                } else {
+                    // anchor rect was not specified use attributes.position
+                    let pos: LogicalPosition<i32> = attributes
+                        .position
+                        .map(|position| position.to_logical(scale_factor))
+                        .unwrap_or_default();
+                    (pos, LogicalSize::new(1, 1))
                 };
+
                 let anchor_rect = (
                     LogicalPosition::new(
                         anchor_rect_position.x + anchor_position.x,
                         anchor_rect_position.y + anchor_position.y,
                     ),
-                    LogicalSize::new(anchor_rect_size.width.max(1), anchor_rect_size.height.max(1)),
+                    anchor_rect_size,
                 );
                 xdg_positioner.set_anchor_rect(
                     anchor_rect.0.x,
@@ -159,7 +161,7 @@ impl Popup {
                         parent_origin: geometry_origin,
                         positioner: WindowPositioner {
                             anchor,
-                            anchor_rect: Some((anchor_rect.0.into(), anchor_rect.1.into())),
+                            anchor_rect: (anchor_rect_position.into(), anchor_rect_size.into()),
                             positioner_offset,
                             gravity,
                             constraint_adjustment,
@@ -313,10 +315,7 @@ impl CoreWindow for Popup {
                 new_positioner.constraint_adjustment,
             ));
 
-            let (position, size) = new_positioner.anchor_rect.unwrap_or((
-                Position::Logical(LogicalPosition::new(0.0, 0.0)),
-                Size::Logical(LogicalSize::new(1.0, 1.0)),
-            ));
+            let (position, size) = new_positioner.anchor_rect;
             let size: LogicalSize<i32> = size.to_logical(scale_factor);
             let position: LogicalPosition<i32> = position.to_logical(scale_factor);
             xdg_positioner.set_anchor_rect(
@@ -381,10 +380,8 @@ impl CoreWindow for Popup {
         if let WindowType::Popup { popup, xdg_positioner, positioner, parent_origin, .. } =
             &mut state.window
         {
-            let size = positioner
-                .anchor_rect
-                .map_or(Size::Logical(LogicalSize::new(1.0, 1.0)), |(_, size)| size);
-            positioner.anchor_rect = Some((position, size));
+            let size = positioner.anchor_rect.1;
+            positioner.anchor_rect = (position, size);
 
             let logical_position: LogicalPosition<i32> = position.to_logical(scale_factor);
             let logical_size: LogicalSize<i32> = size.to_logical(scale_factor);

@@ -88,10 +88,10 @@ pub struct WindowPositioner {
     /// The anchor rectangle the window is positioned relative to.
     ///
     /// The [`Position`] is the top-left corner of the rectangle relative to the parent window's
-    /// content area, and the [`Size`] its dimensions. `None` defaults to a `1x1` rectangle at
-    /// the content origin. Setting this overwrites the position value set with
-    /// [`WindowAttributes::with_position`].
-    pub anchor_rect: Option<(Position, Size)>,
+    /// content area, and the [`Size`] its dimensions. Defaults to a `1x1` rectangle at the
+    /// content origin. Passing a [`WindowPositioner`] to [`WindowAttributes::with_positioner`]
+    /// overrides the position value set with [`WindowAttributes::with_position`].
+    pub anchor_rect: (Position, Size),
     /// The window's position relative to the anchor rect. Defaults to no offset.
     pub positioner_offset: Position,
     /// The direction the window surface extends away from the anchor point.
@@ -110,7 +110,10 @@ impl Default for WindowPositioner {
     fn default() -> Self {
         Self {
             anchor: WindowAnchor::default(),
-            anchor_rect: None,
+            anchor_rect: (
+                Position::Logical(LogicalPosition::new(0.0, 0.0)),
+                Size::Logical(LogicalSize::new(1.0, 1.0)),
+            ),
             positioner_offset: Position::Logical(LogicalPosition::new(0.0, 0.0)),
             gravity: WindowGravity::default(),
             constraint_adjustment: WindowConstraintAdjustment::empty(),

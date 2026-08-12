@@ -1317,10 +1317,7 @@ impl WindowDelegate {
                 positioner.anchor,
                 positioner.gravity,
                 positioner.constraint_adjustment,
-                positioner.anchor_rect.unwrap_or((
-                    Position::Logical(LogicalPosition::new(0.0, 0.0)),
-                    Size::Logical(LogicalSize::new(1.0, 1.0)),
-                )),
+                positioner.anchor_rect,
                 positioner.positioner_offset,
             )
         };

@@ -1303,10 +1303,7 @@ fn compute_anchored_placement(
     let anchor = positioner.anchor;
     let gravity = positioner.gravity;
     let constraint_adjustment = positioner.constraint_adjustment;
-    let anchor_rect = positioner.anchor_rect.unwrap_or((
-        Position::Logical(LogicalPosition::new(0.0, 0.0)),
-        Size::Logical(LogicalSize::new(1.0, 1.0)),
-    ));
+    let anchor_rect = positioner.anchor_rect;
     let positioner_offset = positioner.positioner_offset;
 
     let parent = unsafe { GetParent(hwnd) };
