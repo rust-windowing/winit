@@ -126,6 +126,19 @@ impl MonitorHandle {
         }
     }
 
+    /// The monitor's work area, i.e. its bounds minus space reserved by the system for things
+    /// like the taskbar (see `rcWork` in [`MONITORINFO`]).
+    pub(crate) fn work_area(&self) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+        let rc_work = get_monitor_info(self.0).ok()?.monitorInfo.rcWork;
+        Some((
+            PhysicalPosition { x: rc_work.left, y: rc_work.top },
+            PhysicalSize {
+                width: (rc_work.right - rc_work.left) as u32,
+                height: (rc_work.bottom - rc_work.top) as u32,
+            },
+        ))
+    }
+
     pub(crate) fn video_mode_handles(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields

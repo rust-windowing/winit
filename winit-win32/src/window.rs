@@ -1273,23 +1273,16 @@ fn translate_outer_position(
 }
 
 /// Computes an anchored window's new outer position and surface size from its positioner state,
-/// using [`winit_core::window::place_window`]. Returns `None` if the window isn't anchored, has
-/// no parent (which the Win32 backend never allows for a [`WindowType::Popup`], see `init`), or
-/// its monitor's position can't be determined.
+/// using [`winit_core::window::place_window`]. Returns `None` if the window isn't anchored, or its
+/// monitor's work area can't be determined.
 ///
 /// On success, returns `(origin, size, current_size)`:
 /// - `origin`: the window's new outer position, in logical coordinates relative to the parent's
-///   content area (see `translate_outer_position`/`set_outer_position`).
+///   content area
 /// - `size`: the window's new surface size, as constrained by [`place_window`] and converted back
-///   from the outer size it operates on (see below). Only differs from `current_size` when
-///   `constraint_adjustment` resizes the window to fit its clip region.
+///   from the outer size it operates on (see below)
 /// - `current_size`: the window's surface size *before* this placement, i.e. `hwnd`'s current
-///   surface size. Callers compare this against `size` (and pass it to
-///   `request_surface_size`/`set_size`) to decide whether a resize is actually needed.
-///
-/// [`place_window`] positions the window by its outer/window-rect corner, so it's given the outer
-/// size to work with; the result is then translated back to a surface size (by subtracting the
-/// window's non-client insets) since that's what callers resize through.
+///   surface size
 fn compute_anchored_placement(
     hwnd: HWND,
     anchored: bool,
@@ -1306,8 +1299,9 @@ fn compute_anchored_placement(
     }
 
     let monitor = monitor::current_monitor(hwnd);
-    let monitor_position = monitor.position()?;
-    let monitor_size = monitor.size();
+    // Clip to the monitor's work area rather than its full bounds, so anchored popups don't get
+    // placed underneath the taskbar.
+    let (work_area_position, work_area_size) = monitor.work_area()?;
 
     // The anchor rect's position is relative to the parent's content area (see
     // `Popup::set_anchor_rect`), and `set_outer_position` re-adds the parent's screen origin for
@@ -1317,11 +1311,11 @@ fn compute_anchored_placement(
     unsafe { ClientToScreen(parent, &mut parent_origin) };
 
     let clip_position = PhysicalPosition::new(
-        monitor_position.x - parent_origin.x,
-        monitor_position.y - parent_origin.y,
+        work_area_position.x - parent_origin.x,
+        work_area_position.y - parent_origin.y,
     )
     .to_logical::<f64>(scale_factor);
-    let clip_size = monitor_size.to_logical::<f64>(scale_factor);
+    let clip_size = work_area_size.to_logical::<f64>(scale_factor);
 
     let current_outer_size = outer_size_of(hwnd).to_logical::<f64>(scale_factor);
     let current_size = surface_size_of(hwnd).to_logical::<f64>(scale_factor);
@@ -1342,14 +1336,13 @@ fn compute_anchored_placement(
 }
 
 /// Repositions (and, if constrained, resizes) the popup with the given `hwnd`, using its
-/// positioner state stored in `window_state`. No-op if it isn't currently a popup with a parent.
+/// positioner state stored in `window_state`
 ///
-/// This is used to reposition a popup when its parent moves, since Win32 does not do so
-/// automatically for owned windows (unlike Wayland subsurfaces or X11's override-redirect
-/// popups). Unlike [`Window::reposition`], this is only ever called from the event loop
+/// This is used to reposition a window when its parent moves, since Win32 does not do so
+/// automatically for owned windows, this is only ever called from the event loop
 /// thread (from a sibling window's message procedure while handling the parent's
 /// `WM_WINDOWPOSCHANGED`), so it's safe to update the OS window and `WindowState` directly
-/// instead of going through `EventLoopThreadExecutor` like the public `Window` API does.
+/// instead of going through `EventLoopThreadExecutor`
 pub(crate) fn reposition_owned_popup(hwnd: HWND, window_state: &Mutex<WindowState>) {
     let (anchored, positioner, scale_factor) = {
         let state = window_state.lock().unwrap();
