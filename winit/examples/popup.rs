@@ -35,6 +35,7 @@ fn main() -> Result<(), impl std::error::Error> {
     #[derive(Debug)]
     struct Application {
         parent_window_id: Option<WindowId>,
+        main_window: Option<WindowId>,
         windows: HashMap<WindowId, WindowData>,
         popups: Vec<WindowId>,
         position: PhysicalPosition<f64>,
@@ -52,6 +53,9 @@ fn main() -> Result<(), impl std::error::Error> {
             println!("Parent window id: {:?})", window.id());
             self.parent_window_id = Some(window.id());
 
+            if self.main_window.is_none() {
+                self.main_window = Some(window.id());
+            }
             self.windows.insert(window.id(), WindowData::new(&self.context, window, 0xffbbbbbb));
         }
 
@@ -66,8 +70,11 @@ fn main() -> Result<(), impl std::error::Error> {
             // println!("Event: {:?}", event);
             match event {
                 WindowEvent::CloseRequested => {
-                    self.windows.clear();
-                    event_loop.exit();
+                    self.windows.remove(&window_id);
+                    self.popups.retain_mut(|id| id != &window_id);
+                    if self.windows.is_empty() {
+                        event_loop.exit();
+                    }
                 },
                 WindowEvent::PointerEntered { device_id: _, .. } => {
                     // On x11, println when the cursor entered in a window even if the child window
@@ -95,7 +102,7 @@ fn main() -> Result<(), impl std::error::Error> {
                             let window_id = if let Some(popup_id) = self.popups.last() {
                                 popup_id
                             } else {
-                                &self.parent_window_id.unwrap()
+                                &self.main_window.unwrap() // The mainwindow must exist, otherwise the event_loop was ended
                             };
 
                             // Add a new Popup
@@ -191,6 +198,7 @@ fn main() -> Result<(), impl std::error::Error> {
         windows: HashMap::new(),
         popups: Vec::default(),
         position: PhysicalPosition { x: 0., y: 0. },
+        main_window: None,
     })
 }
 
