@@ -1087,9 +1087,9 @@ unsafe fn reposition_owned_windows(parent: HWND) {
             return true.into(); // continue enumeration
         }
 
-        let userdata_ptr = unsafe { util::get_window_long(hwnd, GWL_USERDATA) };
+        let userdata_ptr = unsafe { util::get_window_long(hwnd, GWL_USERDATA) } as *mut WindowData;
         if !userdata_ptr.is_null() {
-            let userdata = unsafe { Box::from_raw(userdata_ptr) };
+            let userdata = unsafe { &*userdata_ptr };
             if userdata.window_state_lock().window_flags.contains(WindowFlags::ANCHORED) {
                 window::reposition_owned_popup(hwnd, &userdata.window_state);
             }
