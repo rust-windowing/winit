@@ -9,7 +9,8 @@ use std::time::Duration;
 #[doc(inline)]
 pub use cursor_icon::CursorIcon;
 
-/// The maximum width and height for a cursor when using [`CustomCursorSource::from_rgba`].
+/// The maximum width and height for a cursor image representation when using
+/// [`CustomCursorSource::from_rgba`] or [`CustomCursorSource::from_rgba_representations`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;
 
 const PIXEL_SIZE: usize = 4;
@@ -144,6 +145,8 @@ pub enum CustomCursorSource {
 impl CustomCursorSource {
     /// Creates a new cursor from an rgba buffer.
     ///
+    /// The width, height, and hotspot are specified in physical pixels.
+    ///
     /// The alpha channel is assumed to be **not** premultiplied.
     pub fn from_rgba(
         rgba: Vec<u8>,
@@ -153,6 +156,34 @@ impl CustomCursorSource {
         hotspot_y: u16,
     ) -> Result<Self, BadImage> {
         CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y).map(Self::Image)
+    }
+
+    /// Creates a new cursor from one or more RGBA image representations.
+    ///
+    /// The hotspot is specified in logical pixels. Each representation declares both its physical
+    /// pixel size and the logical cursor size it represents. All representations must have the same
+    /// logical size.
+    ///
+    /// For example, a 32x32 cursor can be supplied as 32x32, 40x40, 48x48, and 64x64 physical
+    /// representations that all declare a 32x32 logical size.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** All representations are passed to AppKit, allowing the system to choose the
+    ///   best representation for the display.
+    /// - **Windows:** The representation closest to the window's current DPI is used.
+    /// - **Other platforms:** Only one representation is used. A representation whose physical size
+    ///   matches the logical size is preferred when available, otherwise the first representation
+    ///   is used.
+    ///
+    /// The alpha channel is assumed to be **not** premultiplied.
+    pub fn from_rgba_representations(
+        representations: Vec<CursorImageRepresentation>,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<Self, BadImage> {
+        CursorImage::from_rgba_representations(representations, hotspot_x, hotspot_y)
+            .map(Self::Image)
     }
 
     /// Crates a new animated cursor from multiple [`CustomCursor`]s
@@ -170,6 +201,8 @@ impl CustomCursorSource {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum BadImage {
+    /// Produced when no image representations were supplied.
+    EmptyRepresentations,
     /// Produced when the image dimensions are larger than [`MAX_CURSOR_SIZE`]. This doesn't
     /// guarantee that the cursor will work, but should avoid many platform and device specific
     /// limits.
@@ -182,11 +215,18 @@ pub enum BadImage {
     DimensionsVsPixelCount { width: u16, height: u16, width_x_height: u64, pixel_count: u64 },
     /// Produced when the hotspot is outside the image bounds
     HotspotOutOfBounds { width: u16, height: u16, hotspot_x: u16, hotspot_y: u16 },
+    /// Produced when a cursor representation has a zero logical width or height.
+    ZeroLogicalSize { width: u16, height: u16 },
+    /// Produced when cursor representations do not resolve to the same logical size.
+    InconsistentLogicalSize { expected_width: u16, expected_height: u16, width: u16, height: u16 },
 }
 
 impl fmt::Display for BadImage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            BadImage::EmptyRepresentations => {
+                write!(f, "At least one image representation must be supplied.")
+            },
             BadImage::TooLarge { width, height } => write!(
                 f,
                 "The specified dimensions ({width:?}x{height:?}) are too large. The maximum is \
@@ -209,6 +249,22 @@ impl fmt::Display for BadImage {
                 f,
                 "The specified hotspot ({hotspot_x:?}, {hotspot_y:?}) is outside the image bounds \
                  ({width:?}x{height:?}).",
+            ),
+            BadImage::ZeroLogicalSize { width, height } => write!(
+                f,
+                "The specified cursor image representation logical dimensions \
+                 ({width:?}x{height:?}) must be greater than zero.",
+            ),
+            BadImage::InconsistentLogicalSize {
+                expected_width,
+                expected_height,
+                width,
+                height,
+            } => write!(
+                f,
+                "The specified cursor image representation has logical dimensions \
+                 ({width:?}x{height:?}), but previous representations have logical dimensions \
+                 ({expected_width:?}x{expected_height:?}).",
             ),
         }
     }
@@ -239,46 +295,36 @@ impl fmt::Display for BadAnimation {
 impl Error for BadAnimation {}
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub struct CursorImage {
+pub struct CursorImageRepresentation {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u16,
     pub(crate) height: u16,
-    pub(crate) hotspot_x: u16,
-    pub(crate) hotspot_y: u16,
+    pub(crate) logical_width: u16,
+    pub(crate) logical_height: u16,
 }
 
-impl CursorImage {
-    pub(crate) fn from_rgba(
+impl CursorImageRepresentation {
+    /// Creates a new cursor image representation from an RGBA buffer.
+    ///
+    /// The width and height are specified in physical pixels. The logical width and height specify
+    /// the cursor size represented by those physical pixels.
+    ///
+    /// For example, a 40x40 representation with a 32x32 logical size contributes a 125% cursor
+    /// image.
+    pub fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
+        logical_width: u16,
+        logical_height: u16,
     ) -> Result<Self, BadImage> {
-        if width > MAX_CURSOR_SIZE || height > MAX_CURSOR_SIZE {
-            return Err(BadImage::TooLarge { width, height });
+        validate_rgba(&rgba, width, height)?;
+
+        if logical_width == 0 || logical_height == 0 {
+            return Err(BadImage::ZeroLogicalSize { width: logical_width, height: logical_height });
         }
 
-        if rgba.len() % PIXEL_SIZE != 0 {
-            return Err(BadImage::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
-        }
-
-        let pixel_count = (rgba.len() / PIXEL_SIZE) as u64;
-        let width_x_height = width as u64 * height as u64;
-        if pixel_count != width_x_height {
-            return Err(BadImage::DimensionsVsPixelCount {
-                width,
-                height,
-                width_x_height,
-                pixel_count,
-            });
-        }
-
-        if hotspot_x >= width || hotspot_y >= height {
-            return Err(BadImage::HotspotOutOfBounds { width, height, hotspot_x, hotspot_y });
-        }
-
-        Ok(CursorImage { rgba, width, height, hotspot_x, hotspot_y })
+        Ok(Self { rgba, width, height, logical_width, logical_height })
     }
 
     pub fn buffer(&self) -> &[u8] {
@@ -297,13 +343,169 @@ impl CursorImage {
         self.height
     }
 
+    pub fn logical_width(&self) -> u16 {
+        self.logical_width
+    }
+
+    pub fn logical_height(&self) -> u16 {
+        self.logical_height
+    }
+}
+
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+pub struct CursorImage {
+    pub(crate) representations: Vec<CursorImageRepresentation>,
+    pub(crate) width: u16,
+    pub(crate) height: u16,
+    pub(crate) hotspot_x: u16,
+    pub(crate) hotspot_y: u16,
+}
+
+impl CursorImage {
+    pub(crate) fn from_rgba(
+        rgba: Vec<u8>,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<Self, BadImage> {
+        let representation =
+            CursorImageRepresentation::from_rgba(rgba, width, height, width, height)?;
+        Self::from_rgba_representations(vec![representation], hotspot_x, hotspot_y)
+    }
+
+    pub(crate) fn from_rgba_representations(
+        representations: Vec<CursorImageRepresentation>,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<Self, BadImage> {
+        let first = representations.first().ok_or(BadImage::EmptyRepresentations)?;
+        let width = first.logical_width();
+        let height = first.logical_height();
+
+        for representation in &representations {
+            let representation_width = representation.logical_width();
+            let representation_height = representation.logical_height();
+            if representation_width != width || representation_height != height {
+                return Err(BadImage::InconsistentLogicalSize {
+                    expected_width: width,
+                    expected_height: height,
+                    width: representation_width,
+                    height: representation_height,
+                });
+            }
+        }
+
+        if hotspot_x >= width || hotspot_y >= height {
+            return Err(BadImage::HotspotOutOfBounds { width, height, hotspot_x, hotspot_y });
+        }
+
+        Ok(CursorImage { representations, width, height, hotspot_x, hotspot_y })
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        self.primary_representation().buffer()
+    }
+
+    pub fn buffer_mut(&mut self) -> &mut [u8] {
+        self.primary_representation_mut().buffer_mut()
+    }
+
+    pub fn width(&self) -> u16 {
+        self.primary_representation().width()
+    }
+
+    pub fn height(&self) -> u16 {
+        self.primary_representation().height()
+    }
+
     pub fn hotspot_x(&self) -> u16 {
-        self.hotspot_x
+        self.physical_hotspot_x(self.primary_representation())
     }
 
     pub fn hotspot_y(&self) -> u16 {
+        self.physical_hotspot_y(self.primary_representation())
+    }
+
+    pub fn logical_width(&self) -> u16 {
+        self.width
+    }
+
+    pub fn logical_height(&self) -> u16 {
+        self.height
+    }
+
+    pub fn logical_hotspot_x(&self) -> u16 {
+        self.hotspot_x
+    }
+
+    pub fn logical_hotspot_y(&self) -> u16 {
         self.hotspot_y
     }
+
+    pub fn representations(&self) -> &[CursorImageRepresentation] {
+        self.representations.as_slice()
+    }
+
+    pub fn physical_hotspot_x(&self, representation: &CursorImageRepresentation) -> u16 {
+        scale_logical_coordinate(self.hotspot_x, representation.width(), self.width)
+    }
+
+    pub fn physical_hotspot_y(&self, representation: &CursorImageRepresentation) -> u16 {
+        scale_logical_coordinate(self.hotspot_y, representation.height(), self.height)
+    }
+
+    fn primary_representation(&self) -> &CursorImageRepresentation {
+        self.representations
+            .iter()
+            .find(|representation| {
+                representation.width() == representation.logical_width()
+                    && representation.height() == representation.logical_height()
+            })
+            .unwrap_or_else(|| &self.representations[0])
+    }
+
+    fn primary_representation_mut(&mut self) -> &mut CursorImageRepresentation {
+        let index = self
+            .representations
+            .iter()
+            .position(|representation| {
+                representation.width() == representation.logical_width()
+                    && representation.height() == representation.logical_height()
+            })
+            .unwrap_or(0);
+        &mut self.representations[index]
+    }
+}
+
+fn scale_logical_coordinate(coordinate: u16, physical_size: u16, logical_size: u16) -> u16 {
+    let coordinate = coordinate as u32;
+    let physical_size = physical_size as u32;
+    let logical_size = logical_size as u32;
+    ((coordinate * physical_size + logical_size / 2) / logical_size) as u16
+}
+
+fn validate_rgba(rgba: &[u8], width: u16, height: u16) -> Result<(), BadImage> {
+    if width > MAX_CURSOR_SIZE || height > MAX_CURSOR_SIZE {
+        return Err(BadImage::TooLarge { width, height });
+    }
+
+    if rgba.len() % PIXEL_SIZE != 0 {
+        return Err(BadImage::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
+    }
+
+    let pixel_count = (rgba.len() / PIXEL_SIZE) as u64;
+    let width_x_height = width as u64 * height as u64;
+    if pixel_count != width_x_height {
+        return Err(BadImage::DimensionsVsPixelCount {
+            width,
+            height,
+            width_x_height,
+            pixel_count,
+        });
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

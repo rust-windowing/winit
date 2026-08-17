@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{fmt, io, mem, ptr};
 
 use cursor_icon::CursorIcon;
@@ -13,7 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     ICON_SMALL, ICONINFO, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, LoadImageW,
 };
 use windows_sys::core::PCWSTR;
-use winit_core::cursor::{CursorImage, CustomCursorProvider};
+use winit_core::cursor::{CursorImage, CursorImageRepresentation, CustomCursorProvider};
 use winit_core::error::RequestError;
 use winit_core::icon::*;
 
@@ -164,7 +165,7 @@ impl Drop for RaiiIcon {
 #[derive(Debug, Clone)]
 pub enum SelectedCursor {
     Named(CursorIcon),
-    Custom(Arc<RaiiCursor>),
+    Custom(WinCursor),
 }
 
 impl Default for SelectedCursor {
@@ -173,8 +174,14 @@ impl Default for SelectedCursor {
     }
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub struct WinCursor(pub(super) Arc<RaiiCursor>);
+#[derive(Clone, Debug)]
+pub struct WinCursor(Arc<WinCursorInner>);
+
+#[derive(Debug)]
+struct WinCursorInner {
+    image: CursorImage,
+    cursors: Mutex<HashMap<u32, Arc<RaiiCursor>>>,
+}
 
 impl CustomCursorProvider for WinCursor {
     fn is_animated(&self) -> bool {
@@ -184,52 +191,106 @@ impl CustomCursorProvider for WinCursor {
 
 impl WinCursor {
     pub(crate) fn new(image: &CursorImage) -> Result<Self, RequestError> {
-        let mut bgra = Vec::from(image.buffer());
-        bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
+        let cursor = Self(Arc::new(WinCursorInner {
+            image: image.clone(),
+            cursors: Mutex::new(HashMap::new()),
+        }));
 
-        let w = image.width() as i32;
-        let h = image.height() as i32;
+        cursor.cursor_for_dpi(96)?;
 
-        unsafe {
-            let hdc_screen = GetDC(ptr::null_mut());
-            if hdc_screen.is_null() {
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
-            let hbm_color = CreateCompatibleBitmap(hdc_screen, w, h);
-            ReleaseDC(ptr::null_mut(), hdc_screen);
-            if hbm_color.is_null() {
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
-            if SetBitmapBits(hbm_color, bgra.len() as u32, bgra.as_ptr() as *const c_void) == 0 {
-                DeleteObject(hbm_color);
-                return Err(os_error!(io::Error::last_os_error()).into());
-            };
+        Ok(cursor)
+    }
 
-            // Mask created according to https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createbitmap#parameters
-            let mask_bits: Vec<u8> = vec![0xff; ((((w + 15) >> 4) << 1) * h) as usize];
-            let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
-            if hbm_mask.is_null() {
-                DeleteObject(hbm_color);
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
+    pub(crate) fn as_raw_handle_for_dpi(&self, dpi: u32) -> Result<HCURSOR, RequestError> {
+        Ok(self.cursor_for_dpi(dpi)?.as_raw_handle())
+    }
 
-            let icon_info = ICONINFO {
-                fIcon: 0,
-                xHotspot: image.hotspot_x() as u32,
-                yHotspot: image.hotspot_y() as u32,
-                hbmMask: hbm_mask,
-                hbmColor: hbm_color,
-            };
+    fn cursor_for_dpi(&self, dpi: u32) -> Result<Arc<RaiiCursor>, RequestError> {
+        let dpi = dpi.max(1);
 
-            let handle = CreateIconIndirect(&icon_info as *const _);
-            DeleteObject(hbm_color);
-            DeleteObject(hbm_mask);
-            if handle.is_null() {
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
-
-            Ok(Self(Arc::new(RaiiCursor { handle })))
+        if let Some(cursor) = self.0.cursors.lock().unwrap().get(&dpi) {
+            return Ok(cursor.clone());
         }
+
+        let representation = self.best_representation_for_dpi(dpi);
+        let cursor = Arc::new(create_cursor_from_representation(&self.0.image, representation)?);
+        self.0.cursors.lock().unwrap().insert(dpi, cursor.clone());
+
+        Ok(cursor)
+    }
+
+    fn best_representation_for_dpi(&self, dpi: u32) -> &CursorImageRepresentation {
+        let logical_width = self.0.image.logical_width() as u64;
+        let logical_height = self.0.image.logical_height() as u64;
+        let target_width = logical_width * dpi as u64;
+        let target_height = logical_height * dpi as u64;
+
+        self.0
+            .image
+            .representations()
+            .iter()
+            .min_by_key(|representation| {
+                let width = representation.width() as u64 * 96;
+                let height = representation.height() as u64 * 96;
+                let width_delta = width.abs_diff(target_width);
+                let height_delta = height.abs_diff(target_height);
+                let smaller_than_target = width < target_width || height < target_height;
+
+                (width_delta + height_delta, smaller_than_target)
+            })
+            .expect("cursor image should have at least one representation")
+    }
+}
+
+fn create_cursor_from_representation(
+    image: &CursorImage,
+    representation: &CursorImageRepresentation,
+) -> Result<RaiiCursor, RequestError> {
+    let mut bgra = Vec::from(representation.buffer());
+    bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
+
+    let w = representation.width() as i32;
+    let h = representation.height() as i32;
+
+    unsafe {
+        let hdc_screen = GetDC(ptr::null_mut());
+        if hdc_screen.is_null() {
+            return Err(os_error!(io::Error::last_os_error()).into());
+        }
+        let hbm_color = CreateCompatibleBitmap(hdc_screen, w, h);
+        ReleaseDC(ptr::null_mut(), hdc_screen);
+        if hbm_color.is_null() {
+            return Err(os_error!(io::Error::last_os_error()).into());
+        }
+        if SetBitmapBits(hbm_color, bgra.len() as u32, bgra.as_ptr() as *const c_void) == 0 {
+            DeleteObject(hbm_color);
+            return Err(os_error!(io::Error::last_os_error()).into());
+        };
+
+        // Mask created according to https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createbitmap#parameters
+        let mask_bits: Vec<u8> = vec![0xff; ((((w + 15) >> 4) << 1) * h) as usize];
+        let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
+        if hbm_mask.is_null() {
+            DeleteObject(hbm_color);
+            return Err(os_error!(io::Error::last_os_error()).into());
+        }
+
+        let icon_info = ICONINFO {
+            fIcon: 0,
+            xHotspot: image.physical_hotspot_x(representation) as u32,
+            yHotspot: image.physical_hotspot_y(representation) as u32,
+            hbmMask: hbm_mask,
+            hbmColor: hbm_color,
+        };
+
+        let handle = CreateIconIndirect(&icon_info as *const _);
+        DeleteObject(hbm_color);
+        DeleteObject(hbm_mask);
+        if handle.is_null() {
+            return Err(os_error!(io::Error::last_os_error()).into());
+        }
+
+        Ok(RaiiCursor { handle })
     }
 }
 
@@ -248,7 +309,7 @@ impl Drop for RaiiCursor {
 }
 
 impl RaiiCursor {
-    pub fn as_raw_handle(&self) -> HICON {
+    pub fn as_raw_handle(&self) -> HCURSOR {
         self.handle
     }
 }

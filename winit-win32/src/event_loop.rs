@@ -62,7 +62,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 use winit_core::application::ApplicationHandler;
-use winit_core::cursor::{CustomCursor, CustomCursorSource};
+use winit_core::cursor::{CursorIcon, CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
@@ -86,7 +86,7 @@ use super::SelectedCursor;
 use super::window::set_skip_taskbar;
 use crate::dark_mode::try_theme;
 use crate::dnd::{DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData};
-use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
+use crate::dpi::{become_dpi_aware, dpi_to_scale_factor, hwnd_dpi};
 use crate::event_loop::runner::PendingDrag;
 use crate::icon::WinCursor;
 use crate::ime::ImeContext;
@@ -2321,7 +2321,22 @@ unsafe fn public_window_callback_inner(
                         SelectedCursor::Named(cursor_icon) => unsafe {
                             LoadCursorW(ptr::null_mut(), util::to_windows_cursor(cursor_icon))
                         },
-                        SelectedCursor::Custom(cursor) => cursor.as_raw_handle(),
+                        SelectedCursor::Custom(cursor) => {
+                            match cursor.as_raw_handle_for_dpi(unsafe { hwnd_dpi(window) }) {
+                                Ok(cursor) => cursor,
+                                Err(error) => {
+                                    tracing::error!(
+                                        "failed to create custom cursor for window DPI: {error}"
+                                    );
+                                    unsafe {
+                                        LoadCursorW(
+                                            ptr::null_mut(),
+                                            util::to_windows_cursor(CursorIcon::Default),
+                                        )
+                                    }
+                                },
+                            }
+                        },
                     };
                     unsafe { SetCursor(hcursor) };
                     result = ProcResult::Value(0);
@@ -2473,6 +2488,19 @@ unsafe fn public_window_callback_inner(
                     SWP_NOZORDER | SWP_NOACTIVATE,
                 )
             };
+
+            if let SelectedCursor::Custom(cursor) =
+                userdata.window_state_lock().mouse.selected_cursor.clone()
+            {
+                match cursor.as_raw_handle_for_dpi(new_dpi_x) {
+                    Ok(handle) => unsafe {
+                        SetCursor(handle);
+                    },
+                    Err(error) => {
+                        tracing::error!("failed to create custom cursor for new DPI: {error}");
+                    },
+                }
+            }
 
             result = ProcResult::Value(0);
         },
