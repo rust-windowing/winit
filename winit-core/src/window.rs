@@ -78,6 +78,9 @@ pub enum WindowType {
 /// through [`Window::positioner`]/[`Window::set_positioner`]. See those methods for
 /// platform-specific behavior, and [`WindowPositioner::default`] for the values used when
 /// [`WindowAttributes::with_positioner`] is never called.
+///
+/// The structure is based on the wayland structure. For mor information see the wayland
+/// documentation [XDG Positioner](https://wayland.app/protocols/xdg-shell#xdg_positioner)
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WindowPositioner {
@@ -94,7 +97,7 @@ pub struct WindowPositioner {
     /// overrides the position value set with [`WindowAttributes::with_position`].
     pub anchor_rect: (Position, Size),
     /// The window's position relative to the anchor rect. Defaults to no offset.
-    pub positioner_offset: Position,
+    pub offset: Position,
     /// The direction the window surface extends away from the anchor point.
     ///
     /// Combined with [`anchor`](Self::anchor), this determines the final position of the window
@@ -111,11 +114,11 @@ impl WindowPositioner {
     pub fn new(
         anchor: WindowAnchor,
         anchor_rect: (Position, Size),
-        positioner_offset: Position,
+        offset: Position,
         gravity: WindowGravity,
         constraint_adjustment: WindowConstraintAdjustment,
     ) -> Self {
-        WindowPositioner { anchor, anchor_rect, positioner_offset, gravity, constraint_adjustment }
+        WindowPositioner { anchor, anchor_rect, offset, gravity, constraint_adjustment }
     }
 }
 
@@ -127,7 +130,7 @@ impl Default for WindowPositioner {
                 Position::Logical(LogicalPosition::new(0.0, 0.0)),
                 Size::Logical(LogicalSize::new(1.0, 1.0)),
             ),
-            positioner_offset: Position::Logical(LogicalPosition::new(0.0, 0.0)),
+            offset: Position::Logical(LogicalPosition::new(0.0, 0.0)),
             gravity: WindowGravity::default(),
             constraint_adjustment: WindowConstraintAdjustment::empty(),
         }

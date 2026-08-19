@@ -76,7 +76,7 @@ impl Popup {
                 let WindowPositioner {
                     anchor,
                     anchor_rect,
-                    positioner_offset,
+                    offset: positioner_offset,
                     gravity,
                     constraint_adjustment,
                     ..
@@ -327,8 +327,7 @@ impl CoreWindow for Popup {
                 size.height.max(1),
             );
 
-            let offset: LogicalPosition<i32> =
-                new_positioner.positioner_offset.to_logical(scale_factor);
+            let offset: LogicalPosition<i32> = new_positioner.offset.to_logical(scale_factor);
             xdg_positioner.set_offset(offset.x, offset.y);
 
             popup.reposition(xdg_positioner, 0);

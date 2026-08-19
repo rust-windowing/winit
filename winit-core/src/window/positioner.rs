@@ -131,7 +131,7 @@ fn constrain_axis(
 
 /// Finds a placement for a window of `window_size`, anchored per `positioner` (whose
 /// [`anchor_rect`](WindowPositioner::anchor_rect) and
-/// [`positioner_offset`](WindowPositioner::positioner_offset) are converted to logical
+/// [`offset`](WindowPositioner::offset) are converted to logical
 /// coordinates using `scale_factor`, then interpreted in the same coordinate space as `clip`), and
 /// constrained to stay within the `clip` rectangle according to
 /// [`constraint_adjustment`](WindowPositioner::constraint_adjustment).
@@ -157,7 +157,7 @@ pub fn place_window(
     let (anchor_position, anchor_size) = positioner.anchor_rect;
     let anchor_position = anchor_position.to_logical::<f64>(scale_factor);
     let anchor_size = anchor_size.to_logical::<f64>(scale_factor);
-    let offset = positioner.positioner_offset.to_logical::<f64>(scale_factor);
+    let offset = positioner.offset.to_logical::<f64>(scale_factor);
 
     let (anchor_fx, anchor_fy) = anchor_fraction(anchor);
     let (gravity_fx, gravity_fy) = gravity_fraction(gravity);
