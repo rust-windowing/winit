@@ -1380,11 +1380,6 @@ pub(crate) fn reposition_owned_popup(hwnd: HWND, window_state: &Mutex<WindowStat
         let physical_size = Size::Logical(size).to_physical::<u32>(scale_factor);
         let window_flags = window_state.lock().unwrap().window_flags;
         window_flags.set_size(hwnd, physical_size);
-        if physical_size != window_state.lock().unwrap().surface_size {
-            WindowState::set_window_flags(window_state.lock().unwrap(), hwnd, |f| {
-                f.set(WindowFlags::MAXIMIZED, false)
-            });
-        }
     }
 }
 
