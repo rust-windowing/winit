@@ -111,7 +111,12 @@ objc2-foundation = { workspace = true, features = [
     "NSThread",
     "NSValue",
 ] }
-winit-common = { workspace = true, features = ["core-foundation", "event-handler", "foundation"] }
+winit-common = { workspace = true, features = [
+    "core-foundation",
+    "event-handler",
+    "foundation",
+    "positioner",
+] }
 
 [dev-dependencies]
 winit.workspace = true

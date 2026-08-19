@@ -49,6 +49,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON,
     WM_SYSCOMMAND, WNDCLASSEXW,
 };
+use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
@@ -56,7 +57,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, Monito
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel, WindowPositioner, WindowType, place_window,
+    WindowLevel, WindowPositioner, WindowType,
 };
 
 use crate::dark_mode::try_theme;
@@ -155,9 +156,9 @@ impl Window {
     }
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
-    /// state, using [`winit_core::window::place_window`], and applies the result. No-op if this
-    /// window isn't anchored, or if it has no parent (which the Win32 backend never allows for a
-    /// popup, see `init`).
+    /// state, using [`winit_common::positioner::place_window`], and applies the result. No-op if
+    /// this window isn't anchored, or if it has no parent (which the Win32 backend never allows
+    /// for a popup, see `init`).
     fn reposition(&self) {
         let (anchored, positioner) = {
             let window_state = self.window_state_lock();
@@ -1273,8 +1274,8 @@ fn translate_outer_position(
 }
 
 /// Computes an anchored window's new outer position and surface size from its positioner state,
-/// using [`winit_core::window::place_window`]. Returns `None` if the window isn't anchored, or its
-/// monitor's work area can't be determined.
+/// using [`winit_common::positioner::place_window`]. Returns `None` if the window isn't anchored,
+/// or its monitor's work area can't be determined.
 ///
 /// On success, returns `(origin, size, current_size)`:
 /// - `origin`: the window's new outer position, in logical coordinates relative to the parent's

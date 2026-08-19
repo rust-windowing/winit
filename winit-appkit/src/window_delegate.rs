@@ -44,6 +44,7 @@ use objc2_foundation::{
 };
 use tracing::{debug_span, trace, warn};
 use winit_common::core_foundation::MainRunLoop;
+use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
 use winit_core::data_transfer::DataTransferId;
 use winit_core::error::{NotSupportedError, RequestError};
@@ -53,7 +54,7 @@ use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, Monito
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowPositioner,
-    WindowType, place_window,
+    WindowType,
 };
 
 use super::app_state::AppState;
@@ -1305,8 +1306,8 @@ impl WindowDelegate {
     }
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
-    /// state, using [`winit_core::window::place_window`], and applies the result. No-op if this
-    /// window isn't anchored, or if it has no parent.
+    /// state, using [`winit_common::positioner::place_window`], and applies the result. No-op if
+    /// this window isn't anchored, or if it has no parent.
     pub(crate) fn reposition(&self) {
         if !self.ivars().anchored {
             return;

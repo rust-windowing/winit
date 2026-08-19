@@ -8,7 +8,7 @@ use cursor_icon::CursorIcon;
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
-pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity, place_window};
+pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -79,7 +79,7 @@ pub enum WindowType {
 /// platform-specific behavior, and [`WindowPositioner::default`] for the values used when
 /// [`WindowAttributes::with_positioner`] is never called.
 ///
-/// The structure is based on the wayland structure. For mor information see the wayland
+/// The structure is based on the wayland structure. For more information see the wayland
 /// documentation [XDG Positioner](https://wayland.app/protocols/xdg-shell#xdg_positioner)
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
