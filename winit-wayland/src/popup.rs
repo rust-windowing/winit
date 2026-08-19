@@ -101,7 +101,9 @@ impl Popup {
                 // This is important for client side decorations
                 let geometry_origin = parent_window_state.content_surface_origin();
                 let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-                xdg_positioner.set_reactive();
+                if xdg_positioner.version() >= 3 {
+                    xdg_positioner.set_reactive();
+                }
                 xdg_positioner.set_anchor(from_anchor(anchor));
                 xdg_positioner.set_gravity(from_gravity(gravity));
                 xdg_positioner
@@ -330,7 +332,9 @@ impl CoreWindow for Popup {
             let offset: LogicalPosition<i32> = new_positioner.offset.to_logical(scale_factor);
             xdg_positioner.set_offset(offset.x, offset.y);
 
-            popup.reposition(xdg_positioner, 0);
+            if popup.xdg_popup().version() >= 3 {
+                popup.reposition(xdg_positioner, 0);
+            }
         }
     }
 
