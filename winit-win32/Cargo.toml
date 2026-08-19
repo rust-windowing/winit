@@ -20,6 +20,7 @@ serde = { workspace = true, optional = true }
 smol_str.workspace = true
 tracing.workspace = true
 url.workspace = true
+winit-common = { workspace = true, features = ["positioner"] }
 winit-core.workspace = true
 
 # Platform-specific
