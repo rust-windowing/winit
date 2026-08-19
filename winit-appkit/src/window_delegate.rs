@@ -1319,10 +1319,9 @@ impl WindowDelegate {
         let parent_origin = self.parent_content_origin().unwrap_or_default();
 
         let Some(monitor) = self.current_monitor() else { return };
-        let Some(monitor_position) = monitor.position() else { return };
-        let Some(monitor_size) = monitor.current_video_mode().map(|mode| mode.size()) else {
-            return;
-        };
+        // Clip to the monitor's work area rather than its full bounds, so anchored popups don't
+        // get placed underneath the menu bar or the Dock.
+        let Some((work_area_position, work_area_size)) = monitor.work_area() else { return };
 
         let scale_factor = self.scale_factor();
 
@@ -1330,12 +1329,12 @@ impl WindowDelegate {
         // `set_outer_position` re-adds the parent's screen origin for anchored windows (see
         // `translate_anchored_position`). To stay in the same coordinate space, the clip region
         // also needs to be expressed relative to the parent's content area.
-        let monitor_position = monitor_position.to_logical::<f64>(scale_factor);
+        let work_area_position = work_area_position.to_logical::<f64>(scale_factor);
         let clip_position = LogicalPosition::new(
-            monitor_position.x - parent_origin.x,
-            monitor_position.y - parent_origin.y,
+            work_area_position.x - parent_origin.x,
+            work_area_position.y - parent_origin.y,
         );
-        let clip_size = monitor_size.to_logical::<f64>(scale_factor);
+        let clip_size = work_area_size.to_logical::<f64>(scale_factor);
 
         let current_outer_size = self.outer_size().to_logical::<f64>(scale_factor);
 
