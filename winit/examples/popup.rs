@@ -39,7 +39,7 @@ fn main() -> Result<(), impl std::error::Error> {
         main_window: Option<WindowId>,
         windows: HashMap<WindowId, WindowData>,
         popups: Vec<WindowId>,
-        position: PhysicalPosition<f64>,
+        position: Option<PhysicalPosition<f64>>,
         context: Context<OwnedDisplayHandle>,
     }
 
@@ -84,8 +84,11 @@ fn main() -> Result<(), impl std::error::Error> {
                     info!("cursor entered in the window {window_id:?}");
                 },
                 WindowEvent::PointerMoved { position, .. } => {
-                    self.position = position;
-                    // println!("Physical position: {:?}", self.position);
+                    let tracked = self.popups.last().copied().or(self.main_window);
+                    self.position = (tracked == Some(window_id)).then(|| {
+                        info!("Physical position: {position:?}");
+                        position
+                    });
                 },
                 WindowEvent::KeyboardInput {
                     event:
@@ -157,7 +160,7 @@ fn main() -> Result<(), impl std::error::Error> {
         parent: &dyn Window,
         event_loop: &dyn ActiveEventLoop,
         _child_count: usize,
-        position: PhysicalPosition<f64>,
+        position: Option<PhysicalPosition<f64>>,
     ) -> Box<dyn Window> {
         use winit::dpi::Size;
         use winit::window::{
@@ -176,7 +179,7 @@ fn main() -> Result<(), impl std::error::Error> {
             .with_positioner(WindowPositioner::new(
                 WindowAnchor::TopLeft,
                 (
-                    Position::Physical(position.cast()),
+                    Position::Physical(position.unwrap_or_default().cast()),
                     Size::Logical(LogicalSize { width: 1., height: 1. }),
                 ),
                 Position::Logical(LogicalPosition { x: 0., y: 0. }),
@@ -197,7 +200,7 @@ fn main() -> Result<(), impl std::error::Error> {
         parent_window_id: None,
         windows: HashMap::new(),
         popups: Vec::default(),
-        position: PhysicalPosition { x: 0., y: 0. },
+        position: Default::default(),
         main_window: None,
     })
 }
