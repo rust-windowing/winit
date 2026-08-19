@@ -1307,7 +1307,8 @@ impl WindowDelegate {
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
     /// state, using [`winit_common::positioner::place_window`], and applies the result. No-op if
-    /// this window isn't anchored, or if it has no parent.
+    /// this window isn't anchored. If it has no parent, the positioner is resolved relative to
+    /// the screen instead of the parent's content area.
     pub(crate) fn reposition(&self) {
         if !self.ivars().anchored {
             return;
@@ -1315,7 +1316,7 @@ impl WindowDelegate {
 
         let positioner = *self.ivars().positioner.borrow();
 
-        let Some(parent_origin) = self.parent_content_origin() else { return };
+        let parent_origin = self.parent_content_origin().unwrap_or_default();
 
         let Some(monitor) = self.current_monitor() else { return };
         let Some(monitor_position) = monitor.position() else { return };

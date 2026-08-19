@@ -157,8 +157,9 @@ impl Window {
 
     /// Recomputes this window's position (and, if constrained, its size) from its positioner
     /// state, using [`winit_common::positioner::place_window`], and applies the result. No-op if
-    /// this window isn't anchored, or if it has no parent (which the Win32 backend never allows
-    /// for a popup, see `init`).
+    /// this window isn't anchored. If it has no parent (which the Win32 backend never allows for
+    /// a popup, see `init`), the positioner is resolved relative to the screen's work area
+    /// instead of the parent's content area.
     fn reposition(&self) {
         let (anchored, positioner) = {
             let window_state = self.window_state_lock();
@@ -1279,7 +1280,7 @@ fn translate_outer_position(
 ///
 /// On success, returns `(origin, size, current_size)`:
 /// - `origin`: the window's new outer position, in logical coordinates relative to the parent's
-///   content area
+///   content area, or to the screen if this window has no parent
 /// - `size`: the window's new surface size, as constrained by [`place_window`] and converted back
 ///   from the outer size it operates on (see below)
 /// - `current_size`: the window's surface size *before* this placement, i.e. `hwnd`'s current
@@ -1294,11 +1295,6 @@ fn compute_anchored_placement(
         return None;
     }
 
-    let parent = unsafe { GetParent(hwnd) };
-    if parent.is_null() {
-        return None;
-    }
-
     let monitor = monitor::current_monitor(hwnd);
     // Clip to the monitor's work area rather than its full bounds, so anchored popups don't get
     // placed underneath the taskbar.
@@ -1307,9 +1303,15 @@ fn compute_anchored_placement(
     // The anchor rect's position is relative to the parent's content area (see
     // `Popup::set_anchor_rect`), and `set_outer_position` re-adds the parent's screen origin for
     // anchored windows (see `translate_outer_position`). To stay in the same coordinate space,
-    // the clip region also needs to be expressed relative to the parent's content area.
+    // the clip region also needs to be expressed relative to the parent's content area. Without a
+    // parent, both the anchor rect and `set_outer_position` operate directly in screen
+    // coordinates instead, so the origin is left at zero and the clip region stays in screen
+    // space.
+    let parent = unsafe { GetParent(hwnd) };
     let mut parent_origin = POINT { x: 0, y: 0 };
-    unsafe { ClientToScreen(parent, &mut parent_origin) };
+    if !parent.is_null() {
+        unsafe { ClientToScreen(parent, &mut parent_origin) };
+    }
 
     let clip_position = PhysicalPosition::new(
         work_area_position.x - parent_origin.x,

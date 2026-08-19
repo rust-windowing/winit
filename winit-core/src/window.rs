@@ -521,8 +521,11 @@ impl WindowAttributes {
     ///
     /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
     ///   Wayland positioner is part of the `xdg_popup` protocol role.
-    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`], as
-    ///   long as a parent window is set via [`with_parent_window`](Self::with_parent_window).
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`]. A
+    ///   [`WindowType::Popup`] always requires a parent window to be set via
+    ///   [`with_parent_window`](Self::with_parent_window). A [`WindowType::Window`] without a
+    ///   parent is positioned relative to the screen's available space instead of the parent's
+    ///   content area.
     /// - **X11, Web, Android, iOS, Orbital:** No effect.
     #[inline]
     pub fn with_positioner(mut self, positioner: WindowPositioner) -> Self {
