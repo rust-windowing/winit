@@ -5,6 +5,7 @@
 [![UNSTABLE docs](https://img.shields.io/github/actions/workflow/status/rust-windowing/winit/docs.yml?branch=master&label=UNSTABLE%20docs
 )](https://rust-windowing.github.io/winit/winit/index.html)
 [![CI Status](https://github.com/rust-windowing/winit/workflows/CI/badge.svg)](https://github.com/rust-windowing/winit/actions)
+[![inspect.software](https://raw.githubusercontent.com/inspect-software/badges/main/v1/r/rust-windowing/winit.svg)](https://inspect.software/software/rust-windowing/winit)
 
 ```toml
 [dependencies]
