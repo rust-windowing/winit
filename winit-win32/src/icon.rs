@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::ffi::c_void;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -20,6 +21,7 @@ use winit_core::icon::*;
 
 use super::util;
 use crate::WinIcon;
+use crate::dpi::dpi_to_scale_factor;
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
@@ -207,38 +209,18 @@ impl WinCursor {
 
     fn cursor_for_dpi(&self, dpi: u32) -> Result<Arc<RaiiCursor>, RequestError> {
         let dpi = dpi.max(1);
+        let mut cursors = self.0.cursors.lock().unwrap_or_else(|err| err.into_inner());
 
-        if let Some(cursor) = self.0.cursors.lock().unwrap().get(&dpi) {
-            return Ok(cursor.clone());
+        match cursors.entry(dpi) {
+            Entry::Occupied(cursor) => Ok(cursor.get().clone()),
+            Entry::Vacant(entry) => {
+                let scale_factor = dpi_to_scale_factor(dpi);
+                let representation = self.0.image.representation_for_scale_factor(scale_factor);
+                let cursor =
+                    Arc::new(create_cursor_from_representation(&self.0.image, representation)?);
+                Ok(entry.insert(cursor).clone())
+            },
         }
-
-        let representation = self.best_representation_for_dpi(dpi);
-        let cursor = Arc::new(create_cursor_from_representation(&self.0.image, representation)?);
-        self.0.cursors.lock().unwrap().insert(dpi, cursor.clone());
-
-        Ok(cursor)
-    }
-
-    fn best_representation_for_dpi(&self, dpi: u32) -> &CursorImageRepresentation {
-        let logical_width = self.0.image.logical_width() as u64;
-        let logical_height = self.0.image.logical_height() as u64;
-        let target_width = logical_width * dpi as u64;
-        let target_height = logical_height * dpi as u64;
-
-        self.0
-            .image
-            .representations()
-            .iter()
-            .min_by_key(|representation| {
-                let width = representation.width() as u64 * 96;
-                let height = representation.height() as u64 * 96;
-                let width_delta = width.abs_diff(target_width);
-                let height_delta = height.abs_diff(target_height);
-                let smaller_than_target = width < target_width || height < target_height;
-
-                (width_delta + height_delta, smaller_than_target)
-            })
-            .expect("cursor image should have at least one representation")
     }
 }
 

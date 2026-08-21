@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use std::any::Any;
 use std::error::Error;
@@ -171,10 +172,10 @@ impl CustomCursorSource {
     ///
     /// - **macOS:** All representations are passed to AppKit, allowing the system to choose the
     ///   best representation for the display.
-    /// - **Windows:** The representation closest to the window's current DPI is used.
-    /// - **Other platforms:** Only one representation is used. A representation whose physical size
-    ///   matches the logical size is preferred when available, otherwise the first representation
-    ///   is used.
+    /// - **Windows, X11, and Wayland:** The representation closest to the window's current scale
+    ///   factor is used.
+    /// - **Other platforms:** A representation whose physical size matches the logical size is
+    ///   preferred when available, otherwise the first representation is used.
     ///
     /// The alpha channel is assumed to be **not** premultiplied.
     pub fn from_rgba_representations(
@@ -445,6 +446,29 @@ impl CursorImage {
 
     pub fn representations(&self) -> &[CursorImageRepresentation] {
         self.representations.as_slice()
+    }
+
+    pub fn representation_for_scale_factor(&self, scale_factor: f64) -> &CursorImageRepresentation {
+        let scale_factor =
+            if scale_factor.is_finite() && scale_factor > 0.0 { scale_factor } else { 1.0 };
+        let target_width = self.width as f64 * scale_factor;
+        let target_height = self.height as f64 * scale_factor;
+
+        self.representations
+            .iter()
+            .min_by(|a, b| {
+                let a_score =
+                    (a.width as f64 - target_width).abs() + (a.height as f64 - target_height).abs();
+                let b_score =
+                    (b.width as f64 - target_width).abs() + (b.height as f64 - target_height).abs();
+
+                a_score.partial_cmp(&b_score).unwrap_or(Ordering::Equal).then_with(|| {
+                    let a_area = u32::from(a.width) * u32::from(a.height);
+                    let b_area = u32::from(b.width) * u32::from(b.height);
+                    b_area.cmp(&a_area)
+                })
+            })
+            .expect("cursor image should have at least one representation")
     }
 
     pub fn physical_hotspot_x(&self, representation: &CursorImageRepresentation) -> u16 {
