@@ -261,7 +261,12 @@ impl EventLoop {
         let _app_resetter = unsafe { self.runner.set_app(&mut app) };
 
         let exit_code = loop {
-            self.wait_for_messages(None);
+            // `interrupt_msg_dispatch` means a redraw ended the previous dispatch. Resume
+            // draining pending messages before emitting another `AboutToWait`, whose redraw
+            // requests could otherwise run before other windows receive their `WM_PAINT`.
+            if !self.runner.interrupt_msg_dispatch.get() {
+                self.wait_for_messages(None);
+            }
             // wait_for_messages calls user application before and after waiting
             // so it may have decided to exit.
             if let Some(code) = self.exit_code() {
@@ -292,7 +297,9 @@ impl EventLoop {
 
         self.runner.wakeup();
 
-        if self.exit_code().is_none() {
+        // Preserve the interrupted dispatch across calls: `pump_app_events` still returns after
+        // one redraw, while its next call drains pending messages before another `AboutToWait`.
+        if self.exit_code().is_none() && !self.runner.interrupt_msg_dispatch.get() {
             self.wait_for_messages(timeout);
         }
         // wait_for_messages calls user application before and after waiting
@@ -309,7 +316,9 @@ impl EventLoop {
             self.runner.reset_runner();
             PumpStatus::Exit(code)
         } else {
-            self.runner.prepare_wait();
+            if !self.runner.interrupt_msg_dispatch.get() {
+                self.runner.prepare_wait();
+            }
             PumpStatus::Continue
         }
     }
