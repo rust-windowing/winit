@@ -78,32 +78,39 @@ pub(crate) fn image_from_icon(icon: &Icon) -> Result<Retained<NSImage>, RequestE
 }
 
 pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {
-    let width = cursor.width();
-    let height = cursor.height();
+    let image_size = NSSize::new(cursor.logical_width().into(), cursor.logical_height().into());
+    let image = NSImage::initWithSize(NSImage::alloc(), image_size);
 
-    let bitmap = unsafe {
-        NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
-            NSBitmapImageRep::alloc(),
-            std::ptr::null_mut::<*mut c_uchar>(),
-            width as isize,
-            height as isize,
-            8,
-            4,
-            true,
-            false,
-            NSDeviceRGBColorSpace,
-            width as isize * 4,
-            32,
-        )
-    }.ok_or_else(|| os_error!("parent view should be installed in a window"))?;
-    let bitmap_data =
-        unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.buffer().len()) };
-    bitmap_data.copy_from_slice(cursor.buffer());
+    for representation in cursor.representations() {
+        let width = representation.width();
+        let height = representation.height();
 
-    let image = NSImage::initWithSize(NSImage::alloc(), NSSize::new(width.into(), height.into()));
-    image.addRepresentation(&bitmap);
+        let bitmap = unsafe {
+            NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+                NSBitmapImageRep::alloc(),
+                std::ptr::null_mut::<*mut c_uchar>(),
+                width as isize,
+                height as isize,
+                8,
+                4,
+                true,
+                false,
+                NSDeviceRGBColorSpace,
+                width as isize * 4,
+                32,
+            )
+        }.ok_or_else(|| os_error!("parent view should be installed in a window"))?;
+        let bitmap_data = unsafe {
+            slice::from_raw_parts_mut(bitmap.bitmapData(), representation.buffer().len())
+        };
+        bitmap_data.copy_from_slice(representation.buffer());
 
-    let hotspot = NSPoint::new(cursor.hotspot_x() as f64, cursor.hotspot_y() as f64);
+        bitmap.setSize(image_size);
+        image.addRepresentation(&bitmap);
+    }
+
+    let hotspot =
+        NSPoint::new(cursor.logical_hotspot_x() as f64, cursor.logical_hotspot_y() as f64);
 
     Ok(NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot))
 }

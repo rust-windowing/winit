@@ -62,6 +62,8 @@ changelog entry.
   applications can ignore activation clicks for buttons or destructive actions while accepting
   them for low-risk actions like selection or scrolling. Always `false` on other platforms.
 - `winit::event_loop::EventLoopProvider` trait with common event loop methods.
+- Add `CustomCursorSource::from_rgba_representations` and `CursorImageRepresentation` for HiDPI
+  custom cursor images, implemented on macOS, Windows, X11, and Wayland.
 
 ### Changed
 

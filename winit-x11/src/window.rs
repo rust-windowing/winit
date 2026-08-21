@@ -1241,6 +1241,7 @@ impl UnownedWindow {
         let monitor = self.shared_state_lock().last_monitor.clone();
         if monitor.name == new_monitor.name {
             let (width, height) = self.surface_size_physical();
+            let mut shared_state_lock = self.shared_state_lock();
             let (new_width, new_height) = self.adjust_for_dpi(
                 // If we couldn't determine the previous scale
                 // factor (e.g., because all monitors were closed
@@ -1250,11 +1251,14 @@ impl UnownedWindow {
                 new_monitor.scale_factor,
                 width,
                 height,
-                &self.shared_state_lock(),
+                &shared_state_lock,
             );
+            shared_state_lock.last_monitor = new_monitor.clone();
 
             let old_surface_size = PhysicalSize::new(width, height);
             let surface_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
+            drop(shared_state_lock);
+
             app.window_event(event_loop, self.id(), WindowEvent::ScaleFactorChanged {
                 scale_factor: new_monitor.scale_factor,
                 surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
@@ -1262,6 +1266,8 @@ impl UnownedWindow {
 
             let new_surface_size = *surface_size.lock().unwrap();
             drop(surface_size);
+
+            self.reload_custom_cursor();
 
             if new_surface_size != old_surface_size {
                 let (new_width, new_height) = new_surface_size.into();
@@ -1844,7 +1850,9 @@ impl UnownedWindow {
 
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor) {
+                    if let Err(err) =
+                        self.xconn.set_custom_cursor(self.xwindow, cursor, self.scale_factor())
+                    {
                         tracing::error!("failed to set window icon: {err}");
                     }
                 }
@@ -1949,7 +1957,7 @@ impl UnownedWindow {
         drop(visible_lock);
         let result = match cursor {
             Some(SelectedCursor::Custom(cursor)) => {
-                self.xconn.set_custom_cursor(self.xwindow, &cursor)
+                self.xconn.set_custom_cursor(self.xwindow, &cursor, self.scale_factor())
             },
             Some(SelectedCursor::Named(cursor)) => {
                 self.xconn.set_cursor_icon(self.xwindow, Some(cursor))
@@ -1959,6 +1967,21 @@ impl UnownedWindow {
 
         if let Err(err) = result {
             tracing::error!("failed to set cursor icon: {err}");
+        }
+    }
+
+    pub fn reload_custom_cursor(&self) {
+        if !*self.cursor_visible.lock().unwrap() {
+            return;
+        }
+
+        let cursor = (*self.selected_cursor.lock().unwrap()).clone();
+        if let SelectedCursor::Custom(cursor) = cursor {
+            if let Err(err) =
+                self.xconn.set_custom_cursor(self.xwindow, &cursor, self.scale_factor())
+            {
+                tracing::error!("failed to reload custom cursor: {err}");
+            }
         }
     }
 

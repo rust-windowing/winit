@@ -20,7 +20,7 @@ use tracing::{error, info};
 #[cfg(web_platform)]
 use web_time::Instant;
 use winit::application::ApplicationHandler;
-use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
+use winit::cursor::{Cursor, CursorImageRepresentation, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::error::RequestError;
 use winit::event::{DeviceEvent, DeviceId, MouseButton, MouseScrollDelta, WindowEvent};
@@ -109,6 +109,19 @@ impl Application {
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross2.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/gradient.png"))),
+            event_loop.create_custom_cursor(decode_cursor_representations(
+                [
+                    include_bytes!("data/32.png") as &[u8],
+                    include_bytes!("data/40.png") as &[u8],
+                    include_bytes!("data/48.png") as &[u8],
+                    include_bytes!("data/64.png") as &[u8],
+                    include_bytes!("data/80.png") as &[u8],
+                    include_bytes!("data/96.png") as &[u8],
+                    include_bytes!("data/128.png") as &[u8],
+                ],
+                32,
+                32,
+            )),
         ]
         .into_iter()
         .collect();
@@ -1083,6 +1096,31 @@ fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
     let (_, w, h) = samples.extents();
     let (w, h) = (w as u16, h as u16);
     CustomCursorSource::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
+}
+
+fn decode_cursor_representations<const N: usize>(
+    images: [&[u8]; N],
+    logical_width: u16,
+    logical_height: u16,
+) -> CustomCursorSource {
+    let representations = images
+        .into_iter()
+        .map(|bytes| {
+            let img = image::load_from_memory(bytes).unwrap().to_rgba8();
+            let samples = img.into_flat_samples();
+            let (_, w, h) = samples.extents();
+            CursorImageRepresentation::from_rgba(
+                samples.samples,
+                w as u16,
+                h as u16,
+                logical_width,
+                logical_height,
+            )
+            .unwrap()
+        })
+        .collect();
+
+    CustomCursorSource::from_rgba_representations(representations, 0, 0).unwrap()
 }
 
 #[cfg(web_platform)]
