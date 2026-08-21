@@ -304,9 +304,6 @@ impl WindowFlags {
         if self.contains(WindowFlags::ON_TASKBAR) {
             style_ex |= WS_EX_APPWINDOW;
         }
-        if self.contains(WindowFlags::ALWAYS_ON_TOP) {
-            style_ex |= WS_EX_TOPMOST;
-        }
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
@@ -336,6 +333,19 @@ impl WindowFlags {
             WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
         ) {
             style &= !WS_OVERLAPPEDWINDOW;
+        }
+
+        if self.contains(WindowFlags::ALWAYS_ON_TOP) {
+            style_ex |= WS_EX_TOPMOST;
+
+            // A window with WS_EX_TOPMOST set must have one of the following style flags:
+            // WS_BORDER, WS_CAPTION, WS_SYSMENU, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_THICKFRAME,
+            // WS_EX_CLIENTEDGE, WS_EX_CONTEXTHELP, WS_EX_DLGMODALFRAME, WS_EX_TOOLWINDOW,
+            // WS_EX_WINDOWEDGE.
+            // If none of them are set, it will cause a DXGI error when creating a swapchain.
+            if style & WS_CAPTION == 0 {
+                style |= WS_POPUP;
+            }
         }
 
         (style, style_ex)
