@@ -1329,18 +1329,16 @@ impl TabletToolTilt {
             }
         }
 
-        let altitude;
-
-        if self.x.abs() == 90 || self.y.abs() == 90 {
-            altitude = 0.;
+        let altitude = if self.x.abs() == 90 || self.y.abs() == 90 {
+            0.
         } else if self.x == 0 {
-            altitude = PI_0_5 - y.abs();
+            PI_0_5 - y.abs()
         } else if self.y == 0 {
-            altitude = PI_0_5 - x.abs();
+            PI_0_5 - x.abs()
         } else {
             // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
-            altitude = f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)));
-        }
+            f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)))
+        };
 
         TabletToolAngle { altitude, azimuth }
     }
