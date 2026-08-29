@@ -6,6 +6,7 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use dispatch2::MainThreadBound;
 use dpi::{
     LogicalInsets, LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize,
     Position, Size,
@@ -19,14 +20,14 @@ use objc2::{
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSDraggingDestination, NSDraggingInfo, NSRequestUserAttentionType, NSScreen,
-    NSToolbar, NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
-    NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
-    NSWindowToolbarStyle,
+    NSColor, NSDragOperation, NSDraggingContext, NSDraggingDestination, NSDraggingInfo,
+    NSDraggingSession, NSDraggingSource, NSPasteboardTypeFileURL, NSPasteboardTypeHTML,
+    NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
+    NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
+    NSWindow, NSWindowButton, NSWindowCollectionBehavior, NSWindowDelegate, NSWindowLevel,
+    NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
+    NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
-#[allow(deprecated)]
-use objc2_app_kit::{NSFilenamesPboardType, NSWindowFullScreenButton};
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
     CGAcquireDisplayFadeReservation, CGAssociateMouseAndMouseCursorPosition, CGDisplayCapture,
@@ -44,22 +45,26 @@ use objc2_foundation::{
 use tracing::{debug_span, trace, warn};
 use winit_common::core_foundation::MainRunLoop;
 use winit_core::cursor::Cursor;
+use winit_core::data_transfer::DataTransferId;
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
 };
 
 use super::app_state::AppState;
 use super::cursor::{CustomCursor, cursor_from_icon};
-use super::ffi;
 use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_display_id};
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{WinitPanel, WinitWindow, window_id};
+use crate::app_state::DragState;
+use crate::dnd::{
+    dnd_action_to_ns_drag_operation, ns_drag_operation_to_dnd_action, preferred_drag_operation,
+};
 use crate::{OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
@@ -107,6 +112,7 @@ pub(crate) struct State {
     is_simple_fullscreen: Cell<bool>,
     saved_style: Cell<Option<NSWindowStyleMask>>,
     is_borderless_game: Cell<bool>,
+    is_popup: Cell<bool>,
 }
 
 define_class!(
@@ -221,6 +227,7 @@ define_class!(
                 // in fullscreen, so we must've reached here by `set_fullscreen`
                 // as it updates the state
                 Some(Fullscreen::Borderless(_)) => (),
+                Some(_) => (),
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
@@ -358,37 +365,78 @@ define_class!(
         }
     }
 
+    unsafe impl NSDraggingSource for WindowDelegate {
+        #[unsafe(method(draggingSession:sourceOperationMaskForDraggingContext:))]
+        fn dragging_session_source_operation_mask(
+            &self,
+            _: &NSDraggingSession,
+            _: NSDraggingContext,
+        ) -> NSDragOperation {
+            self.view().drag_operations()
+        }
+
+        #[unsafe(method(draggingSession:endedAtPoint:operation:))]
+        fn dragging_session_ended_at_point(
+            &self,
+            session: &NSDraggingSession,
+            _: NSPoint,
+            operation: NSDragOperation,
+        ) {
+            let id = DataTransferId::from_raw(session.draggingSequenceNumber() as i64);
+            if operation == NSDragOperation::None {
+                self.queue_event(WindowEvent::OutgoingDragCanceled { id });
+            } else {
+                self.queue_event(WindowEvent::OutgoingDragDropped {
+                    id,
+                    action: ns_drag_operation_to_dnd_action(operation),
+                });
+            }
+
+            self.view().clear_dragging_session(session);
+        }
+    }
+
     unsafe impl NSDraggingDestination for WindowDelegate {
         /// Invoked when the dragged image enters destination bounds or frame
         #[unsafe(method(draggingEntered:))]
-        fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+        fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
             let _entered = debug_span!("draggingEntered:").entered();
 
-            use std::path::PathBuf;
-
-            let pb = sender.draggingPasteboard();
-
-            #[allow(deprecated)]
-            let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
-                Some(property_list) => property_list,
-                None => return false.into(),
-            };
-
-            let paths = property_list
-                .downcast::<NSArray>()
-                .unwrap()
-                .into_iter()
-                .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
-                .collect();
+            let pb =
+                MainThreadBound::new(sender.draggingPasteboard(), MainThreadMarker::new().unwrap());
 
             let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::DragEntered { paths, position });
+            let window_id = self.id();
 
-            true
+            let vars = self.ivars();
+
+            let source_operations = sender.draggingSourceOperationMask();
+
+            let transfer_id = DataTransferId::from_raw(sender.draggingSequenceNumber() as i64);
+            vars.app_state.pasteboards().insert(transfer_id, &pb, window_id);
+
+            vars.app_state
+                .drag_state()
+                .replace(Some(DragState { id: transfer_id, valid_actions: vec![] }));
+
+            self.queue_event(WindowEvent::DragEntered {
+                id: transfer_id,
+                position: Some(position),
+            });
+
+            let drag_state = vars.app_state.drag_state().borrow();
+
+            drag_state
+                .as_ref()
+                .and_then(|drag_state| {
+                    preferred_drag_operation(source_operations, &drag_state.valid_actions)
+                })
+                .map(dnd_action_to_ns_drag_operation)
+                .unwrap_or(NSDragOperation::empty())
         }
 
         #[unsafe(method(wantsPeriodicDraggingUpdates))]
@@ -400,17 +448,46 @@ define_class!(
         /// Invoked periodically as the image is held within the destination area, allowing
         /// modification of the dragging operation or mouse-pointer position.
         #[unsafe(method(draggingUpdated:))]
-        fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+        fn dragging_updated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
             let _entered = debug_span!("draggingUpdated:").entered();
+
+            let vars = self.ivars();
+
+            let Some(transfer_id) =
+                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
+            else {
+                return NSDragOperation::empty();
+            };
+
+            let pb =
+                MainThreadBound::new(sender.draggingPasteboard(), MainThreadMarker::new().unwrap());
+
+            let source_operations = sender.draggingSourceOperationMask();
+
+            vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
 
             let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::DragMoved { position });
+            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
 
-            true
+            self.queue_event(WindowEvent::DragPosition {
+                id: transfer_id,
+                position,
+                proposed_action,
+            });
+
+            let drag_state = vars.app_state.drag_state().borrow();
+
+            drag_state
+                .as_ref()
+                .and_then(|drag_state| {
+                    preferred_drag_operation(source_operations, &drag_state.valid_actions)
+                })
+                .map(dnd_action_to_ns_drag_operation)
+                .unwrap_or(NSDragOperation::empty())
         }
 
         /// Invoked when the image is released
@@ -425,30 +502,43 @@ define_class!(
         fn perform_drag_operation(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
             let _entered = debug_span!("performDragOperation:").entered();
 
-            use std::path::PathBuf;
+            let vars = self.ivars();
 
-            let pb = sender.draggingPasteboard();
-
-            #[allow(deprecated)]
-            let property_list = match pb.propertyListForType(unsafe { NSFilenamesPboardType }) {
-                Some(property_list) => property_list,
-                None => return false.into(),
+            let Some(transfer_id) =
+                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
+            else {
+                return false.into();
             };
 
-            let paths = property_list
-                .downcast::<NSArray>()
-                .unwrap()
-                .into_iter()
-                .map(|file| PathBuf::from(file.downcast::<NSString>().unwrap().to_string()))
-                .collect();
+            let pb =
+                MainThreadBound::new(sender.draggingPasteboard(), MainThreadMarker::new().unwrap());
+
+            let source_operations = sender.draggingSourceOperationMask();
+            // let operations = ns_drag_operation_to_dnd_actions(source_operations);
+
+            vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
 
             let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::DragDropped { paths, position });
+            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
 
+            self.queue_event(WindowEvent::DragPosition {
+                id: transfer_id,
+                position,
+                proposed_action,
+            });
+
+            // Check again, in case the application updated
+            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+
+            self.queue_event(WindowEvent::DragDropped { id: transfer_id, proposed_action });
+
+            // We assume that if the OS has sent `perform_drag_operation`, that the drag succeeded.
+            // We may want to extend this API in the future to allow signalling that the final drop
+            // failed.
             true
         }
 
@@ -456,6 +546,10 @@ define_class!(
         #[unsafe(method(concludeDragOperation:))]
         fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
             let _entered = debug_span!("concludeDragOperation:").entered();
+            let vars = self.ivars();
+
+            vars.app_state.pasteboards().remove_deloaded_pasteboards();
+            vars.app_state.drag_state().take();
         }
 
         /// Invoked when the dragging operation is cancelled
@@ -463,13 +557,39 @@ define_class!(
         fn dragging_exited(&self, sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
             let _entered = debug_span!("draggingExited:").entered();
 
-            let position = sender.map(|sender| {
+            let vars = self.ivars();
+
+            let Some(transfer_id) =
+                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
+            else {
+                return;
+            };
+
+            if let Some(sender) = sender {
+                let pb = MainThreadBound::new(
+                    sender.draggingPasteboard(),
+                    MainThreadMarker::new().unwrap(),
+                );
+                vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+
                 let dl = sender.draggingLocation();
                 let dl = self.view().convertPoint_fromView(dl, None);
-                LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor())
-            });
+                let position =
+                    LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            self.queue_event(WindowEvent::DragLeft { position });
+                let source_operations = sender.draggingSourceOperationMask();
+                let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+
+                self.queue_event(WindowEvent::DragPosition {
+                    id: transfer_id,
+                    position,
+                    proposed_action,
+                });
+            }
+
+            self.queue_event(WindowEvent::DragLeft { id: transfer_id });
+
+            vars.app_state.drag_state().take();
         }
     }
 
@@ -537,6 +657,7 @@ fn new_window(
     app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
     macos_attrs: &WindowAttributesMacOS,
+    is_popup: bool,
     mtm: MainThreadMarker,
 ) -> Option<Retained<NSWindow>> {
     autoreleasepool(|_| {
@@ -547,6 +668,7 @@ fn new_window(
                 monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
             },
             Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
+            Some(_) => NSScreen::mainScreen(mtm),
             None => None,
         };
         let frame = match &screen {
@@ -563,6 +685,10 @@ fn new_window(
                     None => NSSize::new(800.0, 600.0),
                 };
                 let position = match attrs.position {
+                    // A popup's position is parent-relative; it's applied in `WindowDelegate::new`
+                    // (after the delegate exists) via the shared translation in
+                    // `set_outer_position`.
+                    _ if is_popup => NSPoint::new(0.0, 0.0),
                     Some(position) => {
                         let position = position.to_logical(scale_factor);
                         flip_window_screen_coordinates(NSRect::new(
@@ -620,6 +746,8 @@ fn new_window(
         // confusing issues with the window not being properly activated.
         //
         // Winit ensures this by not allowing access to `ActiveEventLoop` before handling events.
+        // Panels (including popups) are non-activating so they don't steal key focus
+        // from their parent (matching menu/combobox semantics).
         let window: Retained<NSWindow> = if macos_attrs.panel {
             masks |= NSWindowStyleMask::NonactivatingPanel;
 
@@ -674,7 +802,7 @@ fn new_window(
         if macos_attrs.titlebar_buttons_hidden {
             for titlebar_button in &[
                 #[allow(deprecated)]
-                NSWindowFullScreenButton,
+                objc2_app_kit::NSWindowFullScreenButton,
                 NSWindowButton::MiniaturizeButton,
                 NSWindowButton::CloseButton,
                 NSWindowButton::ZoomButton,
@@ -703,16 +831,20 @@ fn new_window(
         if !macos_attrs.has_shadow {
             window.setHasShadow(false);
         }
-        if attrs.position.is_none() {
+        if macos_attrs.fullscreen_auxiliary {
+            // This must happen before the window is ordered on screen (below, and in
+            // `WindowDelegate::new`), so that showing the window doesn't make macOS
+            // switch away from an active fullscreen Space or attempt Split View tiling.
+            window.setCollectionBehavior(
+                window.collectionBehavior() | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            );
+        }
+        // Popups are positioned relative to their parent in `WindowDelegate::new`.
+        if attrs.position.is_none() && !is_popup {
             window.center();
         }
 
-        let view = WinitView::new(
-            app_state,
-            macos_attrs.accepts_first_mouse,
-            macos_attrs.option_as_alt,
-            mtm,
-        );
+        let view = WinitView::new(app_state, macos_attrs.option_as_alt, mtm);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -756,10 +888,6 @@ fn new_window(
             window.setBackgroundColor(Some(&NSColor::clearColor()));
         }
 
-        // register for drag and drop operations.
-        #[allow(deprecated)]
-        window.registerForDraggedTypes(&NSArray::from_slice(&[unsafe { NSFilenamesPboardType }]));
-
         Some(window)
     })
 }
@@ -770,13 +898,27 @@ impl WindowDelegate {
         mut attrs: WindowAttributes,
         mtm: MainThreadMarker,
     ) -> Result<Retained<Self>, RequestError> {
-        let macos_attrs = attrs
+        let mut macos_attrs = attrs
             .platform
             .take()
             .and_then(|attrs| attrs.cast::<WindowAttributesMacOS>().ok())
             .unwrap_or_default();
 
-        let window = new_window(app_state, &attrs, &macos_attrs, mtm)
+        let is_popup = matches!(attrs.window_type(), WindowType::Popup);
+        if is_popup {
+            // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
+            // as such so it flows through the existing borderless + panel paths in `new_window`
+            // instead of needing dedicated branches.
+            attrs.decorations = false;
+            attrs.enabled_buttons = WindowButtons::empty();
+            // Unless grab_keyboard is requested, use a non-activating panel so the popup doesn't
+            // steal keyboard focus from the parent window.
+            if !attrs.active {
+                macos_attrs.panel = true;
+            }
+        }
+
+        let window = new_window(app_state, &attrs, &macos_attrs, is_popup, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
         match attrs.parent_window() {
@@ -795,6 +937,11 @@ impl WindowDelegate {
                 unsafe { parent.addChildWindow_ordered(&window, NSWindowOrderingMode::Above) };
             },
             Some(raw) => panic!("invalid raw window handle {raw:?} on macOS"),
+            None if is_popup => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "a popup window requires a parent window",
+                )));
+            },
             None => (),
         }
 
@@ -832,10 +979,27 @@ impl WindowDelegate {
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
+            is_popup: Cell::new(is_popup),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+
+        let drag_types = unsafe {
+            // Advertize support for the set of types which correspond to variants of `TypeHint`.
+            // If the user wants to support other pasteboard types which don't have a cross-platform
+            // equivalent, they can downcast the window and manually call `registerForDraggedTypes`
+            // themselves.
+            NSArray::from_slice(&[
+                NSPasteboardTypeFileURL,
+                NSPasteboardTypeHTML,
+                NSPasteboardTypePNG,
+                NSPasteboardTypeSound,
+                NSPasteboardTypeString,
+                NSPasteboardTypeTIFF,
+            ])
+        };
+        window.registerForDraggedTypes(&drag_types);
 
         // Listen for theme change event.
         //
@@ -861,6 +1025,14 @@ impl WindowDelegate {
         }
 
         delegate.set_window_level(attrs.window_level);
+
+        // The popup position is relative to the parent window, and the parent is only
+        // attached above, so apply the (translated) position now. Default to the parent's
+        // content top-left when no position was given.
+        if is_popup {
+            let position = attrs.position.unwrap_or_else(|| LogicalPosition::new(0.0, 0.0).into());
+            delegate.set_outer_position(position);
+        }
 
         delegate.set_cursor(attrs.cursor);
 
@@ -912,10 +1084,7 @@ impl WindowDelegate {
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
         let window = self.window();
 
-        let content_size = window.contentRectForFrameRect(window.frame()).size;
-        let content_size = LogicalSize::new(content_size.width, content_size.height);
-
-        let suggested_size = content_size.to_physical(scale_factor);
+        let suggested_size = self.view().surface_size();
         let new_surface_size = Arc::new(Mutex::new(suggested_size));
         self.queue_event(WindowEvent::ScaleFactorChanged {
             scale_factor,
@@ -973,17 +1142,30 @@ impl WindowDelegate {
     }
 
     pub fn set_blur(&self, blur: bool) {
-        // NOTE: in general we want to specify the blur radius, but the choice of 80
-        // should be a reasonable default.
-        let radius = if blur { 80 } else { 0 };
-        let window_number = self.window().windowNumber();
-        unsafe {
-            ffi::CGSSetWindowBackgroundBlurRadius(
-                ffi::CGSMainConnectionID(),
-                window_number,
-                radius,
-            );
+        #[cfg(feature = "private-apple-apis")]
+        {
+            #[link(name = "CoreGraphics", kind = "framework")]
+            unsafe extern "C" {
+                // Wildly used private APIs; Apple uses them for their Terminal.app.
+                pub fn CGSMainConnectionID() -> *mut objc2::runtime::AnyObject;
+                pub fn CGSSetWindowBackgroundBlurRadius(
+                    connection_id: *mut objc2::runtime::AnyObject,
+                    window_id: objc2_foundation::NSInteger,
+                    radius: i64,
+                ) -> i32;
+            }
+
+            // NOTE: in general we want to specify the blur radius, but the choice of 80
+            // should be a reasonable default.
+            let radius = if blur { 80 } else { 0 };
+            let window_number = self.window().windowNumber();
+            unsafe {
+                CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), window_number, radius)
+            };
         }
+
+        // TODO: Implement blur using public methods somehow?
+        let _ = blur;
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -1007,7 +1189,9 @@ impl WindowDelegate {
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
+        let position =
+            self.translate_popup_position_to_parent(LogicalPosition::new(position.x, position.y));
+        Ok(position.to_physical(self.scale_factor()))
     }
 
     pub fn surface_position(&self) -> PhysicalPosition<i32> {
@@ -1031,6 +1215,7 @@ impl WindowDelegate {
 
     pub fn set_outer_position(&self, position: Position) {
         let position = position.to_logical(self.scale_factor());
+        let position = self.translate_popup_position(position);
         let point = flip_window_screen_coordinates(NSRect::new(
             NSPoint::new(position.x, position.y),
             self.window().frame().size,
@@ -1038,11 +1223,43 @@ impl WindowDelegate {
         self.window().setFrameOrigin(point);
     }
 
+    /// Popups receive their position relative to the top-left of the parent window's
+    /// content area (matching the Win32 and Wayland backends). macOS positions windows
+    /// in global screen coordinates, so add the parent content area's origin.
+    fn translate_popup_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
+        if !self.ivars().is_popup.get() {
+            return position;
+        }
+        let Some(parent) = self.window().parentWindow() else {
+            return position;
+        };
+        let parent_origin =
+            flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
+        LogicalPosition::new(parent_origin.x + position.x, parent_origin.y + position.y)
+    }
+
+    /// Inverse of [`Self::translate_popup_position`]. Popups report their position
+    /// relative to the top-left of the parent window's content area (matching the
+    /// Win32 and Wayland backends), so subtract the parent content area's origin from
+    /// the global screen coordinates. Non-popup windows are returned unchanged.
+    fn translate_popup_position_to_parent(
+        &self,
+        position: LogicalPosition<f64>,
+    ) -> LogicalPosition<f64> {
+        if !self.ivars().is_popup.get() {
+            return position;
+        }
+        let Some(parent) = self.window().parentWindow() else {
+            return position;
+        };
+        let parent_origin =
+            flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
+        LogicalPosition::new(position.x - parent_origin.x, position.y - parent_origin.y)
+    }
+
     #[inline]
     pub fn surface_size(&self) -> PhysicalSize<u32> {
-        let content_rect = self.window().contentRectForFrameRect(self.window().frame());
-        let logical = LogicalSize::new(content_rect.size.width, content_rect.size.height);
-        logical.to_physical(self.scale_factor())
+        self.view().surface_size()
     }
 
     #[inline]
@@ -1434,6 +1651,20 @@ impl WindowDelegate {
         if self.ivars().is_simple_fullscreen.get() {
             return;
         }
+        if fullscreen.is_some()
+            && self
+                .window()
+                .collectionBehavior()
+                .contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
+        {
+            // `toggleFullScreen:` is silently ignored on such windows, which would leave our
+            // internal fullscreen state out of sync, so bail out early instead.
+            warn!(
+                "cannot fullscreen a window marked as fullscreen auxiliary; call \
+                 `set_fullscreen_auxiliary(false)` first"
+            );
+            return;
+        }
         if self.ivars().in_fullscreen_transition.get() {
             // We can't set fullscreen here.
             // Set fullscreen after transition.
@@ -1454,7 +1685,7 @@ impl WindowDelegate {
                     let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                     monitor.ns_screen(mtm)
                 },
-                Fullscreen::Borderless(None) => {
+                _ => {
                     if let Some(monitor) = self.current_monitor_inner() {
                         monitor.ns_screen(mtm)
                     } else {
@@ -1699,6 +1930,7 @@ impl WindowDelegate {
                 self.view().disable_ime();
                 return Ok(());
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         if let Some((spot, size)) = request_data.cursor_area {
@@ -2032,6 +2264,24 @@ impl WindowExtMacOS for WindowDelegate {
         let window = self.window();
 
         window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
+    }
+
+    #[inline]
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool) {
+        let window = self.window();
+        let behavior = window.collectionBehavior();
+        if fullscreen_auxiliary {
+            window
+                .setCollectionBehavior(behavior | NSWindowCollectionBehavior::FullScreenAuxiliary);
+        } else {
+            window
+                .setCollectionBehavior(behavior - NSWindowCollectionBehavior::FullScreenAuxiliary);
+        }
+    }
+
+    #[inline]
+    fn fullscreen_auxiliary(&self) -> bool {
+        self.window().collectionBehavior().contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
     }
 }
 

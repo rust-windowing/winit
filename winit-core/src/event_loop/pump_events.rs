@@ -108,6 +108,7 @@ pub trait EventLoopExtPumpEvents {
 
 /// The return status for `pump_events`
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[allow(clippy::exhaustive_enums)]
 pub enum PumpStatus {
     /// Continue running external loop.
     Continue,

@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
+use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
@@ -16,6 +17,7 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
@@ -23,19 +25,21 @@ use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
 
 use crate::WindowId;
+use crate::dnd::DndState;
 use crate::event_loop::sink::EventSink;
 use crate::output::MonitorHandle;
 use crate::seat::{
     PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
     WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
-use crate::types::kwin_blur::KWinBlurManager;
+use crate::types::bgr_effects::BgrEffectManager;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
 use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
-use crate::window::{WindowRequests, WindowState};
+use crate::window::WindowState;
+use crate::window::handles::WindowRequests;
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -113,11 +117,17 @@ pub struct WinitState {
     /// Viewporter state on the given window.
     pub viewporter_state: Option<ViewporterState>,
 
+    /// Data device manager state on the given window.
+    pub data_device_manager_state: Option<DataDeviceManagerState>,
+
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
-    /// KWin blur manager.
-    pub kwin_blur_manager: Option<KWinBlurManager>,
+    /// Blur manager.
+    pub blur_manager: Option<BgrEffectManager>,
+
+    /// Drag-and-drop state.
+    pub dnd_state: DndState,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -168,6 +178,17 @@ impl WinitState {
                 (None, None)
             };
 
+        let data_device_manager_state = match DataDeviceManagerState::bind(globals, queue_handle) {
+            Ok(state) => Some(state),
+            Err(e) => {
+                tracing::warn!(
+                    "Data device manager not available, clipboard and drag-and-drop disabled: \
+                     {e:?}"
+                );
+                None
+            },
+        };
+
         let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
@@ -191,8 +212,11 @@ impl WinitState {
             window_compositor_updates: Vec::new(),
             window_events_sink: Default::default(),
             viewporter_state,
+            data_device_manager_state,
             fractional_scaling_manager,
-            kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
+            blur_manager: BgrEffectManager::new(globals, queue_handle).ok(),
+
+            dnd_state: Default::default(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
@@ -246,7 +270,7 @@ impl WinitState {
             self.window_compositor_updates[pos].scale_changed = true;
         } else if let Some(pointer) = self.pointer_surfaces.get(&surface.id()) {
             // Get the window, where the pointer resides right now.
-            let focused_window = match pointer.pointer().winit_data().focused_window() {
+            let focused_window = match pointer.pointer().winit_data().data().focused_window() {
                 Some(focused_window) => focused_window,
                 None => return,
             };
@@ -292,24 +316,24 @@ impl WindowHandler for WinitState {
     ) {
         let window_id = super::make_wid(window.wl_surface());
 
-        let pos = if let Some(pos) =
+        let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
-            pos
+            index
         } else {
             self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
             self.window_compositor_updates.len() - 1
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[pos].resized |= self
+        self.window_compositor_updates[index].resized |= self
             .windows
             .get_mut()
             .get_mut(&window_id)
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+            .configure_window(configure, &self.shm, &self.subcompositor_state);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.
@@ -322,6 +346,57 @@ impl WindowHandler for WinitState {
 
         // Manually mark that we've got an event, since configure may not generate a resize.
         self.dispatched_events = true;
+    }
+}
+
+impl PopupHandler for WinitState {
+    fn configure(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        popup: &XdgPopup,
+        configure: PopupConfigure,
+    ) {
+        let window_id = super::make_wid(popup.wl_surface());
+
+        let index = if let Some(index) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            index
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        self.window_compositor_updates[index].resized |= self
+            .windows
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure_popup(configure);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
+    }
+
+    fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
+        let window_id = super::make_wid(popup.wl_surface());
+        let window_requests = self.window_requests.get_mut().iter().find(|r| *r.0 == window_id);
+        if let Some(window_requests) = window_requests {
+            window_requests.1.closed.store(true, Ordering::Relaxed);
+        }
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 }
 
@@ -445,10 +520,5 @@ impl WindowCompositorUpdate {
     }
 }
 
-sctk::delegate_subcompositor!(WinitState);
-sctk::delegate_compositor!(WinitState);
-sctk::delegate_output!(WinitState);
+sctk::delegate_dispatch2!(WinitState);
 sctk::delegate_registry!(WinitState);
-sctk::delegate_shm!(WinitState);
-sctk::delegate_xdg_shell!(WinitState);
-sctk::delegate_xdg_window!(WinitState);

@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.85']
+        toolchain: [stable, nightly, '1.86']
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -82,13 +82,13 @@ jobs:
           - toolchain: nightly
             platform: { name: 'Windows 32bit GNU' }
           # Android is tested on stable-3
-          - toolchain: '1.85'
+          - toolchain: '1.86'
             platform: { name: 'Android' }
           # Redox OS doesn't follow MSRV
-          - toolchain: '1.85'
+          - toolchain: '1.86'
             platform: { name: 'Redox OS' }
         include:
-          - toolchain: '1.85'
+          - toolchain: '1.86'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package winit --features=android-native-activity', cmd: 'apk -- ' }
           - toolchain: 'nightly'
             platform: { name: 'Web', target: wasm32-unknown-unknown, os: ubuntu-latest, test-options: -Zdoctest-xcompile }
@@ -136,7 +136,7 @@ jobs:
 
     - name: Generate lockfile
       # Also updates the crates.io index
-      run: cargo generate-lockfile && cargo update -p smol_str --precise 0.3.2
+      run: cargo generate-lockfile
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -230,19 +230,19 @@ jobs:
     - name: Test dpi crate
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
-        matrix.toolchain != '1.85'
+        matrix.toolchain != '1.86'
       run: cargo test -p dpi
 
     - name: Check dpi crate (no_std)
       if: >
         contains(matrix.platform.name, 'Linux 64bit') &&
-        matrix.toolchain != '1.85'
+        matrix.toolchain != '1.86'
       run: cargo check -p dpi --no-default-features
 
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.85'
+        matrix.toolchain != '1.86'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
@@ -251,7 +251,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.85'
+        matrix.toolchain != '1.86'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
@@ -261,7 +261,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.85'
+        matrix.toolchain != '1.86'
       run: cargo $CMD test --no-run $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Run tests with serde enabled
@@ -270,7 +270,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         (!contains(matrix.platform.target, 'wasm32') || matrix.toolchain == 'nightly') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.85'
+        matrix.toolchain != '1.86'
       run: cargo $CMD test $OPTIONS $TEST_OPTIONS --features serde
 
     - name: Check docs.rs documentation
@@ -290,31 +290,14 @@ jobs:
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
 
   cargo-deny:
-    name: Run cargo-deny on ${{ matrix.platform.name }}
+    name: Run cargo-deny
     runs-on: ubuntu-latest
-
-    # TODO: remove this matrix when https://github.com/EmbarkStudios/cargo-deny/issues/324 is resolved
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - { name: 'Android', target: aarch64-linux-android }
-          - { name: 'iOS', target: aarch64-apple-ios }
-          - { name: 'Linux', target: x86_64-unknown-linux-gnu }
-          - { name: 'macOS', target: aarch64-apple-darwin }
-          - { name: 'Redox OS', target: x86_64-unknown-redox }
-          - { name: 'Web', target: wasm32-unknown-unknown }
-          - { name: 'Windows GNU', target: x86_64-pc-windows-gnu }
-          - { name: 'Windows MSVC', target: x86_64-pc-windows-msvc }
 
     steps:
     - uses: taiki-e/checkout-action@v1
     - uses: EmbarkStudios/cargo-deny-action@v2
       with:
-        command: check
         log-level: error
-        manifest-path: winit/Cargo.toml
-        arguments: --all-features --target ${{ matrix.platform.target }}
 
   eslint:
     name: ESLint

@@ -19,6 +19,7 @@ rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
 tracing.workspace = true
+url.workspace = true
 winit-core.workspace = true
 
 # Platform-specific
@@ -32,7 +33,9 @@ windows-sys = { workspace = true, features = [
     "Win32_Media",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Com",
+    "Win32_System_DataExchange",
     "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
     "Win32_System_Ole",
     "Win32_Security",
     "Win32_System_SystemInformation",

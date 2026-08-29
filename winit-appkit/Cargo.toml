@@ -9,6 +9,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
+private-apple-apis = []
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 
 [dependencies]
@@ -36,6 +37,8 @@ objc2-app-kit = { workspace = true, features = [
     "NSControl",
     "NSCursor",
     "NSDragging",
+    "NSDraggingItem",
+    "NSDraggingSession",
     "NSEvent",
     "NSGraphics",
     "NSGraphicsContext",
@@ -46,6 +49,7 @@ objc2-app-kit = { workspace = true, features = [
     "NSOpenGLView",
     "NSPanel",
     "NSPasteboard",
+    "NSPasteboardItem",
     "NSResponder",
     "NSRunningApplication",
     "NSScreen",
@@ -107,7 +111,7 @@ objc2-foundation = { workspace = true, features = [
     "NSThread",
     "NSValue",
 ] }
-winit-common = { workspace = true, features = ["core-foundation", "event-handler"] }
+winit-common = { workspace = true, features = ["core-foundation", "event-handler", "foundation"] }
 
 [dev-dependencies]
 winit.workspace = true

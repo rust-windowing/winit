@@ -64,6 +64,7 @@
 //! }
 //! ```
 #![cfg(target_vendor = "apple")] // TODO: Remove once `objc2` allows compiling on all platforms
+#![warn(clippy::exhaustive_enums)]
 
 #[macro_use]
 mod util;
@@ -71,12 +72,12 @@ mod util;
 mod app;
 mod app_state;
 mod cursor;
+mod dnd;
 mod event;
 mod event_loop;
 mod ffi;
 mod menu;
 mod monitor;
-mod notification_center;
 mod observer;
 mod view;
 mod window;
@@ -92,6 +93,7 @@ use winit_core::event_loop::ActiveEventLoop;
 use winit_core::monitor::MonitorHandle;
 use winit_core::window::{PlatformWindowAttributes, Window};
 
+pub use self::dnd::{Pasteboard, PasteboardType, PasteboardValue};
 pub use self::event::{physicalkey_to_scancode, scancode_to_physicalkey};
 use self::event_loop::ActiveEventLoop as AppKitActiveEventLoop;
 pub use self::event_loop::{EventLoop, PlatformSpecificEventLoopAttributes};
@@ -187,6 +189,25 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_unified_titlebar`].
     fn unified_titlebar(&self) -> bool;
+
+    /// Sets whether the window can be shown on the same Space as a fullscreen window.
+    ///
+    /// This corresponds to [`NSWindowCollectionBehaviorFullScreenAuxiliary`], and is useful
+    /// for floating palettes, inspectors and other secondary windows accompanying a fullscreen
+    /// window. Without it, ordering a new window on screen while another window of the
+    /// application is fullscreen on the active Space makes macOS switch Spaces or attempt
+    /// Split View tiling.
+    ///
+    /// A window marked as fullscreen auxiliary cannot itself enter (native) fullscreen;
+    /// [`Window::set_fullscreen`] will warn and do nothing. Call
+    /// `set_fullscreen_auxiliary(false)` first if you want to make the window fullscreen.
+    ///
+    /// [`NSWindowCollectionBehaviorFullScreenAuxiliary`]: https://developer.apple.com/documentation/appkit/nswindow/collectionbehavior-swift.struct/fullscreenauxiliary?language=objc
+    /// [`Window::set_fullscreen`]: winit_core::window::Window::set_fullscreen
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool);
+
+    /// Getter for the [`WindowExtMacOS::set_fullscreen_auxiliary`].
+    fn fullscreen_auxiliary(&self) -> bool;
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -297,11 +318,24 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.unified_titlebar())
     }
+
+    #[inline]
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool) {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_fullscreen_auxiliary(fullscreen_auxiliary))
+    }
+
+    #[inline]
+    fn fullscreen_auxiliary(&self) -> bool {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.fullscreen_auxiliary())
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     #[default]
@@ -335,12 +369,12 @@ pub struct WindowAttributesMacOS {
     pub(crate) fullsize_content_view: bool,
     pub(crate) disallow_hidpi: bool,
     pub(crate) has_shadow: bool,
-    pub(crate) accepts_first_mouse: bool,
     pub(crate) tabbing_identifier: Option<String>,
     pub(crate) option_as_alt: OptionAsAlt,
     pub(crate) borderless_game: bool,
     pub(crate) unified_titlebar: bool,
     pub(crate) panel: bool,
+    pub(crate) fullscreen_auxiliary: bool,
 }
 
 impl WindowAttributesMacOS {
@@ -398,13 +432,6 @@ impl WindowAttributesMacOS {
         self
     }
 
-    /// Window accepts click-through mouse events.
-    #[inline]
-    pub fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
-        self.accepts_first_mouse = accepts_first_mouse;
-        self
-    }
-
     /// Defines the window tabbing identifier.
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
@@ -448,6 +475,17 @@ impl WindowAttributesMacOS {
         self.panel = panel;
         self
     }
+
+    /// See [`WindowExtMacOS::set_fullscreen_auxiliary`] for details on what this means if set.
+    ///
+    /// Contrary to the runtime setter, setting this attribute guarantees that the collection
+    /// behavior is already in place when the window is first ordered on screen, which is
+    /// required to avoid disturbing an active fullscreen Space.
+    #[inline]
+    pub fn with_fullscreen_auxiliary(mut self, fullscreen_auxiliary: bool) -> Self {
+        self.fullscreen_auxiliary = fullscreen_auxiliary;
+        self
+    }
 }
 
 impl Default for WindowAttributesMacOS {
@@ -462,12 +500,12 @@ impl Default for WindowAttributesMacOS {
             fullsize_content_view: false,
             disallow_hidpi: false,
             has_shadow: true,
-            accepts_first_mouse: true,
             tabbing_identifier: None,
             option_as_alt: Default::default(),
             borderless_game: false,
             unified_titlebar: false,
             panel: false,
+            fullscreen_auxiliary: false,
         }
     }
 }
@@ -595,6 +633,7 @@ impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
 /// The default is `None`.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.
     OnlyLeft,
