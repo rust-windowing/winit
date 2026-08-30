@@ -266,7 +266,20 @@ impl EventLoop {
                         Some(wait_deadline.saturating_duration_since(start))
                     },
                 };
-                min_timeout(control_flow_timeout, timeout)
+                let computed = min_timeout(control_flow_timeout, timeout);
+
+                // While every pending redraw is gated behind an in-flight
+                // frame callback, a zero timeout cannot make progress: the
+                // redraw is only unblocked by the compositor or the stall
+                // timeout. Wait for that instead of busy-polling.
+                match computed {
+                    Some(t) if t.is_zero() => Some(
+                        self.with_state(|state| state.frame_callback_gate())
+                            .map(|wait| wait.max(Duration::from_millis(1)))
+                            .unwrap_or(t),
+                    ),
+                    other => other,
+                }
             };
 
             // NOTE Ideally we should flush as the last thing we do before polling
@@ -516,7 +529,12 @@ impl EventLoop {
                 let mut window =
                     state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
 
-                if window.frame_callback_state() == FrameCallbackState::Requested {
+                if window.frame_callback_state() == FrameCallbackState::Requested
+                    && !window.frame_callback_stalled()
+                {
+                    // The frame callback is still in flight; the redraw is
+                    // throttled unless the callback appears stalled, see
+                    // `FRAME_CALLBACK_STALL_TIMEOUT`.
                     return None;
                 }
 

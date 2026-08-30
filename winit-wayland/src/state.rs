@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
@@ -40,6 +41,7 @@ use crate::types::xdg_activation::XdgActivationState;
 use crate::types::xdg_toplevel_icon_manager::XdgToplevelIconManagerState;
 use crate::window::WindowState;
 use crate::window::handles::WindowRequests;
+use crate::window::state::FrameCallbackState;
 
 /// Winit's Wayland state.
 #[derive(Debug)]
@@ -141,6 +143,40 @@ pub struct WinitState {
 }
 
 impl WinitState {
+    /// Time until the pending redraws are unblocked by the frame-callback
+    /// stall timeout, when every pending redraw is gated behind an in-flight
+    /// frame callback.
+    ///
+    /// Returns `None` when no redraw is waiting on a frame callback, or when
+    /// some pending redraw is not gated (it can be delivered immediately, so
+    /// there is nothing to wait for). Used by the event loop to wait for the
+    /// compositor (or the stall deadline) instead of busy-polling with a zero
+    /// timeout.
+    pub fn frame_callback_gate(&self) -> Option<Duration> {
+        let windows = self.windows.borrow();
+        let mut gate = None;
+        for (window_id, requests) in self.window_requests.borrow().iter() {
+            if !requests.redraw_requested.load(Ordering::Relaxed) {
+                continue;
+            }
+            let Some(window) = windows.get(window_id).map(|window| window.lock().unwrap()) else {
+                continue;
+            };
+            match window.frame_callback_state() {
+                FrameCallbackState::Requested => {
+                    let remaining = window.frame_callback_stall_remaining()?;
+                    gate = Some(match gate {
+                        Some(gate) if gate < remaining => gate,
+                        _ => remaining,
+                    });
+                },
+                // This redraw is not gated; deliver it instead of waiting.
+                _ => return None,
+            }
+        }
+        gate
+    }
+
     pub fn new(
         globals: &GlobalList,
         queue_handle: &QueueHandle<Self>,

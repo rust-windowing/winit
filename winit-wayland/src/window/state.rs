@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use foldhash::HashSet;
@@ -194,6 +194,12 @@ pub struct WindowState {
     /// The state of the frame callback.
     frame_callback_state: FrameCallbackState,
 
+    /// When the current frame callback was requested.
+    ///
+    /// Used to bound the time [`FrameCallbackState::Requested`] may suppress
+    /// `RedrawRequested`, see [`FRAME_CALLBACK_STALL_TIMEOUT`].
+    frame_callback_requested_at: Option<Instant>,
+
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
     blur: Option<SurfaceBlurEffect>,
@@ -268,6 +274,7 @@ impl WindowState {
             fractional_scale,
             frame: None,
             frame_callback_state: FrameCallbackState::None,
+            frame_callback_requested_at: None,
             seat_focus: Default::default(),
             has_pending_move: None,
             text_input_state: None,
@@ -322,11 +329,13 @@ impl WindowState {
     /// The frame callback was received, but not yet sent to the user.
     pub fn frame_callback_received(&mut self) {
         self.frame_callback_state = FrameCallbackState::Received;
+        self.frame_callback_requested_at = None;
     }
 
     /// Reset the frame callbacks state.
     pub fn frame_callback_reset(&mut self) {
         self.frame_callback_state = FrameCallbackState::None;
+        self.frame_callback_requested_at = None;
     }
 
     /// Request a frame callback if we don't have one for this window in flight.
@@ -335,10 +344,25 @@ impl WindowState {
         match self.frame_callback_state {
             FrameCallbackState::None | FrameCallbackState::Received => {
                 self.frame_callback_state = FrameCallbackState::Requested;
+                self.frame_callback_requested_at = Some(Instant::now());
                 surface.frame(&self.queue_handle, FrameCallbackData(surface.clone()));
             },
             FrameCallbackState::Requested => (),
         }
+    }
+
+    /// Whether the in-flight frame callback has been pending for longer than
+    /// [`FRAME_CALLBACK_STALL_TIMEOUT`].
+    pub fn frame_callback_stalled(&self) -> bool {
+        matches!(self.frame_callback_requested_at, Some(at) if at.elapsed() >= FRAME_CALLBACK_STALL_TIMEOUT)
+    }
+
+    /// Time left until the in-flight frame callback is considered stalled.
+    ///
+    /// Returns `None` when no frame callback is in flight.
+    pub fn frame_callback_stall_remaining(&self) -> Option<Duration> {
+        let at = self.frame_callback_requested_at?;
+        Some(FRAME_CALLBACK_STALL_TIMEOUT.saturating_sub(at.elapsed()))
     }
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
@@ -1477,6 +1501,18 @@ impl GrabState {
         Self { user_grab_mode: CursorGrabMode::None, current_grab_mode: CursorGrabMode::None }
     }
 }
+
+/// How long a frame callback may stay in flight before `RedrawRequested` is
+/// delivered anyway.
+///
+/// Some compositors delay `wl_surface.frame` callbacks for occluded windows for
+/// a long time — seconds, or indefinitely. While a callback is pending, the
+/// Wayland backend suppresses `RedrawRequested`; an unbounded suppression
+/// busy-loops an event loop under `ControlFlow::Poll`
+/// (<https://github.com/rust-windowing/winit/issues/4668>) and can wedge apps
+/// that only re-arm their repaint schedule from the redraw handler. Bounding
+/// the wait keeps such apps responsive and the loop idle.
+pub const FRAME_CALLBACK_STALL_TIMEOUT: Duration = Duration::from_millis(250);
 
 /// The state of the frame callback.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
