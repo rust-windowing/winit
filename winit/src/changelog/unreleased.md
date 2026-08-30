@@ -114,3 +114,8 @@ changelog entry.
 - On Redox, fix `run_app_on_demand` exiting immediately after a previous `run_app_on_demand` called `exit`.
 - On Redox, fill in logical key for keyboard events rather than emitting a separate fake IME event.
 - On Redox, handle window closes during `ApplicationHandler` drop.
+- On Wayland, fix the event loop spinning at 100% CPU with a zero timeout under
+  `ControlFlow::Poll`, and windows never receiving `RedrawRequested`, when the
+  compositor withholds `wl_surface.frame` callbacks (e.g. for occluded windows).
+  The frame-callback wait is now bounded to 250ms, after which the pending
+  `RedrawRequested` is delivered anyway.
