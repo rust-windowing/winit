@@ -154,27 +154,23 @@ impl WinitState {
     /// timeout.
     pub fn frame_callback_gate(&self) -> Option<Duration> {
         let windows = self.windows.borrow();
-        let mut gate = None;
-        for (window_id, requests) in self.window_requests.borrow().iter() {
-            if !requests.redraw_requested.load(Ordering::Relaxed) {
-                continue;
-            }
-            let Some(window) = windows.get(window_id).map(|window| window.lock().unwrap()) else {
-                continue;
-            };
-            match window.frame_callback_state() {
-                FrameCallbackState::Requested => {
-                    let remaining = window.frame_callback_stall_remaining()?;
-                    gate = Some(match gate {
-                        Some(gate) if gate < remaining => gate,
-                        _ => remaining,
-                    });
-                },
-                // This redraw is not gated; deliver it instead of waiting.
-                _ => return None,
-            }
-        }
-        gate
+        let window_requests = self.window_requests.borrow();
+
+        // Only windows with a pending redraw and a live handle gate the loop.
+        let gates = window_requests
+            .iter()
+            .filter(|(_, requests)| requests.redraw_requested.load(Ordering::Relaxed))
+            .filter_map(|(window_id, _)| windows.get(window_id))
+            .map(|window| {
+                let window = window.lock().unwrap();
+                match window.frame_callback_state() {
+                    FrameCallbackState::Requested => window.frame_callback_stall_remaining(),
+                    // This redraw is not gated; deliver it instead of waiting.
+                    _ => None,
+                }
+            });
+
+        fold_frame_callback_gate(gates)
     }
 
     pub fn new(
@@ -526,6 +522,32 @@ impl CompositorHandler for WinitState {
     }
 }
 
+/// Fold the per-window frame-callback gates into the wait the event loop
+/// should use instead of a zero timeout.
+///
+/// Each item is the time until that window's pending redraw is unblocked by
+/// the frame-callback stall timeout, or `None` when the redraw is not gated
+/// behind an in-flight frame callback. When every pending redraw is gated, the
+/// nearest stall deadline wins (`Some(min)`); when any redraw is un-gated it
+/// can be delivered right away, so there is nothing to wait for (`None`).
+///
+/// See [`WinitState::frame_callback_gate`].
+fn fold_frame_callback_gate<I>(gates: I) -> Option<Duration>
+where
+    I: IntoIterator<Item = Option<Duration>>,
+{
+    let mut deadline = None;
+    for gate in gates {
+        // An un-gated redraw can be delivered now; stop waiting.
+        let remaining = gate?;
+        deadline = Some(match deadline {
+            Some(deadline) if deadline < remaining => deadline,
+            _ => remaining,
+        });
+    }
+    deadline
+}
+
 impl ProvidesRegistryState for WinitState {
     sctk::registry_handlers![OutputState, SeatState];
 
@@ -558,3 +580,27 @@ impl WindowCompositorUpdate {
 
 sctk::delegate_dispatch2!(WinitState);
 sctk::delegate_registry!(WinitState);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_gated_waits_for_the_nearest_stall_deadline() {
+        let gates = [Some(Duration::from_millis(200)), Some(Duration::from_millis(50))];
+        assert_eq!(fold_frame_callback_gate(gates), Some(Duration::from_millis(50)));
+    }
+
+    #[test]
+    fn any_un_gated_redraw_opens_the_gate() {
+        // The un-gated window short-circuits even a fully-elapsed sibling.
+        let gates = [Some(Duration::from_millis(50)), None, Some(Duration::ZERO)];
+        assert_eq!(fold_frame_callback_gate(gates), None);
+    }
+
+    #[test]
+    fn no_pending_redraws_is_no_gate() {
+        let gates: [Option<Duration>; 0] = [];
+        assert_eq!(fold_frame_callback_gate(gates), None);
+    }
+}
