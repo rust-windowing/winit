@@ -20,6 +20,7 @@ use crate::window::{ActivationToken, Theme};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -44,6 +45,7 @@ pub enum StartCause {
 
 /// Describes an event from a [`Window`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
     ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
@@ -329,6 +331,25 @@ pub enum WindowEvent {
         primary: bool,
 
         button: ButtonSource,
+
+        /// Whether this event is part of the click that activated an otherwise inactive window.
+        ///
+        /// On macOS, AppKit normally consumes the click that brings a window forward without
+        /// delivering it as a regular mouse event (controlled by [`acceptsFirstMouse:`]). Winit
+        /// always delivers it, but tags both the activating press *and* its matching release
+        /// with this flag so applications can short-circuit the whole gesture with a single
+        /// check — e.g. ignore activation clicks for destructive or button-like targets while
+        /// accepting them for low-risk actions (selection, scrolling).
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **Only available on macOS.** Always `false` on every other platform.
+        /// - Only ever `true` for the left mouse button. Intervening drag motion (delivered as
+        ///   [`WindowEvent::PointerMoved`]) is not tagged; applications that care about drags
+        ///   during the activation gesture must track that state themselves.
+        ///
+        /// [`acceptsFirstMouse:`]: https://developer.apple.com/documentation/appkit/nsview/acceptsfirstmouse(_:)
+        is_macos_activation_click: bool,
     },
 
     /// Multi-finger hold gesture on the touchpad or touchscreen without movement.
@@ -512,6 +533,7 @@ pub enum WindowEvent {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PointerKind {
     Mouse,
     /// See [`PointerSource::Touch`] for more details.
@@ -529,6 +551,7 @@ pub enum PointerKind {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PointerSource {
     Mouse,
     /// Represents a touch event.
@@ -597,6 +620,7 @@ impl From<PointerSource> for PointerKind {
 /// **Wayland/X11:** [`Unknown`](Self::Unknown) device types are converted to known variants by the
 /// system.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ButtonSource {
     /// ## Platform-specific
     ///
@@ -711,6 +735,7 @@ impl FingerId {
 ///
 /// [window events]: WindowEvent
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
@@ -1033,6 +1058,7 @@ impl From<ModifiersState> for Modifiers {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum Ime {
     /// Notifies when the IME was enabled.
     ///
@@ -1081,6 +1107,7 @@ pub enum Ime {
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum TouchPhase {
     /// Initial touch contact or gesture start, for example when one or more fingers touch the
     /// screen or touchpad.
@@ -1100,6 +1127,7 @@ pub enum TouchPhase {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[doc(alias = "Pressure")]
+#[allow(clippy::exhaustive_enums)]
 pub enum Force {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -1301,18 +1329,16 @@ impl TabletToolTilt {
             }
         }
 
-        let altitude;
-
-        if self.x.abs() == 90 || self.y.abs() == 90 {
-            altitude = 0.;
+        let altitude = if self.x.abs() == 90 || self.y.abs() == 90 {
+            0.
         } else if self.x == 0 {
-            altitude = PI_0_5 - y.abs();
+            PI_0_5 - y.abs()
         } else if self.y == 0 {
-            altitude = PI_0_5 - x.abs();
+            PI_0_5 - x.abs()
         } else {
             // Non-boundary case: neither tiltX nor tiltY is equal to 0 or +-90
-            altitude = f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)));
-        }
+            f64::atan(1. / f64::sqrt(x.tan().powi(2) + y.tan().powi(2)))
+        };
 
         TabletToolAngle { altitude, azimuth }
     }
@@ -1410,6 +1436,7 @@ impl TabletToolAngle {
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum ElementState {
     Pressed,
     Released,
@@ -1440,6 +1467,7 @@ impl ElementState {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u8)]
+#[allow(clippy::exhaustive_enums)]
 pub enum MouseButton {
     /// The primary (usually left) button
     Left = 0,
@@ -1535,6 +1563,7 @@ impl MouseButton {
 /// Describes a button of a tool, e.g. a pen.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum TabletToolButton {
     Contact,
     Barrel,
@@ -1557,6 +1586,7 @@ impl From<TabletToolButton> for Option<MouseButton> {
 /// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum MouseScrollDelta {
     /// Amount in lines or rows to scroll in the horizontal
     /// and vertical directions.
@@ -1689,6 +1719,7 @@ mod tests {
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
                 button: event::ButtonSource::Unknown(0),
+                is_macos_activation_click: false,
             });
             with_window_event(PointerButton {
                 device_id: None,
@@ -1699,6 +1730,7 @@ mod tests {
                     finger_id: fid,
                     force: Some(event::Force::Normalized(0.0)),
                 },
+                is_macos_activation_click: false,
             });
             with_window_event(PinchGesture {
                 device_id: None,

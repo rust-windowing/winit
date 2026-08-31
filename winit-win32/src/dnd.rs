@@ -247,6 +247,7 @@ impl TypedData for WinTypedData {
             },
             // Windows URI drag-and-drop can't be neatly expressed as a binary blob.
             SendData::Uris(_) => None,
+            _ => None,
         }
     }
 
@@ -924,6 +925,7 @@ unsafe fn send_data_to_stgmedium(data: SendData, hint: TypeHint) -> Option<STGME
             hglobal
         },
         SendData::Bytes(b) => alloc_hglobal_from(&b)?,
+        _ => return None,
     };
 
     let mut medium = unsafe { std::mem::zeroed::<STGMEDIUM>() };

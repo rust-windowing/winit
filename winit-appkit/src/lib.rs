@@ -64,6 +64,7 @@
 //! }
 //! ```
 #![cfg(target_vendor = "apple")] // TODO: Remove once `objc2` allows compiling on all platforms
+#![warn(clippy::exhaustive_enums)]
 
 #[macro_use]
 mod util;
@@ -334,6 +335,7 @@ impl WindowExtMacOS for dyn Window + '_ {
 /// Corresponds to `NSApplicationActivationPolicy`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     #[default]
@@ -367,7 +369,6 @@ pub struct WindowAttributesMacOS {
     pub(crate) fullsize_content_view: bool,
     pub(crate) disallow_hidpi: bool,
     pub(crate) has_shadow: bool,
-    pub(crate) accepts_first_mouse: bool,
     pub(crate) tabbing_identifier: Option<String>,
     pub(crate) option_as_alt: OptionAsAlt,
     pub(crate) borderless_game: bool,
@@ -428,13 +429,6 @@ impl WindowAttributesMacOS {
     #[inline]
     pub fn with_has_shadow(mut self, has_shadow: bool) -> Self {
         self.has_shadow = has_shadow;
-        self
-    }
-
-    /// Window accepts click-through mouse events.
-    #[inline]
-    pub fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
-        self.accepts_first_mouse = accepts_first_mouse;
         self
     }
 
@@ -506,7 +500,6 @@ impl Default for WindowAttributesMacOS {
             fullsize_content_view: false,
             disallow_hidpi: false,
             has_shadow: true,
-            accepts_first_mouse: true,
             tabbing_identifier: None,
             option_as_alt: Default::default(),
             borderless_game: false,
@@ -640,6 +633,7 @@ impl ActiveEventLoopExtMacOS for dyn ActiveEventLoop + '_ {
 /// The default is `None`.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.
     OnlyLeft,

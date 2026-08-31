@@ -28,7 +28,7 @@ use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    DndAction, DragIcon, EventLoopProxy as CoreEventLoopProxy,
+    DndAction, DragIcon, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
@@ -248,6 +248,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                                     .chain(Vec::new().into_iter().map(ns_url_from_str)),
                             ),
                             SendData::Bytes(_) => None,
+                            _ => None,
                         }
                     })
                     .into_iter()
@@ -548,6 +549,41 @@ impl EventLoop {
                 }
             })
         })
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 

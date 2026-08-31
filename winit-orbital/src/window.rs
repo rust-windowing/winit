@@ -342,6 +342,7 @@ impl CoreWindow for Window {
             None => {
                 let _ = self.set_flag(ORBITAL_FLAG_FULLSCREEN, false);
             },
+            Some(_) => (),
         }
     }
 

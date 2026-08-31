@@ -242,6 +242,7 @@ define_class!(
                 // in fullscreen, so we must've reached here by `set_fullscreen`
                 // as it updates the state
                 Some(Fullscreen::Borderless(_)) => (),
+                Some(_) => (),
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
@@ -682,6 +683,7 @@ fn new_window(
                 monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
             },
             Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
+            Some(_) => NSScreen::mainScreen(mtm),
             None => None,
         };
         let frame = match &screen {
@@ -859,12 +861,7 @@ fn new_window(
             window.center();
         }
 
-        let view = WinitView::new(
-            app_state,
-            macos_attrs.accepts_first_mouse,
-            macos_attrs.option_as_alt,
-            mtm,
-        );
+        let view = WinitView::new(app_state, macos_attrs.option_as_alt, mtm);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -1798,7 +1795,7 @@ impl WindowDelegate {
                     let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                     monitor.ns_screen(mtm)
                 },
-                Fullscreen::Borderless(None) => {
+                _ => {
                     if let Some(monitor) = self.current_monitor_inner() {
                         monitor.ns_screen(mtm)
                     } else {
@@ -2043,6 +2040,7 @@ impl WindowDelegate {
                 self.view().disable_ime();
                 return Ok(());
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         if let Some((spot, size)) = request_data.cursor_area {

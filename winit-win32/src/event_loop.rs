@@ -75,8 +75,8 @@ use winit_core::event::{
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    DndAction, DragIcon, EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as CoreOwnedDisplayHandle,
+    DndAction, DragIcon, EventLoopProvider, EventLoopProxy as RootEventLoopProxy,
+    EventLoopProxyProvider, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -393,6 +393,41 @@ impl EventLoop {
     }
 }
 
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
 impl Drop for EventLoop {
     fn drop(&mut self) {
         unsafe {
@@ -432,7 +467,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     ) -> Result<CustomCursor, RequestError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
-            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+            _ => {
                 return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
@@ -1423,6 +1458,7 @@ unsafe fn public_window_callback_inner(
                                 window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
                             }
                         },
+                        _ => (),
                     }
                 }
             }
@@ -1901,6 +1937,7 @@ unsafe fn public_window_callback_inner(
                     _ => unreachable!(),
                 }
                 .into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1930,6 +1967,7 @@ unsafe fn public_window_callback_inner(
                     _ => unreachable!(),
                 }
                 .into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1958,6 +1996,7 @@ unsafe fn public_window_callback_inner(
                 position,
                 // 1 is defined as back, 2 as forward; other codes are unexpected.
                 button: MouseButton::try_from_u8(b).unwrap().into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1987,6 +2026,7 @@ unsafe fn public_window_callback_inner(
                 position,
                 // 1 is defined as back, 2 as forward; other codes are unexpected.
                 button: MouseButton::try_from_u8(b).unwrap().into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -2046,6 +2086,7 @@ unsafe fn public_window_callback_inner(
                             state: Pressed,
                             position,
                             button: Touch { finger_id, force: None },
+                            is_macos_activation_click: false,
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_UP) {
                         userdata.send_window_event(window, WindowEvent::PointerButton {
@@ -2054,6 +2095,7 @@ unsafe fn public_window_callback_inner(
                             state: Released,
                             position,
                             button: Touch { finger_id, force: None },
+                            is_macos_activation_click: false,
                         });
                         userdata.send_window_event(window, WindowEvent::PointerLeft {
                             device_id: None,
@@ -2215,6 +2257,7 @@ unsafe fn public_window_callback_inner(
                                 state: Pressed,
                                 position,
                                 button,
+                                is_macos_activation_click: false,
                             });
                         } else {
                             userdata.send_window_event(window, WindowEvent::PointerButton {
@@ -2223,6 +2266,7 @@ unsafe fn public_window_callback_inner(
                                 state: Released,
                                 position,
                                 button,
+                                is_macos_activation_click: false,
                             });
                             userdata.send_window_event(window, WindowEvent::PointerLeft {
                                 device_id: None,

@@ -16,6 +16,7 @@
 //! * `wayland-csd-adwaita-notitlebar`.
 
 #![allow(clippy::mutable_key_type)]
+#![warn(clippy::exhaustive_enums)]
 
 use std::ffi::c_void;
 use std::hash::BuildHasher;

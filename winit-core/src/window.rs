@@ -1,6 +1,7 @@
 //! The [`Window`] trait and associated types.
 mod positioner;
 
+use std::any::Any;
 use std::fmt;
 
 use bitflags::bitflags;
@@ -12,7 +13,6 @@ pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::as_any::AsAny;
 use crate::cursor::Cursor;
 use crate::error::RequestError;
 use crate::icon::Icon;
@@ -609,7 +609,7 @@ pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
 unsafe impl Send for SendSyncRawWindowHandle {}
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
-pub trait PlatformWindowAttributes: AsAny + std::fmt::Debug + Send + Sync {
+pub trait PlatformWindowAttributes: Any + std::fmt::Debug + Send + Sync {
     fn box_clone(&self) -> Box<dyn PlatformWindowAttributes>;
 }
 
@@ -633,7 +633,7 @@ impl_dyn_casting!(PlatformWindowAttributes);
 ///
 /// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
 /// not be closed by dropping the [`Window`].
-pub trait Window: AsAny + Send + Sync + fmt::Debug {
+pub trait Window: Any + Send + Sync + fmt::Debug {
     /// Returns the window type of this window
     fn window_type(&self) -> WindowType;
 
@@ -1665,6 +1665,7 @@ impl rwh_06::HasWindowHandle for dyn Window + '_ {
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum CursorGrabMode {
     /// No grabbing of the cursor is performed.
     None,
@@ -1695,6 +1696,7 @@ pub enum CursorGrabMode {
 /// Defines the orientation that a window resize will be performed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum ResizeDirection {
     East,
     North,
@@ -1725,6 +1727,7 @@ impl From<ResizeDirection> for CursorIcon {
 /// The theme variant to use.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum Theme {
     /// Use the light variant.
     Light,
@@ -1742,6 +1745,7 @@ pub enum Theme {
 /// [`Informational`]: Self::Informational
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum UserAttentionType {
     /// ## Platform-specific
     ///
@@ -1777,6 +1781,7 @@ bitflags::bitflags! {
 /// - **iOS / Android / Web / Wayland:** Unsupported.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::exhaustive_enums)]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
     ///
@@ -1877,6 +1882,7 @@ bitflags! {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[non_exhaustive]
 pub enum ImeSurroundingTextError {
     /// Text exceeds 4000 bytes
     TextTooLong,
@@ -1989,6 +1995,7 @@ impl ImeSurroundingText {
 
 /// Request to send to IME.
 #[derive(Debug, PartialEq, Clone)]
+#[non_exhaustive]
 pub enum ImeRequest {
     /// Enable the IME with the [`ImeCapabilities`] and [`ImeRequestData`] as initial state. When
     /// the [`ImeRequestData`] is **not** matching capabilities fully, the default values will be

@@ -457,6 +457,7 @@ impl ApplicationHandler for Application {
                 MouseScrollDelta::PixelDelta(px) => {
                     info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
                 },
+                _ => (),
             },
             WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
                 let mods = window.modifiers;
@@ -474,8 +475,15 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::PointerButton { button, state, .. } => {
+            WindowEvent::PointerButton { button, state, is_macos_activation_click, .. } => {
                 info!("Pointer button {button:?} {state:?}");
+                // On macOS, drop both press and release of the click that activated this
+                // window — real apps would typically skip destructive or button-target
+                // actions for such clicks; this example just logs them.
+                if is_macos_activation_click {
+                    info!("(macOS activation click — ignoring)");
+                    return;
+                }
                 let mods = window.modifiers;
                 if let Some(action) = state
                     .is_pressed()
