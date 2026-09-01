@@ -20,7 +20,7 @@ use winit_core::icon::*;
 use super::util;
 use crate::WinIcon;
 
-pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
+pub(crate) const PIXEL_SIZE: usize = mem::size_of::<u32>();
 
 unsafe impl Send for WinIcon {}
 
@@ -96,14 +96,11 @@ impl WinIcon {
     pub(crate) fn from_rgba(rgba: &RgbaIcon) -> Result<Self, BadIcon> {
         let pixel_count = rgba.buffer().len() / PIXEL_SIZE;
         let mut and_mask = Vec::with_capacity(pixel_count);
-        let pixels = unsafe {
-            std::slice::from_raw_parts_mut(rgba.buffer().as_ptr() as *mut Pixel, pixel_count)
-        };
-        for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
-            pixel.convert_to_bgra();
+        let mut bgra = Vec::with_capacity(rgba.buffer().len());
+        for pixel in rgba.buffer().chunks_exact(PIXEL_SIZE) {
+            and_mask.push(pixel[3].wrapping_sub(u8::MAX)); // invert alpha channel
+            bgra.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
         }
-        assert_eq!(and_mask.len(), pixel_count);
         let handle = unsafe {
             CreateIcon(
                 ptr::null_mut(),
@@ -112,7 +109,7 @@ impl WinIcon {
                 1,
                 (PIXEL_SIZE * 8) as u8,
                 and_mask.as_ptr(),
-                rgba.buffer().as_ptr(),
+                bgra.as_ptr(),
             )
         };
         if !handle.is_null() {
@@ -132,12 +129,6 @@ impl IconProvider for WinIcon {}
 impl fmt::Debug for WinIcon {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         (*self.inner).fmt(formatter)
-    }
-}
-
-impl Pixel {
-    fn convert_to_bgra(&mut self) {
-        mem::swap(&mut self.r, &mut self.b);
     }
 }
 
@@ -253,11 +244,24 @@ impl RaiiCursor {
     }
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub(crate) struct Pixel {
-    pub(crate) r: u8,
-    pub(crate) g: u8,
-    pub(crate) b: u8,
-    pub(crate) a: u8,
+#[cfg(test)]
+mod tests {
+    use winit_core::icon::RgbaIcon;
+
+    use super::WinIcon;
+
+    #[test]
+    fn from_rgba_keeps_the_shared_buffer_intact_across_conversions() {
+        // Callers may convert the same `Icon` more than once (e.g. window and
+        // taskbar icons built from one clone); every conversion must observe
+        // the original RGBA data instead of flipping red and blue in place.
+        let source = vec![73, 145, 215, 255, 0, 0, 0, 128];
+        let icon = RgbaIcon::new(source.clone(), 1, 2).unwrap();
+
+        WinIcon::from_rgba(&icon).unwrap();
+        assert_eq!(icon.buffer(), &source);
+
+        WinIcon::from_rgba(&icon).unwrap();
+        assert_eq!(icon.buffer(), &source);
+    }
 }
