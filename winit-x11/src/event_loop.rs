@@ -221,6 +221,9 @@ impl EventLoop {
 
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
+            Err(XNotSupported::ExtensionNotSupported(reason)) => {
+                return Err(NotSupportedError::new(reason).into());
+            },
             Err(err) => return Err(os_error!(err.clone()).into()),
         };
 
@@ -268,8 +271,12 @@ impl EventLoop {
 
         let ime = ime.ok().map(RefCell::new);
 
-        let randr_event_offset =
-            xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
+        let randr_event_offset = xconn.select_xrandr_input(root).map_err(|err| match err {
+            X11Error::MissingExtension(_) => EventLoopError::NotSupported(NotSupportedError::new(
+                "the X11 backend requires XRandR 1.2 or newer",
+            )),
+            error => os_error!(error).into(),
+        })?;
 
         let xi2ext = xconn
             .xcb_connection()
@@ -281,8 +288,8 @@ impl EventLoop {
         let xkbext = xconn
             .xcb_connection()
             .extension_information(xkb::X11_EXTENSION_NAME)
-            .expect("Failed to query XKB extension")
-            .expect("X server missing XKB extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         // Check for XInput2 support.
         xconn
@@ -347,8 +354,8 @@ impl EventLoop {
             .expect("Failed to register the event loop waker source");
         let event_loop_proxy = EventLoopProxy::new(user_waker);
 
-        let xkb_context =
-            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context = Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection())
+            .map_err(|_| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         let mut xmodmap = util::ModifierKeymap::new();
         xmodmap.reload_from_x_connection(&xconn);
@@ -420,7 +427,7 @@ impl EventLoop {
                     | xkb::EventType::MAP_NOTIFY
                     | xkb::EventType::STATE_NOTIFY,
             )
-            .unwrap();
+            .map_err(|err| os_error!(err))?;
 
         event_processor.init_device(ALL_DEVICES);
 
