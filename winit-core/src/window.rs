@@ -1,4 +1,6 @@
 //! The [`Window`] trait and associated types.
+mod positioner;
+
 use std::any::Any;
 use std::fmt;
 
@@ -7,6 +9,7 @@ use cursor_icon::CursorIcon;
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
+pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +60,9 @@ pub enum WindowType {
     /// tooltip. Requires a parent set via [`WindowAttributes::with_parent_window`], and its
     /// position is interpreted relative to that parent.
     ///
+    /// The anchor/gravity/positioning system described on [`WindowAttributes::with_positioner`]
+    /// can be used to position the popup or window in a more advanced way
+    ///
     /// ## Platform-specific
     ///
     /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
@@ -64,6 +70,71 @@ pub enum WindowType {
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
+}
+
+/// The positioner state backing a window's anchor-based placement.
+///
+/// Set at window creation via [`WindowAttributes::with_positioner`], and read/mutated at runtime
+/// through [`Window::positioner`]/[`Window::set_positioner`]. See those methods for
+/// platform-specific behavior, and [`WindowPositioner::default`] for the values used when
+/// [`WindowAttributes::with_positioner`] is never called.
+///
+/// The structure is based on the wayland structure. For more information see the wayland
+/// documentation [XDG Positioner](https://wayland.app/protocols/xdg-shell#xdg_positioner)
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WindowPositioner {
+    /// The edge or corner of the anchor rect used to position the window relative to it.
+    ///
+    /// Combined with [`gravity`](Self::gravity), this controls which corner/edge of the anchor
+    /// rectangle the window is pinned to. Defaults to [`WindowAnchor::Center`].
+    pub anchor: WindowAnchor,
+    /// The anchor rectangle the window is positioned relative to.
+    ///
+    /// The [`Position`] is the top-left corner of the rectangle relative to the parent window's
+    /// content area, and the [`Size`] its dimensions. Defaults to a `1x1` rectangle at the
+    /// content origin. Passing a [`WindowPositioner`] to [`WindowAttributes::with_positioner`]
+    /// overrides the position value set with [`WindowAttributes::with_position`].
+    pub anchor_rect: (Position, Size),
+    /// The window's position relative to the anchor rect. Defaults to no offset.
+    pub offset: Position,
+    /// The direction the window surface extends away from the anchor point.
+    ///
+    /// Combined with [`anchor`](Self::anchor), this determines the final position of the window
+    /// relative to its anchor rectangle. Defaults to [`WindowGravity::Center`].
+    pub gravity: WindowGravity,
+    /// How the window should be repositioned when it would be constrained.
+    ///
+    /// The flags in [`WindowConstraintAdjustment`] can be combined to allow sliding, flipping,
+    /// and/or resizing the window independently on each axis. Defaults to no adjustment.
+    pub constraint_adjustment: WindowConstraintAdjustment,
+}
+
+impl WindowPositioner {
+    pub fn new(
+        anchor: WindowAnchor,
+        anchor_rect: (Position, Size),
+        offset: Position,
+        gravity: WindowGravity,
+        constraint_adjustment: WindowConstraintAdjustment,
+    ) -> Self {
+        WindowPositioner { anchor, anchor_rect, offset, gravity, constraint_adjustment }
+    }
+}
+
+impl Default for WindowPositioner {
+    fn default() -> Self {
+        Self {
+            anchor: WindowAnchor::default(),
+            anchor_rect: (
+                Position::Logical(LogicalPosition::new(0.0, 0.0)),
+                Size::Logical(LogicalSize::new(1.0, 1.0)),
+            ),
+            offset: Position::Logical(LogicalPosition::new(0.0, 0.0)),
+            gravity: WindowGravity::default(),
+            constraint_adjustment: WindowConstraintAdjustment::empty(),
+        }
+    }
 }
 
 /// Attributes used when creating a window.
@@ -105,6 +176,8 @@ pub struct WindowAttributes {
     pub fullscreen: Option<Fullscreen>,
     pub platform: Option<Box<dyn PlatformWindowAttributes>>,
     pub window_type: WindowType,
+    /// See [`WindowAttributes::with_positioner`].
+    pub positioner: Option<WindowPositioner>,
 }
 
 impl WindowAttributes {
@@ -438,6 +511,27 @@ impl WindowAttributes {
     pub fn window_type(&self) -> WindowType {
         self.window_type
     }
+
+    /// Sets the positioner used to place the window relative to its anchor rect.
+    ///
+    /// See [`WindowPositioner`] and its fields for what each part of the positioner controls and
+    /// its default when left as `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`]. A
+    ///   [`WindowType::Popup`] always requires a parent window to be set via
+    ///   [`with_parent_window`](Self::with_parent_window). A [`WindowType::Window`] without a
+    ///   parent is positioned relative to the screen's available space instead of the parent's
+    ///   content area.
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_positioner(mut self, positioner: WindowPositioner) -> Self {
+        self.positioner = Some(positioner);
+        self
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -466,6 +560,7 @@ impl Clone for WindowAttributes {
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
             window_type: self.window_type,
+            positioner: self.positioner,
         }
     }
 }
@@ -497,6 +592,7 @@ impl Default for WindowAttributes {
             cursor: Cursor::default(),
             blur: Default::default(),
             window_type: Default::default(),
+            positioner: Default::default(),
         }
     }
 }
@@ -540,6 +636,31 @@ impl_dyn_casting!(PlatformWindowAttributes);
 pub trait Window: Any + Send + Sync + fmt::Debug {
     /// Returns the window type of this window
     fn window_type(&self) -> WindowType;
+
+    /// Returns the positioner used to place this window relative to its anchor rect.
+    ///
+    /// Returns [`WindowPositioner::default`] if this window doesn't use anchor positioning, see
+    /// [`WindowAttributes::with_positioner`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Always [`WindowPositioner::default`] unless the window is a
+    ///   [`WindowType::Popup`], since the Wayland positioner is part of the `xdg_popup` protocol
+    ///   role.
+    fn positioner(&self) -> WindowPositioner {
+        WindowPositioner::default()
+    }
+
+    /// Sets the positioner used to place this window relative to its anchor rect.
+    ///
+    /// No-op if this window doesn't use anchor positioning, see
+    /// [`WindowAttributes::with_positioner`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_positioner(&self, _positioner: WindowPositioner) {}
 
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;

@@ -51,7 +51,19 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
-- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`).
+- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`), with
+  `WindowAttributes::with_positioner` for configuring their placement via a
+  `WindowPositioner` (grouping the anchor edge/corner, the anchor rect, the
+  gravity direction, the positioner offset and the constraint adjustment, using
+  the new `WindowAnchor`, `WindowGravity` and `WindowConstraintAdjustment`
+  types), and matching `Window::positioner`/`set_positioner` methods for
+  reading/controlling it at runtime. These work on every `Window`, popup or not;
+  use `Window::window_type` to tell whether a given window is a genuine
+  `WindowType::Popup`. On Windows and macOS, which have no native positioner
+  concept, the placement is computed by winit itself, mirroring Wayland's
+  `xdg_positioner` behavior, and it also works for a plain `WindowType::Window`
+  that has a parent; on Wayland the positioner is part of the `xdg_popup`
+  protocol, so it only applies to `WindowType::Popup`.
 - On macOS, add `WindowAttributesMacOS::with_fullscreen_auxiliary` and
   `WindowExtMacOS::set_fullscreen_auxiliary` / `WindowExtMacOS::fullscreen_auxiliary`, allowing a
   window to be shown on the same Space as a fullscreen window
