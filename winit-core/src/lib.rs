@@ -14,7 +14,7 @@
 #![warn(clippy::exhaustive_enums)]
 
 #[macro_use]
-pub mod as_any;
+pub mod casting;
 pub mod cursor;
 #[macro_use]
 pub mod error;

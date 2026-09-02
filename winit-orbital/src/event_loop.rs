@@ -17,7 +17,7 @@ use smol_str::SmolStr;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
-use winit_core::event::{self, Ime, Modifiers, StartCause};
+use winit_core::event::{self, Modifiers, StartCause};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
@@ -204,6 +204,7 @@ struct EventState {
     mouse: MouseButtonState,
     mouse_pos: (i32, i32),
     resize_opt: Option<(u32, u32)>,
+    text_input_event: Option<TextInputEvent>,
 }
 
 impl EventState {
@@ -361,8 +362,13 @@ impl EventLoop {
         window_target: &ActiveEventLoop,
         app: &mut A,
     ) {
+        let text_input_event = event_state.text_input_event.take();
+        if text_input_event.is_some() && !matches!(event_option, EventOption::Key(_)) {
+            tracing::warn!("got TextInput event without following Key event");
+        }
+
         match event_option {
-            EventOption::Key(KeyEvent { character, scancode, pressed }) => {
+            EventOption::Key(KeyEvent { character: _, scancode, pressed }) => {
                 // Convert scancode
                 let (physical_key, named_key_opt) = convert_scancode(scancode);
 
@@ -377,6 +383,7 @@ impl EventLoop {
                 let mut text_with_all_modifiers = None;
 
                 // Set key and text based on character
+                let character = text_input_event.map_or('\0', |event| event.character);
                 if character != '\0' {
                     let mut tmp = [0u8; 4];
                     let character_str = character.encode_utf8(&mut tmp);
@@ -428,17 +435,8 @@ impl EventLoop {
                     );
                 }
             },
-            EventOption::TextInput(TextInputEvent { character }) => {
-                app.window_event(
-                    window_target,
-                    window_id,
-                    event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
-                );
-                app.window_event(
-                    window_target,
-                    window_id,
-                    event::WindowEvent::Ime(Ime::Commit(character.into())),
-                );
+            EventOption::TextInput(event) => {
+                event_state.text_input_event = Some(event);
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
                 event_state.mouse_pos = (x, y);
@@ -526,7 +524,8 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        loop {
+        self.window_target.exit.set(false);
+        let res = loop {
             match self.pump_app_events(None, &mut app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
@@ -538,7 +537,20 @@ impl EventLoop {
                     continue;
                 },
             }
+        };
+
+        drop(app);
+
+        // Handle window destroys that happened when dropping the app.
+        while let Some(destroy_id) = {
+            let mut destroys = self.window_target.destroys.lock().unwrap();
+            destroys.pop_front()
+        } {
+            self.windows
+                .retain(|(window, _event_state)| WindowId::from_raw(window.fd()) != destroy_id);
         }
+
+        res
     }
 
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {

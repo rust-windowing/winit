@@ -51,7 +51,19 @@ changelog entry.
 - On Android, added scancode conversions for more obscure key codes.
 - On Wayland, added `HoldGesture` event for multi-finger hold gestures
 - On Wayland, added ext-background-effect-v1 support.
-- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`).
+- On Wayland, Windows and macOS, added native popups (`WindowType::Popup`), with
+  `WindowAttributes::with_positioner` for configuring their placement via a
+  `WindowPositioner` (grouping the anchor edge/corner, the anchor rect, the
+  gravity direction, the positioner offset and the constraint adjustment, using
+  the new `WindowAnchor`, `WindowGravity` and `WindowConstraintAdjustment`
+  types), and matching `Window::positioner`/`set_positioner` methods for
+  reading/controlling it at runtime. These work on every `Window`, popup or not;
+  use `Window::window_type` to tell whether a given window is a genuine
+  `WindowType::Popup`. On Windows and macOS, which have no native positioner
+  concept, the placement is computed by winit itself, mirroring Wayland's
+  `xdg_positioner` behavior, and it also works for a plain `WindowType::Window`
+  that has a parent; on Wayland the positioner is part of the `xdg_popup`
+  protocol, so it only applies to `WindowType::Popup`.
 - On macOS, add `WindowAttributesMacOS::with_fullscreen_auxiliary` and
   `WindowExtMacOS::set_fullscreen_auxiliary` / `WindowExtMacOS::fullscreen_auxiliary`, allowing a
   window to be shown on the same Space as a fullscreen window
@@ -115,3 +127,6 @@ changelog entry.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
 - On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
 - On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
+- On Redox, fix `run_app_on_demand` exiting immediately after a previous `run_app_on_demand` called `exit`.
+- On Redox, fill in logical key for keyboard events rather than emitting a separate fake IME event.
+- On Redox, handle window closes during `ApplicationHandler` drop.
