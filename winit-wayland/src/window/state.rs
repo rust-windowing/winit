@@ -34,6 +34,7 @@ use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
+    WindowPositioner,
 };
 
 use crate::event_loop::OwnedDisplayHandle;
@@ -64,10 +65,11 @@ pub enum WindowType {
     },
     Popup {
         popup: Popup,
-        positioner: XdgPositioner,
+        xdg_positioner: XdgPositioner,
         last_configure: Option<PopupConfigure>,
         parent_origin: LogicalPosition<i32>,
-        anchor_rect: (LogicalPosition<i32>, LogicalSize<i32>),
+
+        positioner: WindowPositioner,
     },
 }
 
@@ -844,11 +846,11 @@ impl WindowState {
                     self.resize(surface_size.to_logical(self.scale_factor()))
                 }
             },
-            WindowType::Popup { popup, positioner, .. } => {
+            WindowType::Popup { popup, xdg_positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
-                positioner.set_size(size.width, size.height);
+                xdg_positioner.set_size(size.width, size.height);
                 if popup.xdg_popup().version() >= 3 {
-                    popup.reposition(positioner, 0);
+                    popup.reposition(xdg_positioner, 0);
                 }
             },
         }
