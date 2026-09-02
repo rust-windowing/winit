@@ -501,6 +501,20 @@ impl EventLoop {
                     },
                 }
             },
+            // Winit has no vocabulary yet for what the IME's InputConnection
+            // does to the GameTextInput editor buffer (commitText,
+            // deleteSurroundingText, composing regions), so these are not
+            // translated into `Ime` events here. But the looper was already
+            // woken for them (native_app_glue's `onTextInputEvent` calls
+            // `notifyInput`), so an application reading
+            // `AndroidApp::text_input_state()` deserves a frame out of that
+            // wake: requesting a redraw turns every IME commit into an edge
+            // the app can observe immediately, instead of having to poll the
+            // buffer on a timer. The flag is read later in this same loop
+            // iteration.
+            InputEvent::TextEvent(_) | InputEvent::TextAction(_) => {
+                self.redraw_flag.setter().set();
+            },
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             },

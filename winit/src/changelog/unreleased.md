@@ -111,6 +111,10 @@ changelog entry.
 
 ### Fixed
 
+- On Android, request a redraw when the IME commits into the GameTextInput
+  buffer (`TextEvent`/`TextAction`), so applications reading
+  `AndroidApp::text_input_state()` observe the commit on its own edge instead
+  of polling on a timer.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
