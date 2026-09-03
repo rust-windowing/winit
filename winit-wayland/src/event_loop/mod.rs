@@ -38,7 +38,7 @@ use winit_core::icon::RgbaIcon;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
-use crate::dnd::{MimeData, dnd_action_winit_to_wl};
+use crate::data_transfer::{ClipboardTransfer, MimeData, dnd_action_winit_to_wl};
 use crate::types::cursor::WaylandCustomCursor;
 use crate::{DragSource, MimeType, image_to_buffer, make_data_transfer_id};
 
@@ -789,19 +789,41 @@ impl RootActiveEventLoop for ActiveEventLoop {
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
         let state = self.state.borrow_mut();
-        let Some(current_drag) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
+
+        let drag = state.data_transfer_state.receive_drag().filter(|drag| drag.transfer_id() == id);
+        let (offer, mime_type, target_window) = if let Some(current_drag) = drag {
+            let Some(mime_type) = current_drag.find_type_dyn(type_) else {
+                return Err(RequestError::Ignored);
+            };
+
+            current_drag.accept(current_drag.serial(), Some(mime_type.to_string()));
+
+            ((**current_drag).clone(), mime_type.clone(), Some(current_drag.window_id()))
+        } else {
+            let Some((clipboard, _)) = state
+                .data_transfer_state
+                .clipboard_offer(state.seats.values())
+                .filter(|(_, current)| *current == id)
+            else {
+                return Err(RequestError::Ignored);
+            };
+
+            let mime_type = type_.cast_ref::<MimeType>().cloned().or_else(|| {
+                let hint = type_.hint()?;
+                clipboard.with_mime_types(|types| {
+                    types
+                        .iter()
+                        .map(|mime| MimeType::parse(mime.clone()))
+                        .find(|mime| mime.hint().is_some_and(|haystack| haystack.matches(&hint)))
+                })
+            });
+
+            let Some(mime_type) = mime_type else {
+                return Err(RequestError::Ignored);
+            };
+
+            (clipboard.inner().clone(), mime_type, None)
         };
-
-        if current_drag.transfer_id() != id {
-            return Err(RequestError::Ignored);
-        }
-
-        let Some(mime_type) = current_drag.find_type_dyn(type_) else {
-            return Err(RequestError::Ignored);
-        };
-
-        let mime_type_str = mime_type.to_string();
 
         // create a pipe
         let (readfd, writefd) =
@@ -810,8 +832,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let async_request_serial = AsyncRequestSerial::get();
 
         let mut buffer = Vec::new();
-        let window_id = current_drag.window_id();
-        let mut mime_type = Some(mime_type.clone());
+        let mime_type_str = mime_type.to_string();
+        let mut mime_type = Some(mime_type);
 
         let _ = state.loop_handle.insert_source(ReadPipe::from(readfd), move |_, file, state| {
             // SAFETY: We do not overwrite the referent of `file`
@@ -828,37 +850,55 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 Err(e) => Err(Arc::new(e)),
             };
 
-            state.events_sink.push_window_event(
-                WindowEvent::DataTransferReceived {
-                    id,
-                    serial: async_request_serial,
-                    // `unwrap` is safe here, as we always return `PostAction::Remove` in this
-                    // branch.
-                    value: Arc::new(MimeData::new(mime_type.take().unwrap(), result)),
+            let event = WindowEvent::DataTransferReceived {
+                id,
+                serial: async_request_serial,
+                // `unwrap` is safe here, as we always return `PostAction::Remove` in this branch.
+                value: Arc::new(MimeData::new(mime_type.take().unwrap(), result)),
+            };
+
+            match target_window {
+                Some(window_id) => state.events_sink.push_window_event(event, window_id),
+                None => {
+                    // Clipboard is not tied to a window, dispatch to all.
+                    for window_id in state.windows.borrow().keys() {
+                        state.events_sink.push_window_event(event.clone(), *window_id);
+                    }
                 },
-                window_id,
-            );
+            }
+
+            state.dispatched_events = true;
 
             PostAction::Remove
         });
 
-        current_drag.accept(current_drag.serial(), Some(mime_type_str.clone()));
-        data_offer::receive_to_fd(current_drag, mime_type_str, writefd);
+        data_offer::receive_to_fd(&offer, mime_type_str, writefd);
 
         Ok(async_request_serial)
     }
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
         let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
+
+        if let Some(drag) =
+            state.data_transfer_state.receive_drag().filter(|drag| drag.transfer_id() == id)
+        {
+            return Ok(Box::new(drag.clone()));
+        }
+
+        let Some((clipboard, _)) = state
+            .data_transfer_state
+            .clipboard_offer(state.seats.values())
+            .filter(|(_, current)| *current == id)
+        else {
             return Err(RequestError::Ignored);
         };
 
-        if state.transfer_id() != id {
-            return Err(RequestError::Ignored);
-        }
-
-        Ok(Box::new(state.clone()))
+        Ok(Box::new(ClipboardTransfer {
+            mime_types: clipboard.with_mime_types(|types| {
+                types.iter().map(|mime| MimeType::parse(mime.clone())).collect()
+            }),
+        }))
     }
 
     fn set_valid_dnd_actions(
@@ -867,7 +907,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
         let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
+        let Some(state) = state.data_transfer_state.receive_drag() else {
             return Err(os_error!(UnknownDataTransfer(id)).into());
         };
 
@@ -910,14 +950,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
             .as_ref()
             .ok_or(NotSupportedError::new("Tried to initiate drag, but data device not enabled"))?;
 
-        let mut mime_types = Vec::new();
-        send_data.for_each_available_type(&mut |ty_| {
-            for mime in MimeType::from_dyn(ty_) {
-                mime_types.push(mime);
-            }
-
-            std::ops::ControlFlow::Continue(())
-        });
+        let mime_types = send_data
+            .available_types()
+            .into_iter()
+            .flat_map(MimeType::from_dyn)
+            .collect::<Vec<_>>();
 
         let data_source = data_device_manager.create_drag_and_drop_source(
             &self.queue_handle,
@@ -985,7 +1022,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             surface.commit();
         }
 
-        state.dnd_state.set_send_drag(DragSource::new(
+        state.data_transfer_state.set_send_drag(DragSource::new(
             transfer_id,
             data_source,
             send_data,
@@ -994,6 +1031,47 @@ impl RootActiveEventLoop for ActiveEventLoop {
         ));
 
         Ok(transfer_id)
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, RequestError> {
+        let state = self.state.borrow();
+
+        state.data_device_manager_state.as_ref().ok_or(NotSupportedError::new(
+            "Tried to read the clipboard, but data device not enabled",
+        ))?;
+
+        Ok(state.data_transfer_state.clipboard_offer(state.seats.values()).map(|(_, id)| id))
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), RequestError> {
+        let mut state = self.state.borrow_mut();
+
+        let data_device_manager = state.data_device_manager_state.as_ref().ok_or(
+            NotSupportedError::new("Tried to set the clipboard, but data device not enabled"),
+        )?;
+
+        let mime_types = send_data
+            .available_types()
+            .into_iter()
+            .flat_map(MimeType::from_dyn)
+            .collect::<Vec<_>>();
+
+        let data_source =
+            data_device_manager.create_copy_paste_source(&self.queue_handle, mime_types);
+
+        let (data_device, serial) = state
+            .seats
+            .values()
+            .find_map(|seat| Some((seat.data_device()?, seat.latest_serial()?)))
+            .ok_or(NotSupportedError::new(
+                "Tried to set the clipboard, but no seat has received input",
+            ))?;
+
+        data_source.set_selection(data_device, serial);
+
+        state.data_transfer_state.set_send_clipboard(data_source, send_data);
+
+        Ok(())
     }
 }
 

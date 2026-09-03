@@ -1,7 +1,6 @@
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString, c_void};
-use std::io;
 use std::num::NonZeroU32;
 use std::ops::{BitOr, ControlFlow};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -10,25 +9,28 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicI64, AtomicUsize, Ordering};
+use std::{fmt, io};
 
 use dpi::PhysicalPosition;
 use windows_sys::Win32::Foundation::{
     DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, DV_E_FORMATETC, E_ABORT,
     E_FAIL, E_NOINTERFACE, E_NOTIMPL, E_UNEXPECTED, GlobalFree, HGLOBAL, HWND,
-    OLE_E_ADVISENOTSUPPORTED, POINT, POINTL, S_FALSE, S_OK,
+    OLE_E_ADVISENOTSUPPORTED, OLE_E_WRONGCOMPOBJ, POINT, POINTL, RPC_E_CHANGED_MODE, S_FALSE, S_OK,
 };
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::System::Com::{
     DVASPECT_CONTENT, FORMATETC, STGMEDIUM, TYMED_ENHMF, TYMED_FILE, TYMED_GDI, TYMED_HGLOBAL,
     TYMED_MFPICT,
 };
-use windows_sys::Win32::System::DataExchange::RegisterClipboardFormatW;
+use windows_sys::Win32::System::DataExchange::{
+    GetClipboardSequenceNumber, RegisterClipboardFormatW,
+};
 use windows_sys::Win32::System::Memory::{
     GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
 };
 use windows_sys::Win32::System::Ole::{
     CF_HDROP, CF_UNICODETEXT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE,
-    OleDuplicateData, ReleaseStgMedium,
+    OleDuplicateData, OleGetClipboard, OleInitialize, ReleaseStgMedium,
 };
 use windows_sys::Win32::System::SystemServices::{
     MK_LBUTTON, MK_MBUTTON, MK_RBUTTON, MK_XBUTTON1, MK_XBUTTON2,
@@ -373,7 +375,7 @@ impl FileDropHandler {
             // Drop any transfer still in flight (e.g. the window was destroyed mid-drag, so no
             // `DragLeave`/`Drop` ever arrived to clean it up).
             if let Some(id) = drop_handler.active_data_transfer_id.take() {
-                drop_handler.runner.remove_data_transfer(id);
+                drop_handler.runner.data_transfer().remove_drag(id);
             }
             // Release the shell drop-target helper if we created one.
             if let Some(helper) = drop_handler.drop_target_helper {
@@ -410,7 +412,7 @@ impl FileDropHandler {
         let wid = WindowId::from_raw(drop_handler.window.addr());
 
         let data = Arc::new(unsafe { DataObject::from_idataobject(pDataObj) });
-        drop_handler.runner.register_data_transfer(data_transfer_id, wid, data);
+        drop_handler.runner.data_transfer().register_drag(data_transfer_id, wid, data);
 
         let pt_screen = POINT { x: pt.x, y: pt.y };
         let mut pt_client = pt_screen;
@@ -426,7 +428,8 @@ impl FileDropHandler {
         // Get actions after the event handler has run, so that we update it based on the user's
         // supplied info.
         {
-            let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+            let actions =
+                drop_handler.runner.data_transfer().current_drag_actions(data_transfer_id);
             let source_allowed = unsafe { pdwEffect.read() };
 
             let new_effect = pick_effect(&actions, grfKeyState, source_allowed);
@@ -477,7 +480,8 @@ impl FileDropHandler {
         }
         let position = PhysicalPosition::new(pt_client.x as f64, pt_client.y as f64);
 
-        let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+        let proposed_action =
+            drop_handler.runner.data_transfer().proposed_dnd_action(data_transfer_id, effects);
 
         (drop_handler.send_event)(WindowEvent::DragPosition {
             id: data_transfer_id,
@@ -487,7 +491,7 @@ impl FileDropHandler {
 
         // Get actions after the event handler has run, so that we update it based on the user's
         // supplied info.
-        let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+        let actions = drop_handler.runner.data_transfer().current_drag_actions(data_transfer_id);
         let new_effect = pick_effect(&actions, grfKeyState, effects);
         unsafe {
             pdwEffect.write(new_effect);
@@ -508,7 +512,7 @@ impl FileDropHandler {
         };
 
         (drop_handler.send_event)(WindowEvent::DragLeft { id: data_transfer_id });
-        drop_handler.runner.remove_data_transfer(data_transfer_id);
+        drop_handler.runner.data_transfer().remove_drag(data_transfer_id);
 
         if let Some(helper) = drop_handler.drop_target_helper {
             let vtbl = unsafe { Self::helper_vtbl(helper) };
@@ -535,7 +539,8 @@ impl FileDropHandler {
         };
 
         let effects = unsafe { pdwEffect.read() };
-        let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+        let proposed_action =
+            drop_handler.runner.data_transfer().proposed_dnd_action(data_transfer_id, effects);
 
         let pt_screen = POINT { x: pt.x, y: pt.y };
         let mut pt_client = pt_screen;
@@ -552,14 +557,15 @@ impl FileDropHandler {
         });
 
         // New scope to make sure that the `Ref` returned by `current_drag_actions` is dropped
-        // before we call `remove_data_transfer`.
+        // before we call `remove_drag`.
         {
             // Get actions after the event handler has run, so that we update it based on the user's
             // supplied info.
-            let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+            let actions =
+                drop_handler.runner.data_transfer().current_drag_actions(data_transfer_id);
             let source_allowed = unsafe { pdwEffect.read() };
             let proposed_action =
-                drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+                drop_handler.runner.data_transfer().proposed_dnd_action(data_transfer_id, effects);
 
             // Negotiate the effect first so we can pick the right outgoing event. If the app
             // rejected the drop (e.g. via `set_valid_actions(none())`), `pick_effect` returns
@@ -591,7 +597,7 @@ impl FileDropHandler {
         if drop_handler.runner.source_drag.get().is_some() {
             drop_handler.runner.defer_source_drag_cleanup(data_transfer_id);
         } else {
-            drop_handler.runner.remove_data_transfer(data_transfer_id);
+            drop_handler.runner.data_transfer().remove_drag(data_transfer_id);
         }
 
         S_OK
@@ -694,11 +700,163 @@ fn pick_effect(actions: &[DndAction], key_state: u32, source_allowed: u32) -> u3
 // Source side: providing data and controlling a `DoDragDrop` session.
 // ============================================================================
 
-/// Mint a unique [`DataTransferId`] for either a target-side `DragEnter` or a source-side
-/// `start_drag` so the two never collide.
+/// Mint a unique [`DataTransferId`] for either a target-side `DragEnter`, a source-side
+/// `start_drag`, or the clipboard, so they never collide.
 pub(crate) fn next_data_transfer_id() -> DataTransferId {
     static COUNTER: AtomicI64 = AtomicI64::new(0);
     DataTransferId::from_raw(COUNTER.fetch_add(1, Ordering::Relaxed))
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct OleInitError(HRESULT);
+
+impl fmt::Display for OleInitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            RPC_E_CHANGED_MODE => write!(
+                f,
+                "OleInitialize failed: `RPC_E_CHANGED_MODE`. Make sure other crates are not using \
+                 multithreaded COM library on the same thread or disable drag-and-drop and \
+                 clipboard support."
+            ),
+            OLE_E_WRONGCOMPOBJ => write!(f, "OleInitialize failed: `OLE_E_WRONGCOMPOBJ`"),
+            hr => write!(f, "OleInitialize failed: 0x{hr:08x}"),
+        }
+    }
+}
+
+impl std::error::Error for OleInitError {}
+
+thread_local! {
+    static OLE_INITIALIZED: Result<(), OleInitError> = {
+        let hr = unsafe { OleInitialize(std::ptr::null_mut()) };
+        // `S_FALSE` means OLE was already initialized on this thread.
+        if hr == S_OK || hr == S_FALSE { Ok(()) } else { Err(OleInitError(hr)) }
+    };
+}
+
+pub(crate) fn ensure_ole_initialized() -> Result<(), OleInitError> {
+    OLE_INITIALIZED.with(|result| *result)
+}
+
+pub(crate) fn snapshot_clipboard() -> Option<DataObject> {
+    if let Err(err) = ensure_ole_initialized() {
+        tracing::warn!("Cannot access the clipboard: {err}");
+        return None;
+    }
+
+    let mut ptr: *mut c_void = std::ptr::null_mut();
+    if unsafe { OleGetClipboard(&mut ptr) } != S_OK || ptr.is_null() {
+        return None;
+    }
+    let data_obj = ptr as *mut IDataObject;
+
+    let data = unsafe { DataObject::from_idataobject(data_obj) };
+
+    let release = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).parent.Release };
+    unsafe { release(data_obj as *mut IUnknown) };
+
+    Some(data)
+}
+
+/// State for the single drag-and-drop transfer currently in flight (OLE guarantees at most one
+/// active drag per process).
+#[derive(Debug)]
+pub(crate) struct DragState {
+    pub(crate) id: DataTransferId,
+    pub(crate) window_id: WindowId,
+    pub(crate) data: Arc<DataObject>,
+    pub(crate) actions: Vec<DndAction>,
+}
+
+/// The state of all in-progress data transfer operations (drag-and-drop and clipboard).
+#[derive(Debug, Default)]
+pub(crate) struct DataTransferState {
+    drag: RefCell<Option<DragState>>,
+    clipboard: Cell<Option<(u32, DataTransferId)>>,
+    owns_clipboard: Cell<bool>,
+}
+
+impl DataTransferState {
+    pub(crate) fn register_drag(
+        &self,
+        id: DataTransferId,
+        window_id: WindowId,
+        data: Arc<DataObject>,
+    ) {
+        *self.drag.borrow_mut() =
+            Some(DragState { id, window_id, data, actions: Default::default() });
+    }
+
+    pub(crate) fn remove_drag(&self, id: DataTransferId) {
+        let mut state = self.drag.borrow_mut();
+        if state.as_ref().is_some_and(|s| s.id == id) {
+            *state = None;
+        }
+    }
+
+    pub(crate) fn drag_state(&self, id: DataTransferId) -> Option<Ref<'_, DragState>> {
+        Ref::filter_map(self.drag.borrow(), |state| state.as_ref().filter(|s| s.id == id)).ok()
+    }
+
+    pub(crate) fn current_drag_actions(&self, id: DataTransferId) -> Ref<'_, [DndAction]> {
+        Ref::map(self.drag.borrow(), |state| {
+            state.as_ref().filter(|s| s.id == id).map(|s| &s.actions[..]).unwrap_or_default()
+        })
+    }
+
+    pub(crate) fn set_valid_dnd_actions(&self, id: DataTransferId, actions: &[DndAction]) -> bool {
+        match &mut *self.drag.borrow_mut() {
+            Some(state) if state.id == id => {
+                state.actions.clear();
+                state.actions.extend_from_slice(actions);
+                true
+            },
+            _ => false,
+        }
+    }
+
+    pub(crate) fn proposed_dnd_action(
+        &self,
+        id: DataTransferId,
+        effects: DropEffect,
+    ) -> Option<DndAction> {
+        self.current_drag_actions(id).iter().copied().find(|action| {
+            let effect = match action {
+                DndAction::Move => DROPEFFECT_MOVE,
+                DndAction::Copy => DROPEFFECT_COPY,
+                DndAction::Link => DROPEFFECT_LINK,
+                _ => return false,
+            };
+
+            (effects & effect) != 0
+        })
+    }
+
+    pub(crate) fn clipboard_transfer_id(&self) -> DataTransferId {
+        let sequence = unsafe { GetClipboardSequenceNumber() };
+        match self.clipboard.get() {
+            Some((cached, id)) if cached == sequence => id,
+            _ => {
+                let id = next_data_transfer_id();
+                self.clipboard.set(Some((sequence, id)));
+                id
+            },
+        }
+    }
+
+    pub(crate) fn set_owns_clipboard(&self) {
+        self.owns_clipboard.set(true);
+    }
+
+    pub(crate) fn owns_clipboard(&self) -> bool {
+        self.owns_clipboard.get()
+    }
+
+    pub(crate) fn reset(&self) {
+        self.drag.take();
+        self.clipboard.set(None);
+    }
 }
 
 fn guids_eq(a: &GUID, b: &GUID) -> bool {
