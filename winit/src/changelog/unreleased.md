@@ -111,6 +111,8 @@ changelog entry.
 
 ### Fixed
 
+- On X11, return `NotSupported` instead of panicking when XInput 2.0, XRandR
+  1.2, or XKB 1.0 is unavailable.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
