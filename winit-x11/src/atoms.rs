@@ -135,8 +135,6 @@ atom_manager! {
     _XSETTINGS_SETTINGS,
 
     // Stylus Atoms
-    ABS_X: b"Abs X",
-    ABS_Y: b"Abs Y",
     ABS_PRESSURE: b"Abs Pressure",
     ABS_TILT_X: b"Abs Tilt X",
     ABS_TILT_Y: b"Abs Tilt Y"
