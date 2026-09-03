@@ -117,6 +117,9 @@ changelog entry.
   `DefWindowProc` for normal propagation.
 - On Windows, fix getting the window's DPI internally leaks `HDC` handles.
   Also only call `GetDC` when on < Windows 8.1 which improves its performance.
+- On Windows, fix window icons rendering with red and blue swapped when the same `Icon` is
+  applied more than once (e.g. sharing one icon between the window and the taskbar). The RGBA
+  to BGRA conversion no longer mutates the shared pixel buffer.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
 - On X11, fix all pointer input being dropped for absolute pointing devices
   without pressure or tilt axes, such as the emulated tablets of
