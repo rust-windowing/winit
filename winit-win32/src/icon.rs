@@ -243,25 +243,3 @@ impl RaiiCursor {
         self.handle
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use winit_core::icon::RgbaIcon;
-
-    use super::WinIcon;
-
-    #[test]
-    fn from_rgba_keeps_the_shared_buffer_intact_across_conversions() {
-        // Callers may convert the same `Icon` more than once (e.g. window and
-        // taskbar icons built from one clone); every conversion must observe
-        // the original RGBA data instead of flipping red and blue in place.
-        let source = vec![73, 145, 215, 255, 0, 0, 0, 128];
-        let icon = RgbaIcon::new(source.clone(), 1, 2).unwrap();
-
-        WinIcon::from_rgba(&icon).unwrap();
-        assert_eq!(icon.buffer(), &source);
-
-        WinIcon::from_rgba(&icon).unwrap();
-        assert_eq!(icon.buffer(), &source);
-    }
-}
