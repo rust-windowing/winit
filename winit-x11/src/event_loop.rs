@@ -38,7 +38,7 @@ use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::atoms::{
-    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, ABS_X, ABS_Y, Atoms,
+    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, Atoms,
     WM_DELETE_WINDOW,
 };
 use crate::dnd::Dnd;
