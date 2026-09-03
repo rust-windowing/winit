@@ -38,7 +38,7 @@ use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::atoms::{
-    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, ABS_X, ABS_Y, Atoms,
+    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, Atoms,
     WM_DELETE_WINDOW,
 };
 use crate::dnd::Dnd;
@@ -1188,9 +1188,15 @@ impl Device {
                     let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
                     let atom = info.label as xproto::Atom;
 
-                    if atom == atoms[ABS_X]
-                        || atom == atoms[ABS_Y]
-                        || atom == atoms[ABS_PRESSURE]
+                    // Absolute X/Y axes alone do not identify a stylus:
+                    // emulated pointing devices in virtual machines (the
+                    // QEMU/VMware/VirtualBox USB tablets, and thus any
+                    // desktop accessed through SPICE or similar viewers)
+                    // expose Abs X/Y without pressure or tilt. Treating them
+                    // as pens makes the mouse-only event filters drop all
+                    // their motion and button input. Only pressure and tilt
+                    // axes indicate actual stylus hardware.
+                    if atom == atoms[ABS_PRESSURE]
                         || atom == atoms[ABS_TILT_X]
                         || atom == atoms[ABS_TILT_Y]
                     {
