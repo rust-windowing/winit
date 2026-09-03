@@ -113,13 +113,22 @@ changelog entry.
 
 - On Windows, fix `RedrawRequested` starvation when multiple windows request redraws during the
   same event-loop cycle, including continuous redraws requested from `RedrawRequested` handlers.
+- On X11, return `NotSupported` instead of panicking when XInput 2.0, XRandR
+  1.2, or XKB 1.0 is unavailable.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
   `DefWindowProc` for normal propagation.
 - On Windows, fix getting the window's DPI internally leaks `HDC` handles.
   Also only call `GetDC` when on < Windows 8.1 which improves its performance.
+- On Windows, fix window icons rendering with red and blue swapped when the same `Icon` is
+  applied more than once (e.g. sharing one icon between the window and the taskbar). The RGBA
+  to BGRA conversion no longer mutates the shared pixel buffer.
 - On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
+- On X11, fix all pointer input being dropped for absolute pointing devices
+  without pressure or tilt axes, such as the emulated tablets of
+  QEMU/VMware/VirtualBox virtual machines and SPICE/VDI viewers. These were
+  misclassified as pens, whose events the motion/button handlers discard.
 - On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
 - On macOS, fix borderless game presentation options not sticking after switching spaces.
 - On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
