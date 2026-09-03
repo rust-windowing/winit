@@ -111,6 +111,8 @@ changelog entry.
 
 ### Fixed
 
+- On Windows, fix `RedrawRequested` starvation when multiple windows request redraws during the
+  same event-loop cycle, including continuous redraws requested from `RedrawRequested` handlers.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
   tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
   to refresh the cached keyboard layout, while still deferring to
