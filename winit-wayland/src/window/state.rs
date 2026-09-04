@@ -1531,9 +1531,7 @@ impl WindowState {
 
         match &self.window {
             WindowType::Window { window, .. } => window.set_title(&title),
-            WindowType::Dialog { .. } => {
-                // TODO
-            },
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().set_title(title.clone()),
             WindowType::Popup { .. } => (), // Popup does not have any title
         }
         self.title = title;
