@@ -813,6 +813,8 @@ impl EventProcessor {
                 let new_surface_size = *surface_size.lock().unwrap();
                 drop(surface_size);
 
+                window.reload_custom_cursor();
+
                 if new_surface_size != old_surface_size {
                     window.request_surface_size_physical(
                         new_surface_size.width,

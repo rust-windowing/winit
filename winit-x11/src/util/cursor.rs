@@ -1,9 +1,12 @@
+use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::hash::{Hash, Hasher};
 use std::iter;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use winit_core::cursor::{CursorIcon, CustomCursorProvider, CustomCursorSource};
+use winit_core::cursor::{
+    CursorIcon, CursorImage, CursorImageRepresentation, CustomCursorProvider, CustomCursorSource,
+};
 use winit_core::error::{NotSupportedError, RequestError};
 use x11rb::connection::Connection;
 use x11rb::protocol::render::{self, ConnectionExt as _};
@@ -34,8 +37,9 @@ impl XConnection {
         &self,
         window: xproto::Window,
         cursor: &CustomCursor,
+        scale_factor: f64,
     ) -> Result<(), X11Error> {
-        self.update_cursor(window, cursor.cursor)
+        self.update_cursor(window, cursor.cursor_for_scale_factor(scale_factor)?)
     }
 
     /// Create a cursor from an image.
@@ -173,21 +177,25 @@ impl Default for SelectedCursor {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CustomCursor {
+#[derive(Debug)]
+struct CustomCursorInner {
     xconn: Arc<XConnection>,
-    cursor: xproto::Cursor,
+    image: CursorImage,
+    cursors: Mutex<HashMap<(u16, u16), xproto::Cursor>>,
 }
+
+#[derive(Debug, Clone)]
+pub struct CustomCursor(Arc<CustomCursorInner>);
 
 impl Hash for CustomCursor {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.cursor.hash(state);
+        Arc::as_ptr(&self.0).hash(state);
     }
 }
 
 impl PartialEq for CustomCursor {
     fn eq(&self, other: &Self) -> bool {
-        self.cursor == other.cursor
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
 impl Eq for CustomCursor {}
@@ -197,43 +205,71 @@ impl CustomCursor {
         event_loop: &ActiveEventLoop,
         cursor: CustomCursorSource,
     ) -> Result<CustomCursor, RequestError> {
-        let mut cursor = match cursor {
+        let cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             _ => {
                 return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
 
-        // Reverse RGBA order to BGRA.
-        cursor.buffer_mut().chunks_mut(4).for_each(|chunk| {
+        let cursor = Self(Arc::new(CustomCursorInner {
+            xconn: event_loop.xconn.clone(),
+            image: cursor,
+            cursors: Mutex::new(HashMap::new()),
+        }));
+        cursor.cursor_for_scale_factor(1.0).map_err(|err| os_error!(err))?;
+
+        Ok(cursor)
+    }
+
+    pub(crate) fn cursor_for_scale_factor(
+        &self,
+        scale_factor: f64,
+    ) -> Result<xproto::Cursor, X11Error> {
+        let representation = self.0.image.representation_for_scale_factor(scale_factor);
+        let key = (representation.width(), representation.height());
+        let mut cursors = self.0.cursors.lock().unwrap_or_else(|err| err.into_inner());
+
+        match cursors.entry(key) {
+            Entry::Occupied(cursor) => Ok(*cursor.get()),
+            Entry::Vacant(entry) => {
+                let cursor = self.create_cursor_from_representation(representation)?;
+                Ok(*entry.insert(cursor))
+            },
+        }
+    }
+
+    fn create_cursor_from_representation(
+        &self,
+        representation: &CursorImageRepresentation,
+    ) -> Result<xproto::Cursor, X11Error> {
+        let mut buffer = Vec::from(representation.buffer());
+        buffer.chunks_mut(4).for_each(|chunk| {
             let chunk: &mut [u8; 4] = chunk.try_into().unwrap();
             chunk[0..3].reverse();
 
             // Byteswap if we need to.
-            if event_loop.xconn.needs_endian_swap() {
+            if self.0.xconn.needs_endian_swap() {
                 let value = u32::from_ne_bytes(*chunk).swap_bytes();
                 *chunk = value.to_ne_bytes();
             }
         });
 
-        let cursor = event_loop
-            .xconn
-            .create_cursor_from_image(
-                cursor.width(),
-                cursor.height(),
-                cursor.hotspot_x(),
-                cursor.hotspot_y(),
-                cursor.buffer(),
-            )
-            .map_err(|err| os_error!(err))?;
-
-        Ok(Self { xconn: event_loop.xconn.clone(), cursor })
+        self.0.xconn.create_cursor_from_image(
+            representation.width(),
+            representation.height(),
+            self.0.image.physical_hotspot_x(representation),
+            self.0.image.physical_hotspot_y(representation),
+            &buffer,
+        )
     }
 }
 
-impl Drop for CustomCursor {
+impl Drop for CustomCursorInner {
     fn drop(&mut self) {
-        self.xconn.xcb_connection().free_cursor(self.cursor).map(|r| r.ignore_error()).ok();
+        for cursor in self.cursors.lock().unwrap_or_else(|err| err.into_inner()).values() {
+            self.xconn.xcb_connection().free_cursor(*cursor).map(|r| r.ignore_error()).ok();
+        }
     }
 }
 

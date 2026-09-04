@@ -970,6 +970,7 @@ impl WindowState {
 
             let scale = if let Some(viewport) = data.data().viewport() {
                 let scale = self.scale_factor();
+                let cursor = cursor.representation_for_scale_factor(scale);
                 let size = PhysicalSize::new(cursor.w, cursor.h).to_logical(scale);
                 viewport.set_destination(size.width, size.height);
                 scale
@@ -980,6 +981,7 @@ impl WindowState {
             } else {
                 1.
             };
+            let cursor = cursor.representation_for_scale_factor(scale);
 
             surface.attach(Some(cursor.buffer.wl_buffer()), 0, 0);
             if surface.version() >= 4 {
@@ -1300,6 +1302,8 @@ impl WindowState {
         if let Some(frame) = self.frame.as_mut() {
             frame.set_scaling_factor(scale_factor);
         }
+
+        self.reload_cursor_style();
     }
 
     /// Make window background blurred.

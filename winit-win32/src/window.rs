@@ -701,10 +701,20 @@ impl CoreWindow for Window {
                     None => return,
                 };
                 self.window_state_lock().mouse.selected_cursor =
-                    SelectedCursor::Custom(cursor.0.clone());
-                let handle = cursor.0.clone();
+                    SelectedCursor::Custom(cursor.clone());
+                let cursor = cursor.clone();
+                let dpi = unsafe { hwnd_dpi(self.hwnd()) };
                 self.thread_executor.execute_in_thread(move || unsafe {
-                    SetCursor(handle.as_raw_handle());
+                    match cursor.as_raw_handle_for_dpi(dpi) {
+                        Ok(handle) => {
+                            SetCursor(handle);
+                        },
+                        Err(error) => {
+                            tracing::error!(
+                                "failed to create custom cursor for window DPI: {error}"
+                            );
+                        },
+                    }
                 });
             },
         }
