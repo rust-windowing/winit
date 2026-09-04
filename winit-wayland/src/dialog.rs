@@ -351,14 +351,12 @@ impl CoreWindow for Dialog {
         self.common.is_decorated().unwrap_or_default()
     }
 
-    fn set_window_level(&self, _level: WindowLevel) {
-        // TODO
-        unimplemented!()
+    fn set_window_level(&self, level: WindowLevel) {
+        self.common.set_window_level(level)
     }
 
-    fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {
-        // TODO
-        unimplemented!()
+    fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
+        self.common.set_window_icon(window_icon);
     }
 
     #[inline]
@@ -412,18 +410,15 @@ impl CoreWindow for Dialog {
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
-        // TODO
-        unimplemented!()
+        self.common.drag_window()
     }
 
-    fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
-        // TODO
-        unimplemented!()
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
+        self.common.drag_resize_window(direction)
     }
 
-    fn show_window_menu(&self, _position: Position) {
-        // TODO
-        unimplemented!()
+    fn show_window_menu(&self, position: Position) {
+        self.common.show_window_menu(position)
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {

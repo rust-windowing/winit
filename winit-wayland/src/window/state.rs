@@ -1296,15 +1296,15 @@ impl WindowState {
     }
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            // TODO(kchibisov) handle touch serials.
-            self.apply_on_pointer(|_, data| {
-                if let Some(serial) = data.latest_button_serial() {
-                    let seat = data.seat();
-                    window.show_window_menu(seat, serial, position.into());
-                }
-            });
-        }
+        let Some(xdg_toplevel) = self.xdg_toplevel() else { return };
+
+        // TODO(kchibisov) handle touch serials.
+        self.apply_on_pointer(|_, data| {
+            if let Some(serial) = data.latest_button_serial() {
+                let seat = data.seat();
+                xdg_toplevel.show_window_menu(seat, serial, position.x as _, position.y as _);
+            }
+        });
     }
 
     /// Set the position of the cursor.
@@ -1539,42 +1539,42 @@ impl WindowState {
 
     /// Set the window's icon
     pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
-                Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
-                None => {
-                    warn!("`xdg_toplevel_icon_manager_v1` is not supported");
-                    return;
-                },
-            };
+        let Some(xdg_toplevel) = self.xdg_toplevel() else { return };
 
-            let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
-                Some(icon) => {
-                    let mut image_pool = self.image_pool.lock().unwrap();
-                    let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
-                        Ok(toplevel_icon) => toplevel_icon,
-                        Err(error) => {
-                            warn!("Error setting window icon: {error}");
-                            return;
-                        },
-                    };
+        let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
+            Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
+            None => {
+                warn!("`xdg_toplevel_icon_manager_v1` is not supported");
+                return;
+            },
+        };
 
-                    let xdg_toplevel_icon =
-                        xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
+        let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
+            Some(icon) => {
+                let mut image_pool = self.image_pool.lock().unwrap();
+                let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
+                    Ok(toplevel_icon) => toplevel_icon,
+                    Err(error) => {
+                        warn!("Error setting window icon: {error}");
+                        return;
+                    },
+                };
 
-                    toplevel_icon.add_buffer(&xdg_toplevel_icon);
+                let xdg_toplevel_icon =
+                    xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
 
-                    (Some(toplevel_icon), Some(xdg_toplevel_icon))
-                },
-                None => (None, None),
-            };
+                toplevel_icon.add_buffer(&xdg_toplevel_icon);
 
-            xdg_toplevel_icon_manager.set_icon(window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
-            self.toplevel_icon = toplevel_icon;
+                (Some(toplevel_icon), Some(xdg_toplevel_icon))
+            },
+            None => (None, None),
+        };
 
-            if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
-                xdg_toplevel_icon.destroy();
-            }
+        xdg_toplevel_icon_manager.set_icon(xdg_toplevel, xdg_toplevel_icon.as_ref());
+        self.toplevel_icon = toplevel_icon;
+
+        if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
+            xdg_toplevel_icon.destroy();
         }
     }
 
