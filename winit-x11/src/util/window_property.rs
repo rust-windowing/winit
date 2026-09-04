@@ -93,6 +93,62 @@ impl XConnection {
             )
             .map_err(Into::into)
     }
+
+    /// Reads a property, appending to the `result` buffer and returning the actual type and read
+    /// bytes. Note that the `XConnection::get_property` doesn't work as we need a dynamic type.
+    pub fn get_dynamic_property(
+        &self,
+        property: xproto::Atom,
+        xwindow: xproto::Window,
+        result: &mut Vec<u8>,
+    ) -> Result<(xproto::Atom, usize), GetPropertyError> {
+        let mut resolved_format = None;
+        let mut resolved_type = None;
+        // Max data transferred in bytes (must be multiple of 4 for unknown reasons)
+        let mut bytes_read = 0;
+        loop {
+            let reply = self
+                .xcb_connection()
+                .get_property(
+                    true,
+                    xwindow,
+                    property,
+                    xproto::AtomEnum::ANY,
+                    bytes_read as u32 / 4, // Offset in 4 bytes to start of property
+                    PROPERTY_BUFFER_SIZE / 4, // Number of 4 bytes to get
+                )?
+                .reply()?;
+
+            // Format and type must not change
+            if resolved_format.is_some_and(|resolved| resolved != reply.format) {
+                return Err(GetPropertyError::FormatMismatch(reply.format.into()));
+            }
+            if resolved_type.is_some_and(|resolved| resolved != reply.type_) {
+                return Err(GetPropertyError::TypeMismatch(reply.type_));
+            }
+            resolved_format = Some(reply.format);
+            resolved_type = Some(reply.type_);
+
+            // Add the data
+            result.extend_from_slice(&reply.value);
+            bytes_read += reply.value.len();
+
+            // Check if we have reached the end
+            if reply.bytes_after == 0 {
+                trace!(
+                    "Read {} into property {} data {}",
+                    self.atom_str(reply.type_),
+                    self.atom_str(property),
+                    if reply.value.len() < 100 {
+                        format!("{:?}", reply.value)
+                    } else {
+                        "[... many bytes]".to_string()
+                    }
+                );
+                return Ok((reply.type_, bytes_read));
+            }
+        }
+    }
 }
 
 /// An iterator over the "windows" of the property that we are fetching.

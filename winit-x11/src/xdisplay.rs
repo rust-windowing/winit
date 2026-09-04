@@ -11,17 +11,19 @@ use x11rb::connection::Connection;
 use x11rb::protocol::randr::ConnectionExt as _;
 use x11rb::protocol::render;
 use x11rb::protocol::xproto::{self, ConnectionExt};
-use x11rb::resource_manager;
 use x11rb::xcb_ffi::XCBConnection;
+use x11rb::{CURRENT_TIME, resource_manager};
 
 use super::atoms::Atoms;
 use super::ffi;
 use super::monitor::MonitorHandle;
-use crate::event_loop::X11Error;
+use crate::event_loop::{CookieResultExt as _, X11Error};
 
 /// A connection to an X server.
 pub struct XConnection {
     pub xlib: ffi::Xlib,
+
+    pub xfixes: ffi::xfixes::Xlib,
 
     // TODO(notgull): I'd like to remove this, but apparently Xlib and Xinput2 are tied together
     // for some reason.
@@ -82,6 +84,7 @@ impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         // opening the libraries
         let xlib = ffi::Xlib::open()?;
+        let xfixes = ffi::xfixes::Xlib::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
         let xinput2 = ffi::XInput2::open()?;
 
@@ -146,6 +149,7 @@ impl XConnection {
 
         Ok(XConnection {
             xlib,
+            xfixes,
             xinput2,
             display,
             xcb: Some(xcb),
@@ -300,6 +304,60 @@ impl XConnection {
         );
 
         Ok(display_handle.into())
+    }
+
+    /// Issues a request to convert a selection (e.g. atoms[XdndSelection], atoms[Clipboard]) to a
+    /// particular target type. The result is sent in a [`xproto::SelectionNotifyEvent`].
+    pub fn convert_selection(
+        &self,
+        xwindow: xproto::Window,
+        selection: xproto::Atom,
+        target: xproto::Atom,
+        property: xproto::Atom,
+    ) -> Result<(), X11Error> {
+        trace!(
+            "Requesting {} from selection {} into property {}",
+            self.atom_str(target),
+            self.atom_str(selection),
+            self.atom_str(property),
+        );
+
+        let owner = self.xcb_connection().get_selection_owner(selection)?.reply()?.owner;
+        if owner == 0 {
+            return Err(X11Error::UnexpectedNull("selection owner"));
+        }
+
+        self.xcb_connection()
+            .convert_selection(xwindow, selection, target, property, CURRENT_TIME)?
+            .check()?;
+
+        Ok(())
+    }
+
+    /// Sets the owner of the [`SelectionType`] so applications requesting it will send an
+    /// [`xproto::SelectionRequestEvent`] event to us.
+    pub fn set_selection_owner(&self, xwindow: xproto::Window, selection: xproto::Atom) {
+        self.xcb_connection()
+            .set_selection_owner(
+                xwindow,
+                selection,
+                // TODO: Using the current time is not the suggested convention but it doesn't seem
+                // to matter https://xorg.freedesktop.org/archive/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html#acquiring_selection_ownership
+                CURRENT_TIME,
+            )
+            .expect_then_ignore_error("Failed to send SetSelectionOwner event")
+    }
+
+    /// Gets a user readable string of the atom:
+    /// - If possible, get the name from the X sever
+    /// - Otherwise, pretty print as Atom(123)
+    #[must_use]
+    pub fn atom_str(&self, atom: xproto::Atom) -> String {
+        let atom_name = self.xcb_connection().get_atom_name(atom).ok();
+        atom_name
+            .and_then(|cookie| cookie.reply().ok())
+            .and_then(|reply| String::from_utf8(reply.name).ok())
+            .unwrap_or_else(|| format!("Atom({atom})"))
     }
 }
 

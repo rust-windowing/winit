@@ -38,6 +38,8 @@ x11rb = { workspace = true, features = [
     "sync",
     "xinput",
     "xkb",
+    "extra-traits", # Adds proper Debug impl for structs
+    "xfixes", # Enables use of the xfixes extension for listening for selection change (part of the clipboard)
 ] }
 xkbcommon-dl = { workspace = true, features = ["x11"] }
 

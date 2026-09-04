@@ -2,6 +2,9 @@
 
 #![warn(clippy::exhaustive_enums)]
 
+#[macro_use]
+extern crate tracing;
+
 use dpi::Size;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -17,7 +20,7 @@ macro_rules! os_error {
 
 mod activation;
 mod atoms;
-mod dnd;
+mod data_transfer;
 mod event_loop;
 mod event_processor;
 pub mod ffi;
@@ -28,7 +31,7 @@ mod window;
 mod xdisplay;
 mod xsettings;
 
-pub use dnd::{Selection, SelectionReader, SelectionType, UriListParseError};
+pub use data_transfer::{Selection, SelectionReader, SelectionType, UriListParseError};
 
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
