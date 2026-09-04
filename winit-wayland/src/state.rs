@@ -404,11 +404,11 @@ impl PopupHandler for WinitState {
 impl DialogHandler for WinitState {
     fn configure(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         dialog: &sctk::shell::xdg::dialog::Dialog,
         configure: sctk::shell::xdg::window::WindowConfigure,
-        serial: u32,
+        _serial: u32,
     ) {
         let window_id = super::make_wid(dialog.wl_surface());
 

@@ -52,7 +52,7 @@ pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{WindowId, logical_to_physical_rounded};
+use super::WindowId;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 

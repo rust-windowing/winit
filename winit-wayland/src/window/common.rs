@@ -169,7 +169,7 @@ impl WindowCommon {
 
     #[inline]
     pub(crate) fn is_decorated(&self) -> Option<bool> {
-        let Some(s) = self.state.upgrade() else { return None };
+        let s = self.state.upgrade()?;
         Some(s.lock().unwrap().is_decorated())
     }
 
@@ -220,7 +220,7 @@ impl WindowCommon {
     }
 
     pub(crate) fn theme(&self) -> Option<Theme> {
-        let Some(s) = self.state.upgrade() else { return None };
+        let s = self.state.upgrade()?;
         s.lock().unwrap().theme()
     }
 

@@ -440,7 +440,9 @@ impl CoreWindow for Window {
         self.common.ime_capabilities()
     }
 
-    fn focus_window(&self) {}
+    fn focus_window(&self) {
+        self.common.focus_window();
+    }
 
     fn has_focus(&self) -> bool {
         self.common.has_focus()

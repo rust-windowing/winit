@@ -313,7 +313,7 @@ impl WindowState {
         match &self.window {
             WindowType::Window { window, .. } => Some(window.xdg_toplevel()),
             WindowType::Dialog { dialog, .. } => Some(dialog.xdg_toplevel()),
-            WindowType::Popup { .. } => return None,
+            WindowType::Popup { .. } => None,
         }
     }
 
@@ -957,8 +957,9 @@ impl WindowState {
                 }
             },
             WindowType::Dialog { last_configure, .. } => {
-                // TODO
-                unimplemented!();
+                if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
+                    self.resize(surface_size.to_logical(self.scale_factor()))
+                }
             },
             WindowType::Popup { popup, xdg_positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
@@ -977,10 +978,14 @@ impl WindowState {
         self.size = surface_size;
 
         // Update the stateless size.
-        if let WindowType::Window { last_configure, .. } = &mut self.window {
-            if let Some(true) = last_configure.as_ref().map(Self::is_stateless) {
-                self.stateless_size = surface_size;
-            }
+        match &mut self.window {
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => {
+                if let Some(true) = last_configure.as_ref().map(Self::is_stateless) {
+                    self.stateless_size = surface_size;
+                }
+            },
+            _ => (),
         }
 
         // Update the inner frame.
@@ -1526,7 +1531,7 @@ impl WindowState {
 
         match &self.window {
             WindowType::Window { window, .. } => window.set_title(&title),
-            WindowType::Dialog { dialog, .. } => {
+            WindowType::Dialog { .. } => {
                 // TODO
             },
             WindowType::Popup { .. } => (), // Popup does not have any title

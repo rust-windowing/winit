@@ -1,20 +1,16 @@
-use core::sync::atomic::Ordering;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
 use rwh_06::RawWindowHandle;
-use sctk::compositor::SurfaceData;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
-use wayland_client::protocol::wl_display::WlDisplay;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::event::{Ime, WindowEvent};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -23,7 +19,6 @@ use winit_core::window::{
 };
 
 use super::ActiveEventLoop;
-use super::output::MonitorHandle;
 use crate::WindowAttributesWayland;
 use crate::window::Handles;
 use crate::window::common::WindowCommon;
@@ -525,7 +520,9 @@ impl CoreWindow for Popup {
         self.common.ime_capabilities()
     }
 
-    fn focus_window(&self) {}
+    fn focus_window(&self) {
+        self.common.focus_window();
+    }
 
     fn has_focus(&self) -> bool {
         self.common.has_focus()

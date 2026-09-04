@@ -1,16 +1,12 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
 use sctk::shell::WaylandSurface;
-use sctk::shell::xdg::dialog::Dialog as SctkDialog;
 use sctk::shell::xdg::window::WindowDecorations;
-use wayland_client::Proxy;
-use wayland_client::protocol::wl_display::WlDisplay;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::event::{Ime, WindowEvent};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -27,8 +23,6 @@ use crate::window::state::{WindowState, WindowType};
 
 #[derive(Debug)]
 pub struct Dialog {
-    dialog: SctkDialog,
-
     common: WindowCommon,
 }
 
@@ -185,7 +179,6 @@ impl Dialog {
         event_loop_awakener.ping();
 
         Ok(Self {
-            dialog,
             common: WindowCommon {
                 state: Arc::downgrade(&dialog_state),
                 window_id,
@@ -378,7 +371,9 @@ impl CoreWindow for Dialog {
         self.common.ime_capabilities()
     }
 
-    fn focus_window(&self) {}
+    fn focus_window(&self) {
+        self.common.focus_window();
+    }
 
     fn has_focus(&self) -> bool {
         self.common.has_focus()
