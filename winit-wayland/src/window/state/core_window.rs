@@ -1,3 +1,5 @@
+//! Common functions which are used by all window types (normal window, popup, dialog)
+
 use std::sync::Arc;
 
 use dpi::{PhysicalSize, Size};
@@ -9,6 +11,7 @@ use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 
 use super::super::output::MonitorHandle;
 use super::WindowState;
+use crate::logical_to_physical_rounded;
 
 impl WindowState {
     pub fn current_monitor(&self) -> Option<CoreMonitorHandle> {
@@ -34,5 +37,13 @@ impl WindowState {
     pub fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
         self.resize_increments()
             .map(|size| super::logical_to_physical_rounded(size, self.scale_factor()))
+    }
+
+    pub fn surface_size_physical(&self) -> PhysicalSize<u32> {
+        logical_to_physical_rounded(self.surface_size(), self.scale_factor)
+    }
+
+    pub fn outer_size_physical(&self) -> PhysicalSize<u32> {
+        super::logical_to_physical_rounded(self.outer_size(), self.scale_factor)
     }
 }

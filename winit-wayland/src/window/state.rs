@@ -74,7 +74,10 @@ pub enum WindowType {
 
         positioner: WindowPositioner,
     },
-    Dialog { dialog: Dialog, last_configure: Option<WindowConfigure> },
+    Dialog {
+        dialog: Dialog,
+        last_configure: Option<WindowConfigure>,
+    },
 }
 
 impl WindowType {
@@ -590,12 +593,12 @@ impl WindowState {
         };
 
         // TODO(kchibisov) handle touch serials.
-		self.apply_on_pointer(|_, data| {
-			if let Some(serial) = data.latest_button_serial() {
-				let seat = data.seat();
-				xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
-			}
-		});
+        self.apply_on_pointer(|_, data| {
+            if let Some(serial) = data.latest_button_serial() {
+                let seat = data.seat();
+                xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
+            }
+        });
         Ok(())
     }
 
@@ -612,12 +615,12 @@ impl WindowState {
         };
 
         // TODO(kchibisov) handle touch serials.
-		self.apply_on_pointer(|_, data| {
-			if let Some(serial) = data.latest_button_serial() {
-				let seat = data.seat();
-				xdg_toplevel._move(seat, serial);
-			}
-		});
+        self.apply_on_pointer(|_, data| {
+            if let Some(serial) = data.latest_button_serial() {
+                let seat = data.seat();
+                xdg_toplevel._move(seat, serial);
+            }
+        });
 
         Ok(())
     }
@@ -887,7 +890,7 @@ impl WindowState {
             },
             WindowType::Dialog { last_configure, .. } => {
                 // TODO
-				unimplemented!();
+                unimplemented!();
             },
             WindowType::Popup { popup, xdg_positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
@@ -898,7 +901,7 @@ impl WindowState {
             },
         }
 
-        logical_to_physical_rounded(self.surface_size(), self.scale_factor())
+        self.surface_size_physical()
     }
 
     /// Resize the window to the new surface size.

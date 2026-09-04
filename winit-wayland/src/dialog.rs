@@ -21,20 +21,13 @@ use winit_core::window::{
 use super::ActiveEventLoop;
 use crate::WindowAttributesWayland;
 use crate::window::Handles;
+use crate::window::common::WindowCommon;
 use crate::window::handles::WindowRequests;
 use crate::window::state::{WindowState, WindowType};
 
 #[derive(Debug)]
 pub struct Dialog {
-    dialog_state: Weak<Mutex<WindowState>>,
-
-    window_id: WindowId,
-
-    /// The wayland display used solely for raw window handle.
-    #[allow(dead_code)]
-    display: WlDisplay,
-
-    handles: Handles,
+    common: WindowCommon,
 }
 
 impl Dialog {
@@ -46,10 +39,7 @@ impl Dialog {
             RequestError::NotSupported(NotSupportedError::new(message))
         }
 
-        let modal = matches!(
-            attributes.window_type,
-            winit_core::window::WindowType::Dialog { modal: true, .. }
-        );
+        let modal = attributes.modal.unwrap_or(false);
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
         let monitors = state.monitors.clone();
@@ -102,7 +92,7 @@ impl Dialog {
             let scale_factor = parent_window_state.scale_factor();
             drop(parent_window_state);
 
-            let dialog_state = WindowState::new(
+            let mut dialog_state = WindowState::new(
                 event_loop_window_target,
                 &state,
                 attributes.surface_size.ok_or(error("Invalid size for dialog"))?,
@@ -125,6 +115,30 @@ impl Dialog {
                 xdg_activation.activate(token.into_raw(), &surface);
             }
             dialog.set_modal(modal);
+
+            dialog_state.set_window_icon(attributes.window_icon);
+
+            // Set transparency hint.
+            dialog_state.set_transparent(attributes.transparent);
+
+            // Set blur.
+            let _ = dialog_state.set_blur(attributes.blur);
+
+            // Set the decorations hint.
+            dialog_state.set_decorate(attributes.decorations);
+
+            // Set the window title.
+            dialog_state.set_title(attributes.title);
+
+            // Set the min and max sizes. We must set the hints upon creating a window, so
+            // we use the default `1.` scaling...
+            let min_size = attributes.min_surface_size.map(|size| size.to_logical(1.));
+            let max_size = attributes.max_surface_size.map(|size| size.to_logical(1.));
+            dialog_state.set_min_surface_size(min_size);
+            dialog_state.set_max_surface_size(max_size);
+
+            // Non-resizable implies that the min and max sizes are set to the same value.
+            dialog_state.set_resizable(attributes.resizable);
 
             // Do initial commit
             dialog.commit();
@@ -169,18 +183,20 @@ impl Dialog {
         event_loop_awakener.ping();
 
         Ok(Self {
-            dialog_state: Arc::downgrade(&dialog_state),
-            window_id,
-            display: event_loop_window_target.handle.connection.display().clone(),
-            handles: Handles {
-                queue_handle,
-                window_requests,
-                monitors,
-                event_loop_awakener,
-                window_events_sink,
-                xdg_activation,
-                attention_requested: Arc::new(AtomicBool::new(false)),
-                compositor: state.compositor_state.clone(),
+            common: WindowCommon {
+                state: Arc::downgrade(&dialog_state),
+                window_id,
+                display: event_loop_window_target.handle.connection.display().clone(),
+                handles: Handles {
+                    queue_handle,
+                    window_requests,
+                    monitors,
+                    event_loop_awakener,
+                    window_events_sink,
+                    xdg_activation,
+                    attention_requested: Arc::new(AtomicBool::new(false)),
+                    compositor: state.compositor_state.clone(),
+                },
             },
         })
     }
@@ -188,31 +204,28 @@ impl Dialog {
 
 impl CoreWindow for Dialog {
     fn window_type(&self) -> winit_core::window::WindowType {
-        // TODO: use the window type in the state once the popup anchor is integrated!
-        winit_core::window::WindowType::Dialog { modal: true }
+        winit_core::window::WindowType::Dialog
     }
 
     fn id(&self) -> WindowId {
-        self.window_id
+        self.common.id()
     }
 
     fn request_redraw(&self) {
-        self.handles.request_redraw();
+        self.common.request_redraw();
     }
 
     #[inline]
     fn title(&self) -> String {
-        let Some(s) = self.dialog_state.upgrade() else { return String::new() };
-        s.lock().unwrap().title().to_owned()
+        self.common.title()
     }
 
     fn pre_present_notify(&self) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        s.lock().unwrap().request_frame_callback();
+        self.common.pre_present_notify();
     }
 
     fn reset_dead_keys(&self) {
-        winit_common::xkb::reset_dead_keys()
+        self.common.reset_dead_keys();
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
@@ -224,99 +237,70 @@ impl CoreWindow for Dialog {
             .into())
     }
 
-    fn set_outer_position(&self, position: Position) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        let state = s.lock().unwrap();
-        if let WindowType::Popup { popup, positioner, .. } = &state.window {
-            let position = position.to_logical(state.scale_factor());
-            positioner.set_offset(position.x, position.y);
-            popup.reposition(positioner, 0);
-        }
+    fn set_outer_position(&self, _position: Position) {
+        // Not possible
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        let Some(s) = self.dialog_state.upgrade() else { return PhysicalSize::default() };
-        let dialog_state = s.lock().unwrap();
-        let scale_factor = dialog_state.scale_factor();
-        super::logical_to_physical_rounded(dialog_state.surface_size(), scale_factor)
+        self.common.surface_size()
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let s = self.dialog_state.upgrade()?;
-        let mut dialog_state = s.lock().unwrap();
-        let new_size = dialog_state.request_surface_size(size);
-        self.request_redraw();
-        Some(new_size)
+        self.common.request_surface_size(size)
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
-        let Some(s) = self.dialog_state.upgrade() else { return PhysicalSize::default() };
-        let dialog_state = s.lock().unwrap();
-        let scale_factor = dialog_state.scale_factor();
-        super::logical_to_physical_rounded(dialog_state.outer_size(), scale_factor)
+        self.common.outer_size()
     }
 
     fn safe_area(&self) -> PhysicalInsets<u32> {
-        PhysicalInsets::new(0, 0, 0, 0)
+        self.common.safe_area()
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        s.lock().unwrap().set_min_surface_size(min_size);
-        // NOTE: Requires commit to be applied.
-        self.request_redraw();
+        self.common.set_min_surface_size(min_size);
     }
 
     /// Set the maximum surface size for the window.
     #[inline]
     fn set_max_surface_size(&self, max_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        s.lock().unwrap().set_max_surface_size(max_size);
-        // NOTE: Requires commit to be applied.
-        self.request_redraw();
+        self.common.set_max_surface_size(max_size);
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let s = self.dialog_state.upgrade()?;
-        s.lock().unwrap().surface_resize_increments()
+        self.common.surface_resize_increments()
     }
 
     fn set_surface_resize_increments(&self, increments: Option<Size>) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        let mut dialog_state = s.lock().unwrap();
-        dialog_state.set_surface_resize_increments(increments);
+        self.common.set_surface_resize_increments(increments);
     }
 
     fn set_title(&self, title: &str) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        s.lock().unwrap().set_title(title.to_owned());
+        self.common.set_title(title);
     }
 
     #[inline]
     fn set_transparent(&self, transparent: bool) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        s.lock().unwrap().set_transparent(transparent);
+        self.common.set_transparent(transparent);
     }
 
-    fn set_visible(&self, _visible: bool) {
-        // Not possible on Wayland.
+    fn set_visible(&self, visible: bool) {
+        self.common.set_visible(visible);
     }
 
     fn is_visible(&self) -> Option<bool> {
-        None
+        self.common.is_visible()
     }
 
     fn set_resizable(&self, _resizable: bool) {
-        // A popup cannot be resized with the mouse
+        // TODO
+        unimplemented!()
     }
 
     fn is_resizable(&self) -> bool {
-        // A popup cannot be resized with the mouse
-        false
+        // TODO
+        // false
+        unimplemented!()
     }
 
     fn set_enabled_buttons(&self, _buttons: WindowButtons) {
@@ -329,25 +313,30 @@ impl CoreWindow for Dialog {
     }
 
     fn set_minimized(&self, _minimized: bool) {
-        // Not possible for popups
+        // TODO
+        unimplemented!()
     }
 
     fn is_minimized(&self) -> Option<bool> {
         // XXX clients don't know whether they are minimized or not.
+        unimplemented!();
         None
     }
 
     fn set_maximized(&self, _maximized: bool) {
-        // Not possible for popups
+        // TODO
+        unimplemented!()
     }
 
     fn is_maximized(&self) -> bool {
-        // Not possible for popups
-        false
+        // TODO:
+        // false
+        unimplemented!()
     }
 
     fn set_fullscreen(&self, _fullscreen: Option<Fullscreen>) {
-        // Not possible for popups
+        // TODO
+        unimplemented!()
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
@@ -356,184 +345,120 @@ impl CoreWindow for Dialog {
 
     #[inline]
     fn scale_factor(&self) -> f64 {
-        let Some(s) = self.dialog_state.upgrade() else { return 1.0 };
-        s.lock().unwrap().scale_factor()
+        self.common.scale_factor()
     }
 
     #[inline]
     fn set_blur(&self, blur: bool) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        if s.lock().unwrap().set_blur(blur) {
-            self.request_redraw();
-        }
+        self.common.set_blur(blur);
     }
 
     #[inline]
     fn set_decorations(&self, _decorate: bool) {
-        // Popup does not support decorations
+        // TODO
     }
 
     #[inline]
     fn is_decorated(&self) -> bool {
-        // Popup does not support decorations
-        false
+        self.common.is_decorated().unwrap_or_default()
     }
 
     fn set_window_level(&self, _level: WindowLevel) {
-        // Popup does not have a window level
+        // TODO
+        unimplemented!()
     }
 
     fn set_window_icon(&self, _window_icon: Option<winit_core::icon::Icon>) {
-        // Popup does not have a window icon
+        // TODO
+        unimplemented!()
     }
 
     #[inline]
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
-        let Some(s) = self.dialog_state.upgrade() else { return Ok(()) };
-        let state_changed = s.lock().unwrap().request_ime_update(request)?;
-
-        if let Some(allowed) = state_changed {
-            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
-            self.handles.push_window_event(event, self.window_id);
-        }
-
-        Ok(())
+        self.common.request_ime_update(request)
     }
 
     #[inline]
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
-        let s = self.dialog_state.upgrade()?;
-        s.lock().unwrap().ime_allowed()
+        self.common.ime_capabilities()
     }
 
     fn focus_window(&self) {}
 
     fn has_focus(&self) -> bool {
-        let Some(s) = self.dialog_state.upgrade() else { return false };
-        s.lock().unwrap().has_focus()
+        self.common.has_focus()
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        if let Some(state) = self.dialog_state.upgrade() {
-            let state = state.lock().unwrap();
-            let surface = state.window.wl_surface();
-            self.handles.request_user_attention(surface, request_type);
-        }
+        self.common.request_user_attention(request_type);
     }
 
-    fn set_theme(&self, _theme: Option<Theme>) {
-        // A popup does not have a frame
+    fn set_theme(&self, theme: Option<Theme>) {
+        self.common.set_theme(theme);
     }
 
     fn theme(&self) -> Option<Theme> {
-        // A popup does not have a frame
-        None
+        self.common.theme()
     }
 
-    fn set_content_protected(&self, _protected: bool) {}
+    fn set_content_protected(&self, protected: bool) {
+        self.common.set_content_protected(protected);
+    }
 
     fn set_cursor(&self, cursor: Cursor) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        let mut dialog_state = s.lock().unwrap();
-        dialog_state.set_cursor(cursor);
+        self.common.set_cursor(cursor);
     }
 
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        self.dialog_state
-            .upgrade()
-            .ok_or(RequestError::Ignored)?
-            .lock()
-            .unwrap()
-            .set_cursor_position(position)
-            // Request redraw on success, since the state is double buffered.
-            .map(|_| self.request_redraw())
+        self.common.set_cursor_position(position)
     }
 
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        let Some(s) = self.dialog_state.upgrade() else { return Err(RequestError::Ignored) };
-        s.lock().unwrap().set_cursor_grab(mode)
+        self.common.set_cursor_grab(mode)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
-        let Some(s) = self.dialog_state.upgrade() else { return };
-        s.lock().unwrap().set_cursor_visible(visible);
+        self.common.set_cursor_visible(visible);
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
-        // Popup does not support dragging
-        Err(RequestError::Ignored)
+        // TODO
+        unimplemented!()
     }
 
     fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
-        // Popup does not support dragging
-        Err(RequestError::Ignored)
+        // TODO
+        unimplemented!()
     }
 
     fn show_window_menu(&self, _position: Position) {
-        // A popup does not have a menu
+        // TODO
+        unimplemented!()
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let Some(state) = self.dialog_state.upgrade() else {
-            return Err(RequestError::Ignored);
-        };
-
-        self.handles.set_cursor_hittest(state.lock().unwrap().window.wl_surface(), hittest)
+        self.common.set_cursor_hittest(hittest)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.dialog_state.upgrade()?.lock().ok()?.current_monitor()
+        self.common.current_monitor()
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        self.handles.available_monitors()
+        self.common.available_monitors()
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        // NOTE: There's no such concept on Wayland.
-        None
+        self.common.primary_monitor()
     }
 
     /// Get the raw-window-handle v0.6 display handle.
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
+        &self.common
     }
 
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
-    }
-}
-
-impl Drop for Dialog {
-    fn drop(&mut self) {
-        self.handles.window_requests.closed.store(true, Ordering::Relaxed);
-        self.handles.event_loop_awakener.ping();
-    }
-}
-
-impl rwh_06::HasWindowHandle for Dialog {
-    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let state = self.dialog_state.upgrade().ok_or(rwh_06::HandleError::Unavailable)?;
-        let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = state.lock().unwrap().window.wl_surface().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
-        });
-
-        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw.into())) }
-    }
-}
-
-impl rwh_06::HasDisplayHandle for Dialog {
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        if self.dialog_state.upgrade().is_none() {
-            return Err(rwh_06::HandleError::Unavailable);
-        };
-        let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.display.id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
-        });
-
-        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }
+        &self.common
     }
 }

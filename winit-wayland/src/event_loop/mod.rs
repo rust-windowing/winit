@@ -384,9 +384,8 @@ impl EventLoop {
                 let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
-                    let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
-                    (size, scale_factor)
+                    let size = window.surface_size_physical();
+                    (size, window.scale_factor())
                 });
 
                 // Stash the old window size.
@@ -426,8 +425,7 @@ impl EventLoop {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
-                    let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
+                    let size = window.surface_size_physical();
 
                     // Mark the window as needed a redraw.
                     state
@@ -755,7 +753,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },
-            WindowType::Dialog { modal } => {
+            WindowType::Dialog => {
                 let dialog = crate::dialog::Dialog::new(self, window_attributes)?;
                 Ok(Box::new(dialog))
             },
