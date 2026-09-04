@@ -3,6 +3,7 @@
 mod runner;
 
 use std::cell::Cell;
+use std::collections::HashSet;
 use std::ffi::c_void;
 use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle, RawHandle};
 use std::rc::Rc;
@@ -44,8 +45,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumThreadWindows, GW_OWNER, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu,
     GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
     MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
-    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
-    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
+    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_QS_PAINT, PM_REMOVE,
+    PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
     RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
     SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage, WHEEL_DELTA,
@@ -151,6 +152,7 @@ pub(crate) enum ProcResult {
 pub struct EventLoop {
     runner: Rc<EventLoopRunner>,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
+    redraw_batch: RedrawBatch,
     // It is a timer used on timed waits.
     // It is created lazily in case if we have `ControlFlow::WaitUntil`.
     // Keep it as a field to avoid recreating it on every `ControlFlow::WaitUntil`.
@@ -244,6 +246,7 @@ impl EventLoop {
         Ok(EventLoop {
             runner: runner_shared,
             msg_hook: attributes.msg_hook.take(),
+            redraw_batch: RedrawBatch::default(),
             high_resolution_timer: None,
         })
     }
@@ -344,11 +347,24 @@ impl EventLoop {
     fn dispatch_peeked_messages(&mut self) {
         // We generally want to continue dispatching all pending messages
         // but we also allow dispatching to be interrupted as a means to
-        // ensure the `pump_events` won't indefinitely block an external
-        // event loop if there are too many pending events. This interrupt
-        // flag will be set after dispatching `RedrawRequested` events.
-        self.runner.interrupt_msg_dispatch.set(false);
+        // ensure the `pump_events` won't indefinitely block an external event
+        // loop if there are too many pending events. After the first
+        // `RedrawRequested`, only paints are drained and each window emits at
+        // most one `RedrawRequested`. Redraws requested by those callbacks are
+        // deferred until the batch is complete.
+        self.runner.dispatched_redraws.borrow_mut().clear();
+        self.runner.begin_msg_dispatch();
+        self.redraw_batch.clear();
 
+        struct DispatchGuard(Rc<EventLoopRunner>);
+
+        impl Drop for DispatchGuard {
+            fn drop(&mut self) {
+                self.0.finish_msg_dispatch();
+            }
+        }
+
+        let _dispatch_guard = DispatchGuard(self.runner.clone());
         // # Safety
         // The Windows API has no documented requirement for bitwise
         // initializing a `MSG` struct (it can be uninitialized memory for the C
@@ -357,9 +373,44 @@ impl EventLoop {
         let mut msg: MSG = unsafe { mem::zeroed() };
 
         loop {
+            let mut suppressed_redraw = false;
             unsafe {
-                if PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) == false.into() {
+                let (filter_min, filter_max, peek_flags) = if self.redraw_batch.is_active() {
+                    (WM_PAINT, WM_PAINT, PM_REMOVE | PM_QS_PAINT)
+                } else {
+                    (0, 0, PM_REMOVE)
+                };
+                if PeekMessageW(&mut msg, ptr::null_mut(), filter_min, filter_max, peek_flags)
+                    == false.into()
+                {
                     break;
+                }
+
+                if self.redraw_batch.is_active() && msg.message == WM_PAINT {
+                    match self.redraw_batch.classify(msg.hwnd) {
+                        PaintDispatch::Dispatch => {},
+                        PaintDispatch::Suppress => {
+                            // Dispatch duplicate paints so Win32 can validate a non-null update
+                            // region and so `msg_hook` and non-winit window procedures still see
+                            // the native message. The winit window procedure suppresses only the
+                            // duplicate `RedrawRequested` event.
+                            self.runner.suppress_redraw(msg.hwnd);
+                            // Record this before invoking `msg_hook` so the guard will re-arm an
+                            // internal paint even if the hook panics. `PM_NOREMOVE` cannot safely
+                            // be used for look-ahead here: Win32 may still remove a `WM_PAINT`
+                            // whose update region is null, as is the case for `RDW_INTERNALPAINT`.
+                            self.runner.defer_redraw(msg.hwnd);
+                            suppressed_redraw = true;
+                        },
+                        PaintDispatch::Stop => {
+                            // A non-null-region `WM_PAINT` normally remains queued until it is
+                            // dispatched. Internal paints are the exception and may already have
+                            // been removed by `PeekMessageW`, so re-arm either kind before ending
+                            // this bounded batch.
+                            self.runner.defer_redraw(msg.hwnd);
+                            break;
+                        },
+                    }
                 }
 
                 let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
@@ -373,6 +424,10 @@ impl EventLoop {
                 }
             }
 
+            if suppressed_redraw {
+                self.runner.clear_suppressed_redraw();
+            }
+
             if let Err(payload) = self.runner.take_panic_error() {
                 self.runner.reset_runner();
                 panic::resume_unwind(payload);
@@ -382,14 +437,91 @@ impl EventLoop {
                 break;
             }
 
-            if self.runner.interrupt_msg_dispatch.get() {
-                break;
+            for window in self.runner.dispatched_redraws.borrow_mut().drain() {
+                self.redraw_batch.activate(window);
             }
         }
     }
 
     fn exit_code(&self) -> Option<i32> {
         self.runner.exit_code()
+    }
+}
+
+#[derive(Debug, Default)]
+struct RedrawBatch {
+    dispatched: HashSet<HWND>,
+    suppressed: HashSet<HWND>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PaintDispatch {
+    Dispatch,
+    Suppress,
+    Stop,
+}
+
+impl RedrawBatch {
+    fn clear(&mut self) {
+        self.dispatched.clear();
+        self.suppressed.clear();
+    }
+
+    fn is_active(&self) -> bool {
+        !self.dispatched.is_empty()
+    }
+
+    fn activate(&mut self, window: HWND) {
+        self.dispatched.insert(window);
+    }
+
+    fn classify(&mut self, window: HWND) -> PaintDispatch {
+        if self.dispatched.insert(window) {
+            PaintDispatch::Dispatch
+        } else if self.suppressed.insert(window) {
+            PaintDispatch::Suppress
+        } else {
+            // A caller using raw Win32 APIs could keep invalidating this window without going
+            // through `Window::request_redraw`'s batch deferral. Keep dispatch bounded.
+            PaintDispatch::Stop
+        }
+    }
+}
+
+#[cfg(test)]
+mod redraw_batch_tests {
+    use super::{HWND, PaintDispatch, RedrawBatch};
+
+    fn hwnd(value: usize) -> HWND {
+        value as HWND
+    }
+
+    #[test]
+    fn dispatches_each_window_once_per_batch() {
+        let mut batch = RedrawBatch::default();
+        batch.activate(hwnd(1));
+
+        assert_eq!(batch.classify(hwnd(2)), PaintDispatch::Dispatch);
+        assert_eq!(batch.classify(hwnd(3)), PaintDispatch::Dispatch);
+    }
+
+    #[test]
+    fn suppresses_a_repeated_window_then_bounds_the_batch() {
+        let mut batch = RedrawBatch::default();
+        batch.activate(hwnd(1));
+
+        assert_eq!(batch.classify(hwnd(1)), PaintDispatch::Suppress);
+        assert_eq!(batch.classify(hwnd(1)), PaintDispatch::Stop);
+    }
+
+    #[test]
+    fn a_suppressed_repeat_does_not_hide_other_windows() {
+        let mut batch = RedrawBatch::default();
+        batch.activate(hwnd(1));
+
+        assert_eq!(batch.classify(hwnd(1)), PaintDispatch::Suppress);
+        assert_eq!(batch.classify(hwnd(2)), PaintDispatch::Dispatch);
+        assert_eq!(batch.classify(hwnd(3)), PaintDispatch::Dispatch);
     }
 }
 
@@ -1362,15 +1494,36 @@ unsafe fn public_window_callback_inner(
             // the drag; the next real paint happens once `DoDragDrop` returns.
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
         },
+
+        WM_PAINT
+            if userdata.event_loop_runner.is_redraw_suppressed(window)
+                || (userdata.event_loop_runner.is_dispatching_messages()
+                    && userdata.window_state_lock().redraw_deferred) =>
+        {
+            // This window already emitted `RedrawRequested` in the current batch. Dispatching the
+            // native message is still necessary to validate a non-null update region. This check
+            // also covers paints delivered synchronously, which bypass the `PeekMessageW` batch
+            // classifier.
+            result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
+        },
         WM_PAINT => {
-            userdata.window_state_lock().redraw_requested =
-                userdata.event_loop_runner.should_buffer();
+            let should_buffer = userdata.event_loop_runner.should_buffer();
+            if userdata.event_loop_runner.is_dispatching_messages() {
+                userdata.event_loop_runner.begin_batched_redraw(
+                    window,
+                    &userdata.window_state,
+                    should_buffer,
+                );
+            } else {
+                userdata.window_state_lock().redraw_requested = should_buffer;
+            }
 
             // We'll buffer only in response to `UpdateWindow`, if win32 decides to redraw the
             // window outside the normal flow of the event loop. This way mark event as handled
             // and request a normal redraw with `RedrawWindow`.
-            if !userdata.event_loop_runner.should_buffer() {
+            if !should_buffer {
                 userdata.send_window_event(window, WindowEvent::RedrawRequested);
+                userdata.event_loop_runner.dispatched_redraws.borrow_mut().insert(window);
             }
 
             // NOTE: calling `RedrawWindow` during `WM_PAINT` does nothing, since to mark
@@ -1378,7 +1531,9 @@ unsafe fn public_window_callback_inner(
             // user asked for redraw during `RedrawRequested` event handling and request it again
             // after marking `WM_PAINT` as handled.
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
-            if std::mem::take(&mut userdata.window_state_lock().redraw_requested) {
+            if !userdata.event_loop_runner.is_dispatching_messages()
+                && mem::take(&mut userdata.window_state_lock().redraw_requested)
+            {
                 unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
             }
         },

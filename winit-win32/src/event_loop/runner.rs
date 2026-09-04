@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -8,6 +8,7 @@ use std::{fmt, mem, panic};
 
 use dpi::PhysicalSize;
 use windows_sys::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, HWND};
+use windows_sys::Win32::Graphics::Gdi::{RDW_INTERNALPAINT, RedrawWindow};
 use windows_sys::Win32::System::Ole::{
     DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop,
 };
@@ -21,6 +22,7 @@ use super::{ActiveEventLoop, ControlFlow, EventLoopThreadExecutor};
 use crate::dnd::{DataObject, DropEffect, DropSource, SourceDataObject, drop_effect_to_dnd_action};
 use crate::event_loop::{GWL_USERDATA, WindowData};
 use crate::util::get_window_long;
+use crate::window_state::WindowState;
 
 type EventHandler = Cell<Option<&'static mut (dyn ApplicationHandler + 'static)>>;
 
@@ -56,10 +58,20 @@ pub(crate) struct EventLoopRunner {
     // The event loop's win32 handles
     pub(super) thread_msg_target: HWND,
 
-    // Setting this will ensure pump_events will return to the external
-    // loop asap. E.g. set after each RedrawRequested to ensure pump_events
-    // can't stall an external loop beyond a frame
-    pub(super) interrupt_msg_dispatch: Cell<bool>,
+    /// Windows that emitted `RedrawRequested` during the current native-message dispatch.
+    pub(super) dispatched_redraws: RefCell<HashSet<HWND>>,
+
+    /// Whether `EventLoop::dispatch_peeked_messages` is on the stack.
+    dispatching_messages: Cell<bool>,
+
+    /// Native paints that must be re-armed when the current dispatch batch ends.
+    deferred_redraws: RefCell<HashSet<HWND>>,
+
+    /// Winit windows serviced during the current message-dispatch batch.
+    batched_redraws: RefCell<HashMap<HWND, Arc<Mutex<WindowState>>>>,
+
+    /// The duplicate paint currently being dispatched only to validate its update region.
+    suppressed_redraw: Cell<Option<HWND>>,
 
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
@@ -133,7 +145,11 @@ impl EventLoopRunner {
         Self {
             thread_id,
             thread_msg_target,
-            interrupt_msg_dispatch: Cell::new(false),
+            dispatched_redraws: RefCell::new(HashSet::new()),
+            dispatching_messages: Cell::new(false),
+            deferred_redraws: RefCell::new(HashSet::new()),
+            batched_redraws: RefCell::new(HashMap::new()),
+            suppressed_redraw: Cell::new(None),
             runner_state: Cell::new(RunnerState::Uninitialized),
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -294,10 +310,18 @@ impl EventLoopRunner {
     }
 
     pub(crate) fn reset_runner(&self) {
+        // This is normally already complete, but a panic can reset the runner while a message
+        // dispatch is still unwinding. Preserve redraws requested by callbacks in that case.
+        self.finish_msg_dispatch();
+
         let Self {
             thread_id: _,
             thread_msg_target: _,
-            interrupt_msg_dispatch,
+            dispatched_redraws: _,
+            dispatching_messages: _,
+            deferred_redraws: _,
+            batched_redraws: _,
+            suppressed_redraw: _,
             runner_state,
             panic_error,
             control_flow: _,
@@ -310,7 +334,6 @@ impl EventLoopRunner {
             pending_drag,
             pending_source_drag_cleanup,
         } = self;
-        interrupt_msg_dispatch.set(false);
         runner_state.set(RunnerState::Uninitialized);
         panic_error.set(None);
         exit.set(None);
@@ -324,6 +347,71 @@ impl EventLoopRunner {
 
 /// State retrieval functions.
 impl EventLoopRunner {
+    pub(super) fn begin_msg_dispatch(&self) {
+        let was_dispatching = self.dispatching_messages.replace(true);
+        debug_assert!(!was_dispatching);
+    }
+
+    pub(super) fn finish_msg_dispatch(&self) {
+        self.dispatching_messages.set(false);
+        self.dispatched_redraws.borrow_mut().clear();
+        self.suppressed_redraw.set(None);
+        let mut deferred_redraws = self.deferred_redraws.borrow_mut();
+        {
+            let mut batched_redraws = self.batched_redraws.borrow_mut();
+            for (window, state) in batched_redraws.drain() {
+                let mut state = state.lock().unwrap();
+                state.redraw_deferred = false;
+                if mem::take(&mut state.redraw_requested) {
+                    deferred_redraws.insert(window);
+                }
+            }
+        }
+        // With only `RDW_INTERNALPAINT`, `RedrawWindow` posts a paint instead of dispatching it
+        // synchronously, so retaining this borrow while draining is safe and preserves the set's
+        // allocation for the next frame.
+        for window in deferred_redraws.drain() {
+            unsafe {
+                RedrawWindow(window, std::ptr::null(), std::ptr::null_mut(), RDW_INTERNALPAINT);
+            }
+        }
+    }
+
+    pub(super) fn is_dispatching_messages(&self) -> bool {
+        self.dispatching_messages.get()
+    }
+
+    pub(super) fn defer_redraw(&self, window: HWND) {
+        self.deferred_redraws.borrow_mut().insert(window);
+    }
+
+    pub(super) fn begin_batched_redraw(
+        &self,
+        window: HWND,
+        state: &Arc<Mutex<WindowState>>,
+        redraw_requested: bool,
+    ) {
+        {
+            let mut state = state.lock().unwrap();
+            state.redraw_requested = redraw_requested;
+            state.redraw_deferred = true;
+        }
+        self.batched_redraws.borrow_mut().insert(window, Arc::clone(state));
+    }
+
+    pub(super) fn suppress_redraw(&self, window: HWND) {
+        let previous = self.suppressed_redraw.replace(Some(window));
+        debug_assert!(previous.is_none());
+    }
+
+    pub(super) fn clear_suppressed_redraw(&self) {
+        self.suppressed_redraw.set(None);
+    }
+
+    pub(super) fn is_redraw_suppressed(&self, window: HWND) -> bool {
+        self.suppressed_redraw.get() == Some(window)
+    }
+
     #[allow(unused)]
     pub fn thread_msg_target(&self) -> HWND {
         self.thread_msg_target
@@ -412,10 +500,6 @@ impl EventLoopRunner {
     pub(crate) fn send_event(self: &Rc<Self>, event: Event) {
         if let Event::Window { event: WindowEvent::RedrawRequested, .. } = event {
             self.call_event_handler(|app, event_loop| event.dispatch_event(app, event_loop));
-            // As a rule, to ensure that `pump_events` can't block an external event loop
-            // for too long, we always guarantee that `pump_events` will return control to
-            // the external loop asap after a `RedrawRequested` event is dispatched.
-            self.interrupt_msg_dispatch.set(true);
         } else if self.should_buffer() {
             // If the runner is already borrowed, we're in the middle of an event loop invocation.
             // Add the event to a buffer to be processed later.
@@ -622,5 +706,34 @@ impl Event {
             },
             Self::WakeUp => app.proxy_wake_up(event_loop),
         }
+    }
+}
+
+#[cfg(test)]
+mod redraw_dispatch_state_tests {
+    use windows_sys::Win32::Foundation::HWND;
+
+    use super::EventLoopRunner;
+
+    fn hwnd(value: usize) -> HWND {
+        value as HWND
+    }
+
+    #[test]
+    fn state_changes_are_not_debug_assert_side_effects() {
+        let runner = EventLoopRunner::new(0, std::ptr::null_mut());
+        let window = hwnd(1);
+
+        runner.begin_msg_dispatch();
+        assert!(runner.is_dispatching_messages());
+
+        runner.suppress_redraw(window);
+        assert!(runner.is_redraw_suppressed(window));
+
+        runner.clear_suppressed_redraw();
+        assert!(!runner.is_redraw_suppressed(window));
+
+        runner.finish_msg_dispatch();
+        assert!(!runner.is_dispatching_messages());
     }
 }

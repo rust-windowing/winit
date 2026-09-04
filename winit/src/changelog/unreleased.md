@@ -116,6 +116,8 @@ changelog entry.
 
 ### Fixed
 
+- On Windows, fix `RedrawRequested` starvation when multiple windows request redraws during the
+  same event-loop cycle, including continuous redraws requested from `RedrawRequested` handlers.
 - On X11, return `NotSupported` instead of panicking when XInput 2.0, XRandR
   1.2, or XKB 1.0 is unavailable.
 - On Windows, fix a freeze that occurs when the keyboard layout is switched by
