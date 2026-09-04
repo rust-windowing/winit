@@ -412,7 +412,7 @@ impl DialogHandler for WinitState {
     ) {
         let window_id = super::make_wid(dialog.wl_surface());
 
-        if let Some(index) =
+        let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
             index
@@ -421,13 +421,14 @@ impl DialogHandler for WinitState {
             self.window_compositor_updates.len() - 1
         };
 
-        self.windows
+        self.window_compositor_updates[index].resized |= self
+            .windows
             .get_mut()
             .get_mut(&window_id)
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure_dialog(configure);
+            .configure_dialog(configure, &self.shm, &self.subcompositor_state);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead

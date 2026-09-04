@@ -354,8 +354,8 @@ impl CoreWindow for Dialog {
     }
 
     #[inline]
-    fn set_decorations(&self, _decorate: bool) {
-        // TODO
+    fn set_decorations(&self, decorate: bool) {
+        self.common.set_decorations(decorate);
     }
 
     #[inline]

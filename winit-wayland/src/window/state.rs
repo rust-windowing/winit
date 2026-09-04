@@ -353,16 +353,44 @@ impl WindowState {
         }
     }
 
-    pub fn configure_dialog(&mut self, configure: WindowConfigure) {
-        let WindowType::Dialog { last_configure, .. } = &mut self.window else {
+    pub fn configure_dialog(
+        &mut self,
+        configure: WindowConfigure,
+        shm: &Shm,
+        subcompositor: &Option<Arc<SubcompositorState>>,
+    ) -> bool {
+        let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
+
+        let new_state = configure.state;
+        if let WindowType::Dialog { last_configure, .. } = &mut self.window {
+            let old_state = last_configure.as_ref().map(|configure| configure.state);
+
+            let state_change_requires_resize = old_state
+                .map(|old_state| {
+                    !old_state
+                        .symmetric_difference(new_state)
+                        .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
+                        .is_empty()
+                })
+                // NOTE: `None` is present for the initial configure, thus we must always resize.
+                .unwrap_or(true);
+
+            // NOTE: Set the configure before doing a resize, since we query it during it.
+            *last_configure = Some(configure);
+
+            if state_change_requires_resize || new_size != self.surface_size() {
+                self.resize(new_size);
+                true
+            } else {
+                false
+            }
+        } else {
             tracing::error!(
                 "configure_dialog called for window type unequal of dialog. This should never \
                  happen, because we start configuring with a dialog"
             );
-            return;
-        };
-
-        *last_configure = Some(configure);
+            false
+        }
     }
 
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
@@ -405,12 +433,17 @@ impl WindowState {
         }
     }
 
-    pub fn configure_window(
+    /// Creates (or drops) the CSD frame per `configure`'s decoration mode, and computes the
+    /// surface size to apply, accounting for borders, configure bounds, and resize increments.
+    ///
+    /// Shared between `configure_window` and `configure_dialog`, since both configure an
+    /// `xdg_toplevel`-based surface from the same [`WindowConfigure`] event shape.
+    fn configure_frame_and_size(
         &mut self,
-        configure: WindowConfigure,
+        configure: &WindowConfigure,
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
-    ) -> bool {
+    ) -> LogicalSize<u32> {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -451,7 +484,7 @@ impl WindowState {
             self.frame = None;
         }
 
-        let stateless = Self::is_stateless(&configure);
+        let stateless = Self::is_stateless(configure);
 
         let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.
@@ -477,7 +510,7 @@ impl WindowState {
 
         // Apply configure bounds only when compositor let the user decide what size to pick.
         if constrain {
-            let bounds = self.surface_size_bounds(&configure);
+            let bounds = self.surface_size_bounds(configure);
             new_size.width =
                 bounds.0.map(|bound_w| new_size.width.min(bound_w.get())).unwrap_or(new_size.width);
             new_size.height = bounds
@@ -521,6 +554,17 @@ impl WindowState {
                 new_size = (width, height).into();
             }
         }
+
+        new_size
+    }
+
+    pub fn configure_window(
+        &mut self,
+        configure: WindowConfigure,
+        shm: &Shm,
+        subcompositor: &Option<Arc<SubcompositorState>>,
+    ) -> bool {
+        let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
 
         let new_state = configure.state;
         if let WindowType::Window { last_configure, .. } = &mut self.window {
@@ -786,19 +830,16 @@ impl WindowState {
                 }
             },
             WindowType::Dialog { last_configure, .. } => {
-                // let csd = last_configure
-                //     .as_ref()
-                //     .map(|configure| configure.decoration_mode == DecorationMode::Client)
-                //     .unwrap_or(false);
-                // if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
-                //     !frame.is_hidden()
-                // } else {
-                //     // Server side decorations.
-                //     true
-                // }
-
-                // TODO:
-                true
+                let csd = last_configure
+                    .as_ref()
+                    .map(|configure| configure.decoration_mode == DecorationMode::Client)
+                    .unwrap_or(false);
+                if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
+                    !frame.is_hidden()
+                } else {
+                    // Server side decorations.
+                    true
+                }
             },
             WindowType::Popup { .. } => false, // Popup window does not have any decoration
         }
@@ -1267,8 +1308,26 @@ impl WindowState {
                     self.resize(self.size);
                 }
             },
-            WindowType::Dialog { .. } => {
-                // TODO
+            WindowType::Dialog { dialog: _dialog, last_configure: _last_configure } => {
+                // TODO: currently not implemented for dialog on sctk
+                // match last_configure.as_ref().map(|configure| configure.decoration_mode) {
+                //     Some(DecorationMode::Server) if !self.decorate => {
+                //         // To disable decorations we should request client and hide the frame.
+                //         dialog.request_decoration_mode(Some(DecorationMode::Client))
+                //     },
+                //     _ if self.decorate && self.prefer_csd => {
+                //         dialog.request_decoration_mode(Some(DecorationMode::Client))
+                //     },
+                //     _ if self.decorate => {
+                //         dialog.request_decoration_mode(Some(DecorationMode::Server))
+                //     },
+                //     _ => (),
+                // }
+                if let Some(frame) = self.frame.as_mut() {
+                    frame.set_hidden(!decorate);
+                    // Force the resize.
+                    self.resize(self.size);
+                }
             },
             WindowType::Popup { .. } => (), // Popup does not have any decoration
         }
