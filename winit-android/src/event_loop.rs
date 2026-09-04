@@ -17,7 +17,7 @@ use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
@@ -383,6 +383,7 @@ impl EventLoop {
                                     android_activity::input::ToolType::Mouse => continue,
                                     _ => event::ButtonSource::Unknown(0),
                                 },
+                                is_macos_activation_click: false,
                             };
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
@@ -426,6 +427,7 @@ impl EventLoop {
                                         android_activity::input::ToolType::Mouse => continue,
                                         _ => event::ButtonSource::Unknown(0),
                                     },
+                                    is_macos_activation_click: false,
                                 };
                                 app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                             }
@@ -639,6 +641,41 @@ impl EventLoop {
 
     fn exiting(&self) -> bool {
         self.window_target.exiting()
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 
@@ -975,6 +1012,7 @@ impl CoreWindow for Window {
                 *current_caps = None;
                 self.app.hide_soft_input(true);
             },
+            _ => return Err(ImeRequestError::NotSupported),
         }
 
         Ok(())

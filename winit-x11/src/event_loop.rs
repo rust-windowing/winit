@@ -25,7 +25,7 @@ use winit_core::event::{DeviceId, StartCause, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    DndAction, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    DndAction, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
@@ -33,12 +33,12 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::{xkb, xproto};
+use x11rb::protocol::{ErrorKind, xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::atoms::{
-    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, ABS_X, ABS_Y, Atoms,
+    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, Atoms,
     WM_DELETE_WINDOW,
 };
 use crate::dnd::Dnd;
@@ -221,6 +221,9 @@ impl EventLoop {
 
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
+            Err(XNotSupported::ExtensionNotSupported(reason)) => {
+                return Err(NotSupportedError::new(reason).into());
+            },
             Err(err) => return Err(os_error!(err.clone()).into()),
         };
 
@@ -268,27 +271,40 @@ impl EventLoop {
 
         let ime = ime.ok().map(RefCell::new);
 
-        let randr_event_offset =
-            xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
+        let randr_event_offset = xconn.select_xrandr_input(root).map_err(|err| match err {
+            X11Error::MissingExtension(_) => EventLoopError::NotSupported(NotSupportedError::new(
+                "the X11 backend requires XRandR 1.2 or newer",
+            )),
+            error => os_error!(error).into(),
+        })?;
 
         let xi2ext = xconn
             .xcb_connection()
             .extension_information(xinput::X11_EXTENSION_NAME)
-            .expect("Failed to query XInput extension")
-            .expect("X server missing XInput extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| {
+                NotSupportedError::new("the X11 backend requires XInput 2.0 or newer")
+            })?;
         let xkbext = xconn
             .xcb_connection()
             .extension_information(xkb::X11_EXTENSION_NAME)
-            .expect("Failed to query XKB extension")
-            .expect("X server missing XKB extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         // Check for XInput2 support.
         xconn
             .xcb_connection()
             .xinput_xi_query_version(2, 3)
-            .expect("Failed to send XInput2 query version request")
+            .map_err(|err| os_error!(X11Error::from(err)))?
             .reply()
-            .expect("Error while checking for XInput2 query version reply");
+            .map_err(|err| match err {
+                ReplyError::X11Error(error) if error.error_kind == ErrorKind::Request => {
+                    EventLoopError::NotSupported(NotSupportedError::new(
+                        "the X11 backend requires XInput 2.0 or newer",
+                    ))
+                },
+                error => os_error!(X11Error::from(error)).into(),
+            })?;
 
         xconn.update_cached_wm_info(root);
 
@@ -338,8 +354,8 @@ impl EventLoop {
             .expect("Failed to register the event loop waker source");
         let event_loop_proxy = EventLoopProxy::new(user_waker);
 
-        let xkb_context =
-            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context = Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection())
+            .map_err(|_| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         let mut xmodmap = util::ModifierKeymap::new();
         xmodmap.reload_from_x_connection(&xconn);
@@ -411,7 +427,7 @@ impl EventLoop {
                     | xkb::EventType::MAP_NOTIFY
                     | xkb::EventType::STATE_NOTIFY,
             )
-            .unwrap();
+            .map_err(|err| os_error!(err))?;
 
         event_processor.init_device(ALL_DEVICES);
 
@@ -644,6 +660,41 @@ impl EventLoop {
 
     fn exit_code(&self) -> Option<i32> {
         self.event_processor.target.exit_code()
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 
@@ -1153,9 +1204,15 @@ impl Device {
                     let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
                     let atom = info.label as xproto::Atom;
 
-                    if atom == atoms[ABS_X]
-                        || atom == atoms[ABS_Y]
-                        || atom == atoms[ABS_PRESSURE]
+                    // Absolute X/Y axes alone do not identify a stylus:
+                    // emulated pointing devices in virtual machines (the
+                    // QEMU/VMware/VirtualBox USB tablets, and thus any
+                    // desktop accessed through SPICE or similar viewers)
+                    // expose Abs X/Y without pressure or tilt. Treating them
+                    // as pens makes the mouse-only event filters drop all
+                    // their motion and button input. Only pressure and tilt
+                    // axes indicate actual stylus hardware.
+                    if atom == atoms[ABS_PRESSURE]
                         || atom == atoms[ABS_TILT_X]
                         || atom == atoms[ABS_TILT_Y]
                     {

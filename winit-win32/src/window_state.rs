@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::icon::Icon;
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
+use winit_core::window::{ImeCapabilities, Theme, WindowAttributes, WindowPositioner, WindowType};
 
 use crate::{SelectedCursor, WindowAttributesWindows, event_loop, util};
 
@@ -50,6 +50,21 @@ pub(crate) struct WindowState {
     pub preferred_theme: Option<Theme>,
 
     pub window_flags: WindowFlags,
+
+    /// The role of this window. Governs creation/role behavior (OS window style, decorations)
+    /// only -- see `anchored` for whether this window is positioned via the anchor system.
+    pub window_type: WindowType,
+
+    /// Whether this window is positioned relative to its parent using the anchor/gravity/
+    /// positioner system, either because it's a [`WindowType::Popup`] or because anchor
+    /// attributes were set on a [`WindowType::Window`]. Stored here (rather than only on the
+    /// `Window` struct) so it stays reachable from just an `hwnd` via `GWL_USERDATA` -- e.g. to
+    /// reposition an anchored window when its parent moves.
+    pub anchored: bool,
+
+    /// The positioner state backing `anchored` placement, meaningful only when `anchored` is
+    /// `true`.
+    pub positioner: WindowPositioner,
 
     pub ime_state: ImeState,
     pub ime_capabilities: Option<ImeCapabilities>,
@@ -140,6 +155,12 @@ bitflags! {
 
         const CLIP_CHILDREN = 1 << 22;
 
+        /// Whether this window is positioned relative to its parent via the anchor/gravity/
+        /// positioner system. Independent of `POPUP`, which only selects the OS window style --
+        /// a `WindowType::Window` can be `ANCHORED` too. Used to pick the coordinate frame in
+        /// `translate_outer_position`/`translate_outer_position_to_parent`.
+        const ANCHORED = 1 << 23;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
@@ -185,6 +206,11 @@ impl WindowState {
             current_theme,
             preferred_theme,
             window_flags: WindowFlags::empty(),
+
+            window_type: attributes.window_type,
+            anchored: matches!(attributes.window_type, WindowType::Popup)
+                || attributes.positioner.is_some(),
+            positioner: attributes.positioner.unwrap_or_default(),
 
             ime_state: ImeState::Disabled,
             ime_capabilities: None,
@@ -287,22 +313,24 @@ impl WindowFlags {
             }
         } else {
             style |= WS_CAPTION | WS_SYSMENU | WS_BORDER;
+
+            if self.contains(WindowFlags::RESIZABLE) {
+                style |= WS_SIZEBOX;
+            }
+            if self.contains(WindowFlags::MAXIMIZABLE) {
+                style |= WS_MAXIMIZEBOX;
+            }
+            if self.contains(WindowFlags::MINIMIZABLE) {
+                style |= WS_MINIMIZEBOX;
+            }
+
+            if self.contains(WindowFlags::ON_TASKBAR) {
+                style_ex |= WS_EX_APPWINDOW;
+            }
         };
 
-        if self.contains(WindowFlags::RESIZABLE) {
-            style |= WS_SIZEBOX;
-        }
-        if self.contains(WindowFlags::MAXIMIZABLE) {
-            style |= WS_MAXIMIZEBOX;
-        }
-        if self.contains(WindowFlags::MINIMIZABLE) {
-            style |= WS_MINIMIZEBOX;
-        }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
-        }
-        if self.contains(WindowFlags::ON_TASKBAR) {
-            style_ex |= WS_EX_APPWINDOW;
         }
         if self.contains(WindowFlags::ALWAYS_ON_TOP) {
             style_ex |= WS_EX_TOPMOST;

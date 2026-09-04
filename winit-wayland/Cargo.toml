@@ -12,9 +12,11 @@ version.workspace = true
 default = ["dlopen", "csd-adwaita"]
 
 csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
+csd-adwaita-cosmic-text = ["sctk-adwaita", "sctk-adwaita/cosmic-text"]
 csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 csd-adwaita-notitle = ["sctk-adwaita"]
 csd-adwaita-notitlebar = ["csd-adwaita-notitle"]
+csd-adwaita-skrifa = ["sctk-adwaita", "sctk-adwaita/skrifa"]
 dlopen = ["wayland-backend/dlopen"]
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 

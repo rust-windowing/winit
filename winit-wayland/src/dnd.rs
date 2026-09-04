@@ -85,6 +85,7 @@ impl DataSourceHandler for WinitState {
                 },
             },
             SendData::Bytes(binary) => Cursor::new(binary),
+            _ => return,
         };
 
         let _ = self.loop_handle.insert_source(fd, move |_, file, _| {

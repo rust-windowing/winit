@@ -22,6 +22,7 @@ pub enum DndState {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum UriListParseError {
     EmptyData,
     InvalidUtf8(#[allow(dead_code)] Utf8Error),

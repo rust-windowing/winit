@@ -24,9 +24,9 @@ use objc2_app_kit::{
     NSDraggingSession, NSDraggingSource, NSPasteboardTypeFileURL, NSPasteboardTypeHTML,
     NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
     NSRequestUserAttentionType, NSScreen, NSToolbar, NSView, NSViewFrameDidChangeNotification,
-    NSWindow, NSWindowButton, NSWindowDelegate, NSWindowLevel, NSWindowOcclusionState,
-    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
-    NSWindowTitleVisibility, NSWindowToolbarStyle,
+    NSWindow, NSWindowButton, NSWindowCollectionBehavior, NSWindowDelegate, NSWindowLevel,
+    NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
+    NSWindowTabbingMode, NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
 use objc2_core_foundation::{CGFloat, CGPoint};
 use objc2_core_graphics::{
@@ -44,6 +44,7 @@ use objc2_foundation::{
 };
 use tracing::{debug_span, trace, warn};
 use winit_common::core_foundation::MainRunLoop;
+use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
 use winit_core::data_transfer::DataTransferId;
 use winit_core::error::{NotSupportedError, RequestError};
@@ -52,7 +53,8 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowPositioner,
+    WindowType,
 };
 
 use super::app_state::AppState;
@@ -112,7 +114,16 @@ pub(crate) struct State {
     is_simple_fullscreen: Cell<bool>,
     saved_style: Cell<Option<NSWindowStyleMask>>,
     is_borderless_game: Cell<bool>,
-    is_popup: Cell<bool>,
+    /// The window's role, used for creation/role behavior (decorations, activation/keyboard-grab
+    /// default, initial placement). Does *not* determine whether the window is anchor-positioned
+    /// -- see `anchored`.
+    window_type: WindowType,
+    /// Whether this window is positioned relative to its parent using the anchor/gravity/
+    /// positioner system, either because it's a [`WindowType::Popup`] or because anchor
+    /// attributes were set on a [`WindowType::Window`]. Gates the parent-relative coordinate
+    /// frame used when applying anchor/gravity/positioner-offset changes.
+    anchored: bool,
+    positioner: RefCell<WindowPositioner>,
 }
 
 define_class!(
@@ -149,6 +160,9 @@ define_class!(
             let _entered = debug_span!("windowDidResize:").entered();
             // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
+            // `windowDidMove:` isn't triggered when a move is part of a resize (e.g. dragging the
+            // top or left edge), so anchored children need repositioning here too.
+            self.reposition_child_windows();
         }
 
         #[unsafe(method(windowWillStartLiveResize:))]
@@ -170,6 +184,7 @@ define_class!(
         fn window_did_move(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidMove:").entered();
             self.emit_move_event();
+            self.reposition_child_windows();
         }
 
         #[unsafe(method(windowDidChangeBackingProperties:))]
@@ -227,6 +242,7 @@ define_class!(
                 // in fullscreen, so we must've reached here by `set_fullscreen`
                 // as it updates the state
                 Some(Fullscreen::Borderless(_)) => (),
+                Some(_) => (),
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
@@ -656,7 +672,7 @@ fn new_window(
     app_state: &Rc<AppState>,
     attrs: &WindowAttributes,
     macos_attrs: &WindowAttributesMacOS,
-    is_popup: bool,
+    anchored: bool,
     mtm: MainThreadMarker,
 ) -> Option<Retained<NSWindow>> {
     autoreleasepool(|_| {
@@ -667,6 +683,7 @@ fn new_window(
                 monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
             },
             Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
+            Some(_) => NSScreen::mainScreen(mtm),
             None => None,
         };
         let frame = match &screen {
@@ -683,10 +700,12 @@ fn new_window(
                     None => NSSize::new(800.0, 600.0),
                 };
                 let position = match attrs.position {
-                    // A popup's position is parent-relative; it's applied in `WindowDelegate::new`
-                    // (after the delegate exists) via the shared translation in
-                    // `set_outer_position`.
-                    _ if is_popup => NSPoint::new(0.0, 0.0),
+                    // An anchored window's position is parent-relative; it's applied in
+                    // `WindowDelegate::new` (after the delegate exists) via the shared
+                    // translation in `set_outer_position`. A parentless anchored window can't be
+                    // positioned that way, so it falls through to the same handling as a
+                    // non-anchored window below.
+                    _ if anchored && attrs.parent_window().is_some() => NSPoint::new(0.0, 0.0),
                     Some(position) => {
                         let position = position.to_logical(scale_factor);
                         flip_window_screen_coordinates(NSRect::new(
@@ -829,17 +848,20 @@ fn new_window(
         if !macos_attrs.has_shadow {
             window.setHasShadow(false);
         }
-        // Popups are positioned relative to their parent in `WindowDelegate::new`.
-        if attrs.position.is_none() && !is_popup {
+        if macos_attrs.fullscreen_auxiliary {
+            // This must happen before the window is ordered on screen (below, and in
+            // `WindowDelegate::new`), so that showing the window doesn't make macOS
+            // switch away from an active fullscreen Space or attempt Split View tiling.
+            window.setCollectionBehavior(
+                window.collectionBehavior() | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            );
+        }
+        // Center window if the position is not set or it doesn't have any parent
+        if attrs.position.is_none() && !(anchored && attrs.parent_window().is_some()) {
             window.center();
         }
 
-        let view = WinitView::new(
-            app_state,
-            macos_attrs.accepts_first_mouse,
-            macos_attrs.option_as_alt,
-            mtm,
-        );
+        let view = WinitView::new(app_state, macos_attrs.option_as_alt, mtm);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -899,7 +921,9 @@ impl WindowDelegate {
             .and_then(|attrs| attrs.cast::<WindowAttributesMacOS>().ok())
             .unwrap_or_default();
 
-        let is_popup = matches!(attrs.window_type(), WindowType::Popup);
+        let window_type = attrs.window_type();
+        let is_popup = matches!(window_type, WindowType::Popup);
+        let anchored = is_popup || attrs.positioner.is_some();
         if is_popup {
             // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
             // as such so it flows through the existing borderless + panel paths in `new_window`
@@ -913,7 +937,7 @@ impl WindowDelegate {
             }
         }
 
-        let window = new_window(app_state, &attrs, &macos_attrs, is_popup, mtm)
+        let window = new_window(app_state, &attrs, &macos_attrs, anchored, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
         match attrs.parent_window() {
@@ -974,7 +998,9 @@ impl WindowDelegate {
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
-            is_popup: Cell::new(is_popup),
+            window_type,
+            anchored,
+            positioner: RefCell::new(attrs.positioner.unwrap_or_default()),
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
@@ -1021,10 +1047,10 @@ impl WindowDelegate {
 
         delegate.set_window_level(attrs.window_level);
 
-        // The popup position is relative to the parent window, and the parent is only
-        // attached above, so apply the (translated) position now. Default to the parent's
+        // An anchored window's position is relative to the parent window, and the parent is
+        // only attached above, so apply the (translated) position now. Default to the parent's
         // content top-left when no position was given.
-        if is_popup {
+        if anchored {
             let position = attrs.position.unwrap_or_else(|| LogicalPosition::new(0.0, 0.0).into());
             delegate.set_outer_position(position);
         }
@@ -1076,6 +1102,20 @@ impl WindowDelegate {
         });
     }
 
+    fn defer_if_handling_event(&self, f: impl FnOnce(Retained<Self>) + 'static) -> bool {
+        // AppKit state transitions such as zoom/fullscreen can synchronously run resize/display
+        // callbacks. Starting them from inside a winit event callback prevents those callbacks
+        // from being delivered immediately, so defer the transition to the next run-loop turn.
+        if !self.ivars().app_state.is_handling_event() {
+            return false;
+        }
+
+        let mtm = MainThreadMarker::from(self);
+        let this = self.retain();
+        MainRunLoop::get(mtm).queue_closure(move || f(this));
+        true
+    }
+
     fn handle_scale_factor_changed(&self, scale_factor: CGFloat) {
         let window = self.window();
 
@@ -1093,7 +1133,7 @@ impl WindowDelegate {
             let size = NSSize::new(logical_size.width, logical_size.height);
             window.setContentSize(size);
         }
-        self.queue_event(WindowEvent::SurfaceResized(physical_size));
+        self.view().surface_resized();
     }
 
     fn emit_move_event(&self) {
@@ -1184,8 +1224,8 @@ impl WindowDelegate {
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
         let position = flip_window_screen_coordinates(self.window().frame());
-        let position =
-            self.translate_popup_position_to_parent(LogicalPosition::new(position.x, position.y));
+        let position = self
+            .translate_anchored_position_to_parent(LogicalPosition::new(position.x, position.y));
         Ok(position.to_physical(self.scale_factor()))
     }
 
@@ -1210,7 +1250,7 @@ impl WindowDelegate {
 
     pub fn set_outer_position(&self, position: Position) {
         let position = position.to_logical(self.scale_factor());
-        let position = self.translate_popup_position(position);
+        let position = self.translate_anchored_position(position);
         let point = flip_window_screen_coordinates(NSRect::new(
             NSPoint::new(position.x, position.y),
             self.window().frame().size,
@@ -1218,11 +1258,11 @@ impl WindowDelegate {
         self.window().setFrameOrigin(point);
     }
 
-    /// Popups receive their position relative to the top-left of the parent window's
+    /// Anchored windows receive their position relative to the top-left of the parent window's
     /// content area (matching the Win32 and Wayland backends). macOS positions windows
     /// in global screen coordinates, so add the parent content area's origin.
-    fn translate_popup_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
-        if !self.ivars().is_popup.get() {
+    fn translate_anchored_position(&self, position: LogicalPosition<f64>) -> LogicalPosition<f64> {
+        if !self.ivars().anchored {
             return position;
         }
         let Some(parent) = self.window().parentWindow() else {
@@ -1233,15 +1273,15 @@ impl WindowDelegate {
         LogicalPosition::new(parent_origin.x + position.x, parent_origin.y + position.y)
     }
 
-    /// Inverse of [`Self::translate_popup_position`]. Popups report their position
+    /// Inverse of [`Self::translate_anchored_position`]. Anchored windows report their position
     /// relative to the top-left of the parent window's content area (matching the
     /// Win32 and Wayland backends), so subtract the parent content area's origin from
-    /// the global screen coordinates. Non-popup windows are returned unchanged.
-    fn translate_popup_position_to_parent(
+    /// the global screen coordinates. Non-anchored windows are returned unchanged.
+    fn translate_anchored_position_to_parent(
         &self,
         position: LogicalPosition<f64>,
     ) -> LogicalPosition<f64> {
-        if !self.ivars().is_popup.get() {
+        if !self.ivars().anchored {
             return position;
         }
         let Some(parent) = self.window().parentWindow() else {
@@ -1250,6 +1290,95 @@ impl WindowDelegate {
         let parent_origin =
             flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
         LogicalPosition::new(position.x - parent_origin.x, position.y - parent_origin.y)
+    }
+
+    /// The parent window's content area origin, in global (Winit, top-left/y-down) screen
+    /// coordinates. `None` if this window isn't anchored, or it has no parent.
+    pub fn parent_content_origin(&self) -> Option<LogicalPosition<f64>> {
+        if !self.ivars().anchored {
+            return None;
+        }
+        let parent = self.window().parentWindow()?;
+        let origin = flip_window_screen_coordinates(parent.contentRectForFrameRect(parent.frame()));
+        Some(LogicalPosition::new(origin.x, origin.y))
+    }
+
+    pub fn window_type(&self) -> WindowType {
+        self.ivars().window_type
+    }
+
+    pub fn popup_positioner(&self) -> WindowPositioner {
+        *self.ivars().positioner.borrow()
+    }
+
+    pub fn set_popup_positioner(&self, positioner: WindowPositioner) {
+        *self.ivars().positioner.borrow_mut() = positioner;
+        self.reposition();
+    }
+
+    /// Recomputes this window's position (and, if constrained, its size) from its positioner
+    /// state, using [`winit_common::positioner::place_window`], and applies the result. No-op if
+    /// this window isn't anchored. If it has no parent, the positioner is resolved relative to
+    /// the screen instead of the parent's content area.
+    pub(crate) fn reposition(&self) {
+        if !self.ivars().anchored {
+            return;
+        }
+
+        let positioner = *self.ivars().positioner.borrow();
+
+        let parent_origin = self.parent_content_origin().unwrap_or_default();
+
+        let Some(monitor) = self.current_monitor() else { return };
+        // Clip to the monitor's work area rather than its full bounds, so anchored popups don't
+        // get placed underneath the menu bar or the Dock.
+        let Some((work_area_position, work_area_size)) = monitor.work_area() else { return };
+
+        let scale_factor = self.scale_factor();
+
+        // The anchor rect's position is relative to the parent's content area, and
+        // `set_outer_position` re-adds the parent's screen origin for anchored windows (see
+        // `translate_anchored_position`). To stay in the same coordinate space, the clip region
+        // also needs to be expressed relative to the parent's content area.
+        let work_area_position = work_area_position.to_logical::<f64>(scale_factor);
+        let clip_position = LogicalPosition::new(
+            work_area_position.x - parent_origin.x,
+            work_area_position.y - parent_origin.y,
+        );
+        let clip_size = work_area_size.to_logical::<f64>(scale_factor);
+
+        let current_outer_size = self.outer_size().to_logical::<f64>(scale_factor);
+
+        let (origin, new_outer_size) =
+            place_window(&positioner, scale_factor, current_outer_size, (clip_position, clip_size));
+
+        self.set_outer_position(Position::Logical(origin));
+        if new_outer_size != current_outer_size {
+            // `place_window` positions the window by its outer/frame corner, so it operates on
+            // the outer size; convert back to the surface (content) size that
+            // `request_surface_size` expects, via AppKit's frame/content rect conversion.
+            let frame = NSRect::new(
+                NSPoint::new(0.0, 0.0),
+                NSSize::new(new_outer_size.width, new_outer_size.height),
+            );
+            let content_size = self.window().contentRectForFrameRect(frame).size;
+            let content_size = LogicalSize::new(content_size.width, content_size.height);
+            let _ = self.request_surface_size(Size::Logical(content_size));
+        }
+    }
+
+    /// Repositions any anchored children owned by this window. AppKit's `addChildWindow:ordered:`
+    /// only manages ordering and visibility for child windows -- it doesn't keep their position
+    /// in sync with the parent -- so this has to be done manually whenever this window moves.
+    fn reposition_child_windows(&self) {
+        let Some(children) = self.window().childWindows() else { return };
+        for child in children.iter() {
+            let Some(child_delegate) = child.delegate() else { continue };
+            let Ok(child_delegate) = child_delegate.downcast::<WindowDelegate>() else { continue };
+            if child_delegate.ivars().anchored {
+                child_delegate.reposition();
+            }
+        }
     }
 
     #[inline]
@@ -1595,6 +1724,10 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
+        if self.defer_if_handling_event(move |this| this.set_maximized(maximized)) {
+            return;
+        }
+
         let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
@@ -1640,10 +1773,21 @@ impl WindowDelegate {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        let mtm = MainThreadMarker::from(self);
-        let app = NSApplication::sharedApplication(mtm);
-
         if self.ivars().is_simple_fullscreen.get() {
+            return;
+        }
+        if fullscreen.is_some()
+            && self
+                .window()
+                .collectionBehavior()
+                .contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
+        {
+            // `toggleFullScreen:` is silently ignored on such windows, which would leave our
+            // internal fullscreen state out of sync, so bail out early instead.
+            warn!(
+                "cannot fullscreen a window marked as fullscreen auxiliary; call \
+                 `set_fullscreen_auxiliary(false)` first"
+            );
             return;
         }
         if self.ivars().in_fullscreen_transition.get() {
@@ -1657,6 +1801,18 @@ impl WindowDelegate {
             return;
         }
 
+        if !self.ivars().initial_fullscreen.get()
+            && self.defer_if_handling_event({
+                let fullscreen = fullscreen.clone();
+                move |this| this.set_fullscreen(fullscreen)
+            })
+        {
+            return;
+        }
+
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+
         // If the fullscreen is on a different monitor, we must move the window
         // to that monitor before we toggle fullscreen (as `toggleFullScreen`
         // does not take a screen parameter, but uses the current screen)
@@ -1666,7 +1822,7 @@ impl WindowDelegate {
                     let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                     monitor.ns_screen(mtm)
                 },
-                Fullscreen::Borderless(None) => {
+                _ => {
                     if let Some(monitor) = self.current_monitor_inner() {
                         monitor.ns_screen(mtm)
                     } else {
@@ -1911,6 +2067,7 @@ impl WindowDelegate {
                 self.view().disable_ime();
                 return Ok(());
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         if let Some((spot, size)) = request_data.cursor_area {
@@ -2244,6 +2401,24 @@ impl WindowExtMacOS for WindowDelegate {
         let window = self.window();
 
         window.toolbar().is_some() && window.toolbarStyle() == NSWindowToolbarStyle::Unified
+    }
+
+    #[inline]
+    fn set_fullscreen_auxiliary(&self, fullscreen_auxiliary: bool) {
+        let window = self.window();
+        let behavior = window.collectionBehavior();
+        if fullscreen_auxiliary {
+            window
+                .setCollectionBehavior(behavior | NSWindowCollectionBehavior::FullScreenAuxiliary);
+        } else {
+            window
+                .setCollectionBehavior(behavior - NSWindowCollectionBehavior::FullScreenAuxiliary);
+        }
+    }
+
+    #[inline]
+    fn fullscreen_auxiliary(&self) -> bool {
+        self.window().collectionBehavior().contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
     }
 }
 
