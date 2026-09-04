@@ -339,14 +339,11 @@ impl CoreWindow for Window {
     }
 
     fn set_resizable(&self, resizable: bool) {
-        if self.window_state.lock().unwrap().set_resizable(resizable) {
-            // NOTE: Requires commit to be applied.
-            self.request_redraw();
-        }
+        self.common.set_resizable(resizable);
     }
 
     fn is_resizable(&self) -> bool {
-        self.window_state.lock().unwrap().resizable()
+        self.common.is_resizable()
     }
 
     fn set_enabled_buttons(&self, _buttons: WindowButtons) {
@@ -374,35 +371,15 @@ impl CoreWindow for Window {
     }
 
     fn set_maximized(&self, maximized: bool) {
-        if maximized { self.window.set_maximized() } else { self.window.unset_maximized() }
+        self.common.set_maximized(maximized)
     }
 
     fn is_maximized(&self) -> bool {
-        if let WindowType::Window { last_configure, .. } = &self.window_state.lock().unwrap().window
-        {
-            last_configure
-                .as_ref()
-                .map(|last_configure| last_configure.is_maximized())
-                .unwrap_or_default()
-        } else {
-            false
-        }
+        self.common.is_maximized()
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        match fullscreen {
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
-                });
-
-                self.window.set_fullscreen(output)
-            },
-            Some(_) => {
-                warn!("this fullscreen mode is ignored on Wayland");
-            },
-            None => self.window.unset_fullscreen(),
-        }
+        self.common.set_fullscreen(fullscreen)
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {

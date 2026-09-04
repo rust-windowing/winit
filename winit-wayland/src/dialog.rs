@@ -27,6 +27,8 @@ use crate::window::state::{WindowState, WindowType};
 
 #[derive(Debug)]
 pub struct Dialog {
+    dialog: SctkDialog,
+
     common: WindowCommon,
 }
 
@@ -183,6 +185,7 @@ impl Dialog {
         event_loop_awakener.ping();
 
         Ok(Self {
+            dialog,
             common: WindowCommon {
                 state: Arc::downgrade(&dialog_state),
                 window_id,
@@ -292,15 +295,12 @@ impl CoreWindow for Dialog {
         self.common.is_visible()
     }
 
-    fn set_resizable(&self, _resizable: bool) {
-        // TODO
-        unimplemented!()
+    fn set_resizable(&self, resizable: bool) {
+        self.common.set_resizable(resizable);
     }
 
     fn is_resizable(&self) -> bool {
-        // TODO
-        // false
-        unimplemented!()
+        self.common.is_resizable()
     }
 
     fn set_enabled_buttons(&self, _buttons: WindowButtons) {
@@ -309,34 +309,29 @@ impl CoreWindow for Dialog {
 
     fn enabled_buttons(&self) -> WindowButtons {
         // TODO(kchibisov) v5 of the xdg_shell allows that.
-        WindowButtons::all()
+        // Minimize does not make any sense
+        WindowButtons::CLOSE | WindowButtons::MAXIMIZE
     }
 
     fn set_minimized(&self, _minimized: bool) {
-        // TODO
-        unimplemented!()
+        // A dialog cannot be minimized
     }
 
     fn is_minimized(&self) -> Option<bool> {
         // XXX clients don't know whether they are minimized or not.
-        unimplemented!();
         None
     }
 
-    fn set_maximized(&self, _maximized: bool) {
-        // TODO
-        unimplemented!()
+    fn set_maximized(&self, maximized: bool) {
+        self.common.set_maximized(maximized);
     }
 
     fn is_maximized(&self) -> bool {
-        // TODO:
-        // false
-        unimplemented!()
+        self.common.is_maximized()
     }
 
-    fn set_fullscreen(&self, _fullscreen: Option<Fullscreen>) {
-        // TODO
-        unimplemented!()
+    fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        self.common.set_fullscreen(fullscreen)
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {

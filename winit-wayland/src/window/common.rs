@@ -8,7 +8,7 @@ use wayland_client::protocol::wl_display::WlDisplay;
 use winit_core::cursor::Cursor;
 use winit_core::error::RequestError;
 use winit_core::event::{Ime, WindowEvent};
-use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, WindowId, WindowLevel,
@@ -132,6 +132,21 @@ impl WindowCommon {
         None
     }
 
+    pub(crate) fn set_resizable(&self, resizable: bool) {
+        let Some(s) = self.state.upgrade() else { return };
+        if s.lock().unwrap().set_resizable(resizable) {
+            // NOTE: Requires commit to be applied.
+            self.request_redraw();
+        }
+    }
+
+    pub(crate) fn is_resizable(&self) -> bool {
+        let Some(s) = self.state.upgrade() else {
+            return false;
+        };
+        s.lock().unwrap().resizable()
+    }
+
     #[inline]
     pub(crate) fn scale_factor(&self) -> f64 {
         let Some(s) = self.state.upgrade() else { return 1.0 };
@@ -249,6 +264,24 @@ impl WindowCommon {
     ) -> Result<(), RequestError> {
         let Some(s) = self.state.upgrade() else { return Err(RequestError::Ignored) };
         s.lock().unwrap().drag_resize_window(direction)
+    }
+
+    pub(crate) fn set_maximized(&self, maximized: bool) {
+        let Some(s) = self.state.upgrade() else { return };
+        let s = s.lock().unwrap();
+        s.set_maximized(maximized);
+    }
+
+    pub(crate) fn is_maximized(&self) -> bool {
+        let Some(s) = self.state.upgrade() else { return false };
+        let s = s.lock().unwrap();
+        s.is_maximized()
+    }
+
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let Some(s) = self.state.upgrade() else { return };
+        let s = s.lock().unwrap();
+        s.set_fullscreen(fullscreen)
     }
 
     pub(crate) fn show_window_menu(&self, position: Position) {

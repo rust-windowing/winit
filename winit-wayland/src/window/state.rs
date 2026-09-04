@@ -30,9 +30,11 @@ use sctk::shm::Shm;
 use sctk::shm::slot::SlotPool;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
+use wayland_protocols::xdg::shell::client::xdg_toplevel;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::monitor::Fullscreen;
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
     WindowPositioner,
@@ -47,7 +49,7 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
-use crate::{ActiveEventLoop, logical_to_physical_rounded};
+use crate::{ActiveEventLoop, logical_to_physical_rounded, output};
 
 mod core_window;
 
@@ -304,6 +306,14 @@ impl WindowState {
             window,
             children: Default::default(),
             parent,
+        }
+    }
+
+    pub(crate) fn xdg_toplevel(&self) -> Option<&xdg_toplevel::XdgToplevel> {
+        match &self.window {
+            WindowType::Window { window, .. } => Some(window.xdg_toplevel()),
+            WindowType::Dialog { dialog, .. } => Some(dialog.xdg_toplevel()),
+            WindowType::Popup { .. } => return None,
         }
     }
 
@@ -681,38 +691,38 @@ impl WindowState {
         window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
-                    FrameAction::Minimize => window.set_minimized(),
-                    FrameAction::Maximize => window.set_maximized(),
-                    FrameAction::UnMaximize => window.unset_maximized(),
-                    FrameAction::Close => WinitState::queue_close(updates, window_id),
-                    FrameAction::Move => self.has_pending_move = Some(serial),
-                    FrameAction::Resize(edge) => {
-                        let edge = match edge {
-                            ResizeEdge::None => XdgResizeEdge::None,
-                            ResizeEdge::Top => XdgResizeEdge::Top,
-                            ResizeEdge::Bottom => XdgResizeEdge::Bottom,
-                            ResizeEdge::Left => XdgResizeEdge::Left,
-                            ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
-                            ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
-                            ResizeEdge::Right => XdgResizeEdge::Right,
-                            ResizeEdge::TopRight => XdgResizeEdge::TopRight,
-                            ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
-                            _ => return None,
-                        };
-                        window.resize(seat, serial, edge);
-                    },
-                    FrameAction::ShowMenu(x, y) => window.show_window_menu(seat, serial, (x, y)),
-                    _ => (),
-                };
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return None,
+        };
 
-                Some(false)
+        match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
+            FrameAction::Minimize => xdg_toplevel.set_minimized(),
+            FrameAction::Maximize => xdg_toplevel.set_maximized(),
+            FrameAction::UnMaximize => xdg_toplevel.unset_maximized(),
+            FrameAction::Close => WinitState::queue_close(updates, window_id),
+            FrameAction::Move => self.has_pending_move = Some(serial),
+            FrameAction::Resize(edge) => {
+                let edge = match edge {
+                    ResizeEdge::None => XdgResizeEdge::None,
+                    ResizeEdge::Top => XdgResizeEdge::Top,
+                    ResizeEdge::Bottom => XdgResizeEdge::Bottom,
+                    ResizeEdge::Left => XdgResizeEdge::Left,
+                    ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
+                    ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
+                    ResizeEdge::Right => XdgResizeEdge::Right,
+                    ResizeEdge::TopRight => XdgResizeEdge::TopRight,
+                    ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
+                    _ => return None,
+                };
+                xdg_toplevel.resize(seat, serial, edge);
             },
-            WindowType::Dialog { .. } => None,
-            WindowType::Popup { .. } => None,
-        }
+            FrameAction::ShowMenu(x, y) => xdg_toplevel.show_window_menu(seat, serial, x, y),
+            _ => (),
+        };
+
+        Some(false)
     }
 
     pub fn frame_point_left(&mut self) {
@@ -749,7 +759,24 @@ impl WindowState {
                     None
                 }
             },
-            WindowType::Dialog { .. } => None,
+            WindowType::Dialog { dialog, .. } => {
+                // Take the serial if we had any, so it doesn't stick around.
+                let serial = self.has_pending_move.take();
+
+                if let Some(frame) = self.frame.as_mut() {
+                    let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
+                    // If we have a cursor change, that means that cursor is over the decorations,
+                    // so try to apply move.
+                    if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
+                        dialog.xdg_toplevel()._move(seat, serial);
+                        None
+                    } else {
+                        cursor
+                    }
+                } else {
+                    None
+                }
+            },
             WindowType::Popup { .. } => None,
         }
     }
@@ -994,6 +1021,47 @@ impl WindowState {
             // the redraw scheduling is done on the caller side.
             let _ = self.set_blur(true);
         }
+    }
+
+    pub(crate) fn set_maximized(&self, maximized: bool) {
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return,
+        };
+
+        if maximized { xdg_toplevel.set_maximized() } else { xdg_toplevel.unset_maximized() }
+    }
+
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let Some(xdg_toplevel) = self.xdg_toplevel() else {
+            return;
+        };
+        match fullscreen {
+            Some(Fullscreen::Borderless(monitor)) => {
+                let output = monitor.as_ref().and_then(|monitor| {
+                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
+                });
+
+                xdg_toplevel.set_fullscreen(output)
+            },
+            Some(_) => {
+                warn!("this fullscreen mode is ignored on Wayland");
+            },
+            None => xdg_toplevel.unset_fullscreen(),
+        }
+    }
+
+    pub(crate) fn is_maximized(&self) -> bool {
+        let last_configure = match &self.window {
+            WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Dialog { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => return false,
+        };
+        last_configure
+            .as_ref()
+            .map(|last_configure| last_configure.is_maximized())
+            .unwrap_or_default()
     }
 
     /// Get the scale factor of the window.
@@ -1277,6 +1345,14 @@ impl WindowState {
         }
     }
 
+    fn request_decoration_mode(&self, mode: Option<DecorationMode>) {
+        match &self.window {
+            WindowType::Window { window, .. } => window.request_decoration_mode(mode),
+            WindowType::Dialog { dialog, .. } => dialog.request_decoration_mode(mode),
+            WindowType::Popup { .. } => {},
+        }
+    }
+
     /// Whether show or hide client side decorations.
     #[inline]
     pub fn set_decorate(&mut self, decorate: bool) {
@@ -1286,50 +1362,28 @@ impl WindowState {
 
         self.decorate = decorate;
 
-        match &self.window {
-            WindowType::Window { window, last_configure } => {
-                match last_configure.as_ref().map(|configure| configure.decoration_mode) {
-                    Some(DecorationMode::Server) if !self.decorate => {
-                        // To disable decorations we should request client and hide the frame.
-                        window.request_decoration_mode(Some(DecorationMode::Client))
-                    },
-                    _ if self.decorate && self.prefer_csd => {
-                        window.request_decoration_mode(Some(DecorationMode::Client))
-                    },
-                    _ if self.decorate => {
-                        window.request_decoration_mode(Some(DecorationMode::Server))
-                    },
-                    _ => (),
-                }
+        let last_configure = match &self.window {
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => return, // Popup does not have any decoration
+        };
 
-                if let Some(frame) = self.frame.as_mut() {
-                    frame.set_hidden(!decorate);
-                    // Force the resize.
-                    self.resize(self.size);
-                }
+        match last_configure.as_ref().map(|configure| configure.decoration_mode) {
+            Some(DecorationMode::Server) if !self.decorate => {
+                // To disable decorations we should request client and hide the frame.
+                self.request_decoration_mode(Some(DecorationMode::Client))
             },
-            WindowType::Dialog { dialog: _dialog, last_configure: _last_configure } => {
-                // TODO: currently not implemented for dialog on sctk
-                // match last_configure.as_ref().map(|configure| configure.decoration_mode) {
-                //     Some(DecorationMode::Server) if !self.decorate => {
-                //         // To disable decorations we should request client and hide the frame.
-                //         dialog.request_decoration_mode(Some(DecorationMode::Client))
-                //     },
-                //     _ if self.decorate && self.prefer_csd => {
-                //         dialog.request_decoration_mode(Some(DecorationMode::Client))
-                //     },
-                //     _ if self.decorate => {
-                //         dialog.request_decoration_mode(Some(DecorationMode::Server))
-                //     },
-                //     _ => (),
-                // }
-                if let Some(frame) = self.frame.as_mut() {
-                    frame.set_hidden(!decorate);
-                    // Force the resize.
-                    self.resize(self.size);
-                }
+            _ if self.decorate && self.prefer_csd => {
+                self.request_decoration_mode(Some(DecorationMode::Client))
             },
-            WindowType::Popup { .. } => (), // Popup does not have any decoration
+            _ if self.decorate => self.request_decoration_mode(Some(DecorationMode::Server)),
+            _ => (),
+        }
+
+        if let Some(frame) = self.frame.as_mut() {
+            frame.set_hidden(!decorate);
+            // Force the resize.
+            self.resize(self.size);
         }
     }
 

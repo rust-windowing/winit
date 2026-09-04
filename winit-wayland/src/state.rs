@@ -444,11 +444,12 @@ impl DialogHandler for WinitState {
     }
     fn request_close(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _: &Connection,
+        _: &QueueHandle<Self>,
         window: &sctk::shell::xdg::dialog::Dialog,
     ) {
-        unimplemented!()
+        let window_id = super::make_wid(window.wl_surface());
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 }
 
