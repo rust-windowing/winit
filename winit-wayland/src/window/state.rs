@@ -1348,7 +1348,12 @@ impl WindowState {
     fn request_decoration_mode(&self, mode: Option<DecorationMode>) {
         match &self.window {
             WindowType::Window { window, .. } => window.request_decoration_mode(mode),
-            WindowType::Dialog { dialog, .. } => dialog.request_decoration_mode(mode),
+            WindowType::Dialog { dialog: _dialog, .. } => {
+                // Enable once a new sctk release was created with the following
+                // PR included
+                // https://github.com/Smithay/client-toolkit/pull/540
+                // dialog.request_decoration_mode(mode)
+            },
             WindowType::Popup { .. } => {},
         }
     }
