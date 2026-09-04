@@ -70,6 +70,13 @@ pub enum WindowType {
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
+    /// A native modal or non-modal dialog anchored to a parent window, requiring a parent set
+    /// via [`WindowAttributes::with_parent_window`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows, macOS, X11, Web, Android, iOS, Orbital:** An error is returned because it is
+    ///   not implemented.
     Dialog,
 }
 

@@ -42,10 +42,10 @@ impl Dialog {
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
         let parent_window_handle =
-            attributes.parent_window().ok_or(error("Popup without a parent is not supported!"))?;
+            attributes.parent_window().ok_or(error("Dialog without a parent is not supported!"))?;
 
         let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
-            return Err(error("A Popup requires a parent wayland window handle"));
+            return Err(error("A Dialog requires a parent wayland window handle"));
         };
 
         let (dialog, dialog_state) = {
@@ -88,28 +88,23 @@ impl Dialog {
             let scale_factor = parent_window_state.scale_factor();
             drop(parent_window_state);
 
+            let WindowAttributesWayland { activation_token, prefer_csd, .. } = *attributes
+                .platform
+                .take()
+                .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+                .unwrap_or_default();
+
             let mut dialog_state = WindowState::new(
                 event_loop_window_target,
                 &state,
                 attributes.surface_size.ok_or(error("Invalid size for dialog"))?,
                 WindowType::Dialog { dialog: dialog.clone(), last_configure: None },
                 attributes.preferred_theme,
-                false,
+                prefer_csd,
                 scale_factor,
                 Some(parent_window_id),
             );
 
-            let WindowAttributesWayland { activation_token, .. } = *attributes
-                .platform
-                .take()
-                .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-                .unwrap_or_default();
-
-            // Activate the window when the token is passed.
-            if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token)
-            {
-                xdg_activation.activate(token.into_raw(), &surface);
-            }
             dialog.set_modal(modal);
 
             dialog_state.set_window_icon(attributes.window_icon);
@@ -135,6 +130,12 @@ impl Dialog {
 
             // Non-resizable implies that the min and max sizes are set to the same value.
             dialog_state.set_resizable(attributes.resizable);
+
+            // Activate the window when the token is passed.
+            if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token)
+            {
+                xdg_activation.activate(token.into_raw(), &surface);
+            }
 
             // Do initial commit
             dialog.commit();
@@ -163,14 +164,14 @@ impl Dialog {
         // XXX Wait for the initial configure to arrive.
         while !dialog_state.lock().unwrap().is_configured() {
             event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
-            // The compositor may dismiss a popup (e.g. invalid grab serial) by sending
-            // popup_done before configure. Detect that and bail out instead of looping forever.
+            // The compositor may dismiss a dialog by sending
+            // dialog_done before configure. Detect that and bail out instead of looping forever.
             if state
                 .window_compositor_updates
                 .iter()
                 .any(|u| u.window_id == window_id && u.close_window)
             {
-                return Err(error("Popup was dismissed by the compositor before configure"));
+                return Err(error("Dialog was dismissed by the compositor before configure"));
             }
         }
 

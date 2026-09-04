@@ -1164,37 +1164,46 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            // Ensure that the window has the right minimum size.
-            let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
-            size.width = size.width.max(MIN_WINDOW_SIZE.width);
-            size.height = size.height.max(MIN_WINDOW_SIZE.height);
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return,
+        };
 
-            // Add the borders.
-            let size = self
-                .frame
-                .as_ref()
-                .map(|frame| frame.add_borders(size.width, size.height).into())
-                .unwrap_or(size);
+        // Ensure that the window has the right minimum size.
+        let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
+        size.width = size.width.max(MIN_WINDOW_SIZE.width);
+        size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
-            self.min_surface_size = size;
-            window.set_min_size(Some(size.into()));
-        }
+        // Add the borders.
+        let size = self
+            .frame
+            .as_ref()
+            .map(|frame| frame.add_borders(size.width, size.height).into())
+            .unwrap_or(size);
+
+        self.min_surface_size = size;
+        xdg_toplevel.set_min_size(size.width as _, size.height as _);
     }
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            let size = size.map(|size| {
-                self.frame
-                    .as_ref()
-                    .map(|frame| frame.add_borders(size.width, size.height).into())
-                    .unwrap_or(size)
-            });
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return,
+        };
 
-            self.max_surface_size = size;
-            window.set_max_size(size.map(Into::into));
-        }
+        let size = size.map(|size| {
+            self.frame
+                .as_ref()
+                .map(|frame| frame.add_borders(size.width, size.height).into())
+                .unwrap_or(size)
+        });
+
+        self.max_surface_size = size;
+        let size = size.unwrap_or_default();
+        xdg_toplevel.set_max_size(size.width as _, size.height as _);
     }
 
     /// Set the CSD theme.

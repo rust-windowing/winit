@@ -43,6 +43,12 @@ impl Window {
             )));
         }
 
+        if attrs.window_type() == window::WindowType::Dialog {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Dialogs are not implemented for Orbital",
+            )));
+        }
+
         let scale = 1.;
 
         let (x, y) = if let Some(pos) = attrs.position {
