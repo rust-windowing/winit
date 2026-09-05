@@ -1594,6 +1594,12 @@ unsafe fn init(
     let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
+    if attributes.window_type == WindowType::Dialog {
+        return Err(RequestError::NotSupported(NotSupportedError::new(
+            "Dialogs are not implemented for Windows",
+        )));
+    }
+
     let is_popup = matches!(attributes.window_type, WindowType::Popup);
     // Whether this window is positioned relative to its parent via the anchor/gravity/
     // positioner system -- either because it's a `WindowType::Popup`, or because anchor

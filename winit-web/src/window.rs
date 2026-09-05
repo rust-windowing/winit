@@ -52,6 +52,12 @@ impl Window {
             )));
         }
 
+        if attr.window_type() == WindowType::Dialog {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Dialogs are not implemented for Web",
+            )));
+        }
+
         let id = target.generate_id();
 
         let window = target.runner.window();

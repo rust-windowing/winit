@@ -52,7 +52,7 @@ pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{WindowId, logical_to_physical_rounded};
+use super::WindowId;
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -384,9 +384,8 @@ impl EventLoop {
                 let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
-                    let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
-                    (size, scale_factor)
+                    let size = window.surface_size_physical();
+                    (size, window.scale_factor())
                 });
 
                 // Stash the old window size.
@@ -426,8 +425,7 @@ impl EventLoop {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
-                    let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
+                    let size = window.surface_size_physical();
 
                     // Mark the window as needed a redraw.
                     state
@@ -754,6 +752,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
             WindowType::Popup => {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
+            },
+            WindowType::Dialog => {
+                let dialog = crate::dialog::Dialog::new(self, window_attributes)?;
+                Ok(Box::new(dialog))
             },
             _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
         }

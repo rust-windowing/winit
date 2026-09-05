@@ -70,6 +70,14 @@ pub enum WindowType {
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
+    /// A native modal or non-modal dialog anchored to a parent window, requiring a parent set
+    /// via [`WindowAttributes::with_parent_window`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows, macOS, X11, Web, Android, iOS, Orbital:** An error is returned because it is
+    ///   not implemented.
+    Dialog,
 }
 
 /// The positioner state backing a window's anchor-based placement.
@@ -178,6 +186,7 @@ pub struct WindowAttributes {
     pub window_type: WindowType,
     /// See [`WindowAttributes::with_positioner`].
     pub positioner: Option<WindowPositioner>,
+    pub modal: Option<bool>,
 }
 
 impl WindowAttributes {
@@ -532,6 +541,12 @@ impl WindowAttributes {
         self.positioner = Some(positioner);
         self
     }
+
+    #[inline]
+    pub fn with_modal(mut self, modal: bool) -> Self {
+        self.modal = Some(modal);
+        self
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -561,6 +576,7 @@ impl Clone for WindowAttributes {
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
             window_type: self.window_type,
             positioner: self.positioner,
+            modal: self.modal,
         }
     }
 }
@@ -593,6 +609,7 @@ impl Default for WindowAttributes {
             blur: Default::default(),
             window_type: Default::default(),
             positioner: Default::default(),
+            modal: Default::default(),
         }
     }
 }
