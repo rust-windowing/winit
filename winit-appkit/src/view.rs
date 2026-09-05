@@ -663,6 +663,10 @@ define_class!(
         fn mouse_entered(&self, event: &NSEvent) {
             let _entered = debug_span!("mouseEntered:").entered();
 
+            if self.window().inLiveResize() {
+                return;
+            }
+
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
             self.queue_event(WindowEvent::PointerEntered {
@@ -1207,7 +1211,46 @@ impl WinitView {
         });
     }
 
+    /// Restores client cursor input after AppKit releases a native resize gesture.
+    ///
+    /// Samples the current pointer independently of the event stream, since the last NSEvent
+    /// can still contain the resize-start position. An outside pointer stays absent; an inside
+    /// pointer emits entry followed by its position in backing pixels, without requiring motion.
+    pub(super) fn restore_cursor_after_live_resize(&self) {
+        let window_point = self.window().mouseLocationOutsideOfEventStream();
+        let view_point = self.convertPoint_fromView(window_point, None);
+        let bounds = self.bounds();
+        if view_point.x < bounds.origin.x
+            || view_point.y < bounds.origin.y
+            || view_point.x >= bounds.origin.x + bounds.size.width
+            || view_point.y >= bounds.origin.y + bounds.size.height
+        {
+            return;
+        }
+
+        let position =
+            LogicalPosition::new(view_point.x, view_point.y).to_physical(self.scale_factor());
+        self.queue_event(WindowEvent::PointerEntered {
+            device_id: None,
+            primary: true,
+            position,
+            kind: PointerKind::Mouse,
+        });
+        self.queue_event(WindowEvent::PointerMoved {
+            device_id: None,
+            primary: true,
+            position,
+            source: PointerSource::Mouse,
+        });
+    }
+
     fn mouse_motion(&self, event: &NSEvent) {
+        // Tracking areas are updated during resize. Any incidental view events must not
+        // restore client hover while AppKit still owns the pointer gesture.
+        if self.window().inLiveResize() {
+            return;
+        }
+
         let view_point = self.mouse_view_point(event);
         let frame = self.frame();
 
