@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, clear stale pointer hover during native window resizing and restore
+  the current pointer position when resizing ends.

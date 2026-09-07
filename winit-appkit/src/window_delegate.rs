@@ -53,7 +53,7 @@ use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
 use winit_core::data_transfer::DataTransferId;
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::event::{SurfaceSizeWriter, WindowEvent};
+use winit_core::event::{PointerKind, SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
@@ -181,6 +181,17 @@ define_class!(
         fn window_will_start_live_resize(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowWillStartLiveResize:").entered();
 
+            // AppKit owns the pointer during native edge/corner resizing and may not deliver
+            // mouseExited: or mouseMoved: to the content view. Clear the last client position
+            // before resize redraws can hit-test new content beneath that stale position.
+            self.queue_event(WindowEvent::PointerLeft {
+                device_id: None,
+                primary: true,
+                position: None,
+                kind: PointerKind::Mouse,
+            });
+            self.request_redraw();
+
             let increments = self.ivars().surface_resize_increments.get();
             self.set_resize_increments_inner(increments);
         }
@@ -189,6 +200,8 @@ define_class!(
         fn window_did_end_live_resize(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidEndLiveResize:").entered();
             self.set_resize_increments_inner(NSSize::new(1., 1.));
+            self.view().restore_cursor_after_live_resize();
+            self.request_redraw();
         }
 
         // This won't be triggered if the move was part of a resize.

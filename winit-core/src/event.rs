@@ -279,6 +279,13 @@ pub enum WindowEvent {
     /// The pointer has left the window.
     ///
     /// Should be emitted regardless of window focus.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Also emitted when AppKit takes ownership of the mouse for native window
+    ///   resizing. Mouse pointer entry and motion are suspended until resizing ends, when
+    ///   [`WindowEvent::PointerEntered`] and [`WindowEvent::PointerMoved`] are emitted if the
+    ///   pointer is inside the window.
     PointerLeft {
         device_id: Option<DeviceId>,
 
@@ -288,6 +295,7 @@ pub enum WindowEvent {
         /// ## Platform-specific
         ///
         /// - **Orbital/Windows:** Always emits [`None`].
+        /// - **macOS:** Emits [`None`] when native window resizing starts.
         /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
         ///
         /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
