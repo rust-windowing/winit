@@ -1058,7 +1058,7 @@ impl From<ModifiersState> for Modifiers {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_enums)]
 pub enum Ime {
     /// Notifies when the IME was enabled.
     ///
