@@ -18,8 +18,8 @@ winit-android = { version = "=0.31.0-beta.3", path = "winit-android" }
 winit-appkit = { version = "=0.31.0-beta.3", path = "winit-appkit" }
 winit-common = { version = "=0.31.0-beta.3", path = "winit-common" }
 winit-core = { version = "=0.31.0-beta.3", path = "winit-core" }
-winit-orbital = { version = "=0.31.0-beta.3", path = "winit-orbital" }
 winit-ohos = { version = "=0.31.0-beta.3", default-features = false }
+winit-orbital = { version = "=0.31.0-beta.3", path = "winit-orbital" }
 winit-uikit = { version = "=0.31.0-beta.3", path = "winit-uikit" }
 winit-wayland = { version = "=0.31.0-beta.3", path = "winit-wayland", default-features = false }
 winit-web = { version = "=0.31.0-beta.3", path = "winit-web" }
