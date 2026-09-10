@@ -37,7 +37,7 @@ use winit_core::icon::RgbaIcon;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
-use crate::dnd::{DataFetch, dnd_action_winit_to_wl};
+use crate::data_transfer::{DataFetch, dnd_action_winit_to_wl};
 use crate::types::cursor::WaylandCustomCursor;
 use crate::{DragSource, MimeType, image_to_buffer, make_data_transfer_id};
 
@@ -480,7 +480,7 @@ impl EventLoop {
         }
 
         // Data transfer per iteration bookkeeping
-        self.with_state(|state| state.dnd_state.settle_drops());
+        self.with_state(|state| state.data_transfer_state.settle_drops());
 
         // Collect the window ids
         self.with_state(|state| {
@@ -791,7 +791,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
         let mut state = self.state.borrow_mut();
-        let Some(session) = state.dnd_state.session_mut(id) else {
+        let Some(session) = state.data_transfer_state.session_mut(id) else {
             return Err(RequestError::Ignored);
         };
 
@@ -822,7 +822,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             .map_err(|err| os_error!(io::Error::other(err.to_string())))?;
 
         state
-            .dnd_state
+            .data_transfer_state
             .session_mut(id)
             .expect("the session can't change while the state is borrowed")
             .start_fetch(mime_type_str, writefd, async_request_serial);
@@ -832,7 +832,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
         let state = self.state.borrow();
-        let Some(session) = state.dnd_state.session(id) else {
+        let Some(session) = state.data_transfer_state.session(id) else {
             return Err(RequestError::Ignored);
         };
 
@@ -845,7 +845,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
         let mut state = self.state.borrow_mut();
-        let Some(session) = state.dnd_state.session_mut(id) else {
+        let Some(session) = state.data_transfer_state.session_mut(id) else {
             return Err(os_error!(UnknownDataTransfer(id)).into());
         };
 
@@ -951,7 +951,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             surface.commit();
         }
 
-        state.dnd_state.set_send_drag(DragSource::new(
+        state.data_transfer_state.set_send_drag(DragSource::new(
             transfer_id,
             data_source,
             send_data,
