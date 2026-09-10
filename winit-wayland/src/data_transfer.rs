@@ -67,7 +67,7 @@ impl DataSourceHandler for WinitState {
         mime: String,
         fd: WritePipe,
     ) {
-        let Some(data) = self.dnd_state.send_drag_data_mut() else {
+        let Some(data) = self.data_transfer_state.send_drag_data_mut() else {
             // TODO: Is there a way to explicitly express that the data was not sent?
             return;
         };
@@ -118,7 +118,7 @@ impl DataSourceHandler for WinitState {
     }
 
     fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {
-        let Some(current_drag) = self.dnd_state.send_drag() else {
+        let Some(current_drag) = self.data_transfer_state.send_drag() else {
             return;
         };
 
@@ -129,7 +129,7 @@ impl DataSourceHandler for WinitState {
     }
 
     fn dnd_dropped(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {
-        let Some(current_drag) = self.dnd_state.send_drag() else {
+        let Some(current_drag) = self.data_transfer_state.send_drag() else {
             return;
         };
 
@@ -152,7 +152,7 @@ impl DataSourceHandler for WinitState {
         _: &QueueHandle<Self>,
         _: &wayland_client::protocol::wl_data_source::WlDataSource,
     ) {
-        self.dnd_state.clear_send_drag();
+        self.data_transfer_state.clear_send_drag();
     }
 
     fn action(
@@ -162,7 +162,7 @@ impl DataSourceHandler for WinitState {
         _: &WlDataSource,
         action: WlDndAction,
     ) {
-        self.dnd_state.set_target_drag_action(action);
+        self.data_transfer_state.set_target_drag_action(action);
     }
 }
 
@@ -583,7 +583,7 @@ impl DataFetch {
 
         state.dispatched_events = true;
 
-        if let Some(session) = state.dnd_state.session_mut(self.id) {
+        if let Some(session) = state.data_transfer_state.session_mut(self.id) {
             session.fetch_completed(self.serial);
         }
 
@@ -695,12 +695,12 @@ impl DragSession {
 }
 
 #[derive(Debug, Default)]
-pub struct DndState {
+pub struct DataTransferState {
     sessions: HashMap<ObjectId, DragSession>,
     send_drag: Option<DragSource>,
 }
 
-impl DndState {
+impl DataTransferState {
     pub(crate) fn session(&self, id: DataTransferId) -> Option<&DragSession> {
         self.sessions.values().find(|session| session.view.transfer_id() == id)
     }
@@ -762,7 +762,7 @@ impl DataOfferHandler for WinitState {
         actions: WlDndAction,
     ) {
         if let Some(session) = self
-            .dnd_state
+            .data_transfer_state
             .sessions
             .values_mut()
             .find(|session| session.offer.data == *offer.inner())
@@ -779,7 +779,7 @@ impl DataOfferHandler for WinitState {
         actions: WlDndAction,
     ) {
         if let Some(session) = self
-            .dnd_state
+            .data_transfer_state
             .sessions
             .values_mut()
             .find(|session| session.offer.data == *offer.inner())
@@ -827,7 +827,7 @@ impl DataDeviceHandler for WinitState {
         let mut session = DragSession::new(offer, view, drag.source_actions);
         session.set_actions(&[]);
 
-        if let Some(old) = self.dnd_state.sessions.insert(device, session) {
+        if let Some(old) = self.data_transfer_state.sessions.insert(device, session) {
             old.abort();
         }
 
@@ -850,7 +850,7 @@ impl DataDeviceHandler for WinitState {
             return;
         };
 
-        if let Entry::Occupied(entry) = self.dnd_state.sessions.entry(data_device.id()) {
+        if let Entry::Occupied(entry) = self.data_transfer_state.sessions.entry(data_device.id()) {
             if entry.get().phase == Phase::Hovering {
                 let session = entry.remove();
 
@@ -876,7 +876,7 @@ impl DataDeviceHandler for WinitState {
         x: f64,
         y: f64,
     ) {
-        let Some(session) = self.dnd_state.sessions.get(&data_device.id()) else {
+        let Some(session) = self.data_transfer_state.sessions.get(&data_device.id()) else {
             // Selections (copy/paste) are not yet implemented
             return;
         };
@@ -909,7 +909,7 @@ impl DataDeviceHandler for WinitState {
         _: &QueueHandle<Self>,
         data_device: &WlDataDevice,
     ) {
-        let Some(session) = self.dnd_state.sessions.get_mut(&data_device.id()) else {
+        let Some(session) = self.data_transfer_state.sessions.get_mut(&data_device.id()) else {
             // Selections (copy/paste) are not yet implemented
             return;
         };
