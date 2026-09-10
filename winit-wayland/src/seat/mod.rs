@@ -66,7 +66,7 @@ pub struct WinitSeatState {
     /// The hold pointer gesture bound on the seat.
     pointer_gesture_hold: Option<ZwpPointerGestureHoldV1>,
 
-    /// The drag-and-drop state
+    /// The drag-and-drop and clipboard state
     data_device: Option<DataDevice>,
 
     /// The keyboard bound on the seat.
