@@ -1,7 +1,7 @@
 //! The event-loop routines.
 
 use std::cell::{Cell, RefCell};
-use std::io::{self, Read, Result as IOResult};
+use std::io::{self, Result as IOResult};
 use std::ops::BitOr;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
@@ -11,12 +11,11 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use std::{fmt, mem};
 
-use calloop::PostAction;
 use calloop::ping::Ping;
 use dpi::LogicalSize;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
-use sctk::data_device_manager::{ReadPipe, data_offer};
+use sctk::data_device_manager::ReadPipe;
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{Connection, QueueHandle, globals};
 use sctk::shell::WaylandSurface;
@@ -38,7 +37,7 @@ use winit_core::icon::RgbaIcon;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
-use crate::dnd::{MimeData, dnd_action_winit_to_wl};
+use crate::dnd::{DataFetch, dnd_action_winit_to_wl};
 use crate::types::cursor::WaylandCustomCursor;
 use crate::{DragSource, MimeType, image_to_buffer, make_data_transfer_id};
 
@@ -480,6 +479,9 @@ impl EventLoop {
             }
         }
 
+        // Data transfer per iteration bookkeeping
+        self.with_state(|state| state.dnd_state.settle_drops());
+
         // Collect the window ids
         self.with_state(|state| {
             window_ids.extend(state.window_requests.get_mut().keys());
@@ -788,20 +790,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
-        let state = self.state.borrow_mut();
-        let Some(current_drag) = state.dnd_state.receive_drag() else {
+        let mut state = self.state.borrow_mut();
+        let Some(session) = state.dnd_state.session_mut(id) else {
             return Err(RequestError::Ignored);
         };
 
-        if current_drag.transfer_id() != id {
-            return Err(RequestError::Ignored);
-        }
-
-        let Some(mime_type) = current_drag.find_type_dyn(type_) else {
+        let Some(mime_type) = session.view.find_type_dyn(type_) else {
             return Err(RequestError::Ignored);
         };
 
+        let mime_type = mime_type.clone();
         let mime_type_str = mime_type.to_string();
+        let window_id = session.view.window_id();
 
         // create a pipe
         let (readfd, writefd) =
@@ -809,58 +809,34 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
         let async_request_serial = AsyncRequestSerial::get();
 
-        let mut buffer = Vec::new();
-        let window_id = current_drag.window_id();
-        let mut mime_type = Some(mime_type.clone());
+        let mut fetch = DataFetch::new(id, async_request_serial, mime_type, window_id);
 
-        let _ = state.loop_handle.insert_source(ReadPipe::from(readfd), move |_, file, state| {
-            // SAFETY: We do not overwrite the referent of `file`
-            let file = unsafe { file.get_mut() };
+        state
+            .loop_handle
+            .insert_source(ReadPipe::from(readfd), move |_, file, state| {
+                // SAFETY: We do not overwrite the referent of `file`
+                let file = unsafe { file.get_mut() };
 
-            let result = match file.read_to_end(&mut buffer) {
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    return PostAction::Continue;
-                },
-                Ok(0) => Ok(mem::take(&mut buffer)),
-                Ok(_) => {
-                    return PostAction::Continue;
-                },
-                Err(e) => Err(Arc::new(e)),
-            };
+                fetch.read(file, state)
+            })
+            .map_err(|err| os_error!(io::Error::other(err.to_string())))?;
 
-            state.events_sink.push_window_event(
-                WindowEvent::DataTransferReceived {
-                    id,
-                    serial: async_request_serial,
-                    // `unwrap` is safe here, as we always return `PostAction::Remove` in this
-                    // branch.
-                    value: Arc::new(MimeData::new(mime_type.take().unwrap(), result)),
-                },
-                window_id,
-            );
-
-            state.dispatched_events = true;
-
-            PostAction::Remove
-        });
-
-        current_drag.accept(current_drag.serial(), Some(mime_type_str.clone()));
-        data_offer::receive_to_fd(current_drag, mime_type_str, writefd);
+        state
+            .dnd_state
+            .session_mut(id)
+            .expect("the session can't change while the state is borrowed")
+            .start_fetch(mime_type_str, writefd, async_request_serial);
 
         Ok(async_request_serial)
     }
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
         let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
+        let Some(session) = state.dnd_state.session(id) else {
             return Err(RequestError::Ignored);
         };
 
-        if state.transfer_id() != id {
-            return Err(RequestError::Ignored);
-        }
-
-        Ok(Box::new(state.clone()))
+        Ok(Box::new(session.view.clone()))
     }
 
     fn set_valid_dnd_actions(
@@ -868,24 +844,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
-        let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
+        let mut state = self.state.borrow_mut();
+        let Some(session) = state.dnd_state.session_mut(id) else {
             return Err(os_error!(UnknownDataTransfer(id)).into());
         };
 
-        if state.transfer_id() != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        }
-
-        let any_actions = state.set_actions(actions);
-        let accepted_type =
-            if any_actions { state.first_mime_type().map(|mime| mime.to_string()) } else { None };
-        // Some compositors won't even send the "dropped" event if no type
-        // has been accepted, so we need to accept _something_ here. The
-        // application can accept further types by fetching the data, but
-        // this will at least mean that waiting until the drop to start
-        // fetching data won't prevent the drop from working at all.
-        state.accept(state.serial(), accepted_type);
+        session.set_actions(actions);
 
         Ok(())
     }

@@ -1,16 +1,19 @@
 //! Types related to drag-and-drop and data transfer on Wayland.
 
+use std::collections::hash_map::Entry;
 use std::ffi::OsStr;
-use std::fmt;
 use std::io::{self, BufRead, Cursor, ErrorKind, Write};
 use std::ops::{BitOr, Deref};
+use std::os::fd::OwnedFd;
 use std::sync::Arc;
+use std::{fmt, mem};
 
 use calloop::PostAction;
 use dpi::{LogicalPosition, PhysicalPosition};
+use foldhash::{HashMap, HashSet};
 use sctk::data_device_manager::WritePipe;
 use sctk::data_device_manager::data_device::{DataDeviceData, DataDeviceHandler};
-use sctk::data_device_manager::data_offer::{DataOfferHandler, DragOffer};
+use sctk::data_device_manager::data_offer::{DataOfferHandler, DragOffer, receive_to_fd};
 use sctk::data_device_manager::data_source::{DataSourceHandler, DragSource as SctkDragSource};
 use sctk::reexports::client::backend::ObjectId;
 use wayland_client::protocol::wl_data_device::WlDataDevice;
@@ -23,7 +26,7 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
 use winit_core::event::WindowEvent;
-use winit_core::event_loop::DndAction;
+use winit_core::event_loop::{AsyncRequestSerial, DndAction};
 use winit_core::window::WindowId;
 
 use crate::make_data_transfer_id;
@@ -420,15 +423,26 @@ impl TypedData for MimeData {
     }
 }
 
-/// A wrapper around `WlDataOffer`, implementing `DataTransfer`.
+/// A snapshot of a data transfer offered by the compositor, implementing [`DataTransfer`].
 #[derive(Debug, Clone)]
 pub struct DataOffer {
     mime_types: Arc<[MimeType]>,
-    data: WlDataOffer,
-    available_actions: WlDndAction,
-    data_device_id: ObjectId,
-    serial: u32,
+    transfer_id: DataTransferId,
     window_id: WindowId,
+}
+
+#[derive(Debug)]
+struct OfferHandle {
+    data: WlDataOffer,
+    serial: u32,
+}
+
+impl Deref for OfferHandle {
+    type Target = WlDataOffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
 }
 
 pub(crate) fn dnd_action_winit_to_wl(winit: DndAction) -> WlDndAction {
@@ -451,38 +465,15 @@ pub(crate) fn dnd_action_wl_to_winit(wl: WlDndAction) -> Option<DndAction> {
 
 impl DataOffer {
     pub(crate) fn transfer_id(&self) -> DataTransferId {
-        make_data_transfer_id(self.data_device_id.clone(), self.serial)
+        self.transfer_id
     }
 
     pub(crate) fn first_mime_type(&self) -> Option<&MimeType> {
         self.mime_types.first()
     }
 
-    pub(crate) fn serial(&self) -> u32 {
-        self.serial
-    }
-
     pub(crate) fn window_id(&self) -> WindowId {
         self.window_id
-    }
-
-    pub(crate) fn set_actions(&self, action_set: &[DndAction]) -> bool {
-        let preferred_action = action_set.iter().find_map(|winit| {
-            let wl = dnd_action_winit_to_wl(*winit);
-            self.available_actions.intersects(wl).then_some(wl)
-        });
-
-        let any = preferred_action.is_some();
-
-        let all_actions = action_set
-            .iter()
-            .copied()
-            .map(dnd_action_winit_to_wl)
-            .fold(WlDndAction::empty(), BitOr::bitor);
-
-        self.data.set_actions(all_actions, preferred_action.unwrap_or(WlDndAction::empty()));
-
-        any
     }
 
     pub(crate) fn find_type_dyn<'a>(&'a self, type_: &'a dyn TransferType) -> Option<&'a MimeType> {
@@ -495,14 +486,6 @@ impl DataOffer {
                 })
             },
         }
-    }
-}
-
-impl Deref for DataOffer {
-    type Target = WlDataOffer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
     }
 }
 
@@ -557,16 +540,192 @@ impl DragSource {
     }
 }
 
-/// The current state of an in-progress drag-and-drop operation.
+#[derive(Debug)]
+pub(crate) struct DataFetch {
+    id: DataTransferId,
+    serial: AsyncRequestSerial,
+    window_id: WindowId,
+    mime_type: Option<MimeType>,
+    buffer: Vec<u8>,
+}
+
+impl DataFetch {
+    pub(crate) fn new(
+        id: DataTransferId,
+        serial: AsyncRequestSerial,
+        mime_type: MimeType,
+        window_id: WindowId,
+    ) -> Self {
+        Self { id, serial, window_id, mime_type: Some(mime_type), buffer: Vec::new() }
+    }
+
+    pub(crate) fn read(&mut self, file: &mut impl io::Read, state: &mut WinitState) -> PostAction {
+        let result = match file.read_to_end(&mut self.buffer) {
+            Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                return PostAction::Continue;
+            },
+            Ok(0) => Ok(mem::take(&mut self.buffer)),
+            Ok(_) => {
+                return PostAction::Continue;
+            },
+            Err(e) => Err(Arc::new(e)),
+        };
+
+        state.events_sink.push_window_event(
+            WindowEvent::DataTransferReceived {
+                id: self.id,
+                serial: self.serial,
+                // `unwrap` is safe here, as completion happens exactly once.
+                value: Arc::new(MimeData::new(self.mime_type.take().unwrap(), result)),
+            },
+            self.window_id,
+        );
+
+        state.dispatched_events = true;
+
+        if let Some(session) = state.dnd_state.session_mut(self.id) {
+            session.fetch_completed(self.serial);
+        }
+
+        PostAction::Remove
+    }
+}
+
+#[derive(Debug)]
+pub struct DragSession {
+    offer: OfferHandle,
+    pub(crate) view: DataOffer,
+    source_actions: WlDndAction,
+    selected_action: WlDndAction,
+    accepted: bool,
+    fetches: HashSet<AsyncRequestSerial>,
+    phase: Phase,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Phase {
+    Hovering,
+    Dropped,
+    Concluding,
+}
+
+impl DragSession {
+    fn new(offer: OfferHandle, view: DataOffer, source_actions: WlDndAction) -> Self {
+        Self {
+            offer,
+            view,
+            source_actions,
+            selected_action: WlDndAction::empty(),
+            accepted: false,
+            fetches: HashSet::default(),
+            phase: Phase::Hovering,
+        }
+    }
+
+    pub(crate) fn proposed_action(&self) -> Option<DndAction> {
+        // `selected_action` should only contain a single flag, but we check with `contains`
+        // just in case we or the compositor misunderstood the spec.
+        if self.selected_action.contains(WlDndAction::Move) {
+            Some(DndAction::Move)
+        } else if self.selected_action.contains(WlDndAction::Copy) {
+            Some(DndAction::Copy)
+        } else if self.selected_action.contains(WlDndAction::Ask) {
+            Some(DndAction::Ask)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn set_actions(&mut self, action_set: &[DndAction]) {
+        let preferred_action = action_set.iter().find_map(|winit| {
+            let wl = dnd_action_winit_to_wl(*winit);
+            self.source_actions.intersects(wl).then_some(wl)
+        });
+
+        let all_actions = action_set
+            .iter()
+            .copied()
+            .map(dnd_action_winit_to_wl)
+            .fold(WlDndAction::empty(), BitOr::bitor);
+
+        self.offer.set_actions(all_actions, preferred_action.unwrap_or(WlDndAction::empty()));
+
+        // Some compositors won't even send the "dropped" event if no type
+        // has been accepted, so we need to accept _something_ here. The
+        // application can accept further types by fetching the data, but
+        // this will at least mean that waiting until the drop to start
+        // fetching data won't prevent the drop from working at all.
+        let accepted_type =
+            preferred_action.and(self.view.first_mime_type()).map(|mime| mime.to_string());
+        self.accepted = accepted_type.is_some();
+        self.offer.accept(self.offer.serial, accepted_type);
+    }
+
+    pub(crate) fn start_fetch(
+        &mut self,
+        mime_type: String,
+        writefd: OwnedFd,
+        serial: AsyncRequestSerial,
+    ) {
+        self.accepted = true;
+        self.offer.accept(self.offer.serial, Some(mime_type.clone()));
+        receive_to_fd(&self.offer, mime_type, writefd);
+        self.fetches.insert(serial);
+    }
+
+    pub(crate) fn fetch_completed(&mut self, serial: AsyncRequestSerial) {
+        let removed = self.fetches.remove(&serial);
+        debug_assert!(removed, "fetch completed without a matching start_fetch");
+    }
+
+    fn ready_to_conclude(&self) -> bool {
+        self.phase == Phase::Concluding && self.fetches.is_empty()
+    }
+
+    fn conclude(self) {
+        if self.accepted && !self.selected_action.is_empty() && self.offer.version() >= 3 {
+            self.offer.finish();
+        }
+        self.offer.destroy();
+    }
+
+    fn abort(self) {
+        self.offer.destroy();
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct DndState {
-    receive_drag: Option<DataOffer>,
+    sessions: HashMap<ObjectId, DragSession>,
     send_drag: Option<DragSource>,
 }
 
 impl DndState {
-    pub(crate) fn receive_drag(&self) -> Option<&DataOffer> {
-        self.receive_drag.as_ref()
+    pub(crate) fn session(&self, id: DataTransferId) -> Option<&DragSession> {
+        self.sessions.values().find(|session| session.view.transfer_id() == id)
+    }
+
+    pub(crate) fn session_mut(&mut self, id: DataTransferId) -> Option<&mut DragSession> {
+        self.sessions.values_mut().find(|session| session.view.transfer_id() == id)
+    }
+
+    pub(crate) fn settle_drops(&mut self) {
+        for session in self.sessions.values_mut() {
+            if session.phase == Phase::Dropped {
+                session.phase = Phase::Concluding;
+            }
+        }
+
+        let concluded: Vec<ObjectId> = self
+            .sessions
+            .iter()
+            .filter(|(_, session)| session.ready_to_conclude())
+            .map(|(device, _)| device.clone())
+            .collect();
+
+        for device in concluded {
+            self.sessions.remove(&device).unwrap().conclude();
+        }
     }
 
     pub(crate) fn set_send_drag(&mut self, source: DragSource) {
@@ -597,29 +756,36 @@ impl DndState {
 impl DataOfferHandler for WinitState {
     fn source_actions(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _: &Connection,
+        _: &QueueHandle<Self>,
         offer: &mut DragOffer,
         actions: WlDndAction,
     ) {
-        let _ = actions;
-        let _ = offer;
-        let _ = qh;
-        let _ = conn;
-        // Not implemented, but required for `DataDeviceHandler`.
+        if let Some(session) = self
+            .dnd_state
+            .sessions
+            .values_mut()
+            .find(|session| session.offer.data == *offer.inner())
+        {
+            session.source_actions = actions;
+        }
     }
 
     fn selected_action(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _: &Connection,
+        _: &QueueHandle<Self>,
         offer: &mut DragOffer,
         actions: WlDndAction,
     ) {
-        let _ = actions;
-        let _ = offer;
-        let _ = qh;
-        let _ = conn;
+        if let Some(session) = self
+            .dnd_state
+            .sessions
+            .values_mut()
+            .find(|session| session.offer.data == *offer.inner())
+        {
+            session.selected_action = actions;
+        }
     }
 }
 
@@ -642,26 +808,28 @@ impl DataDeviceHandler for WinitState {
             return;
         };
 
+        let device = data_device.id();
         let window_id = crate::make_wid(wl_surface);
 
-        let current_drag = drag.with_mime_types(|types| DataOffer {
+        let view = drag.with_mime_types(|types| DataOffer {
             mime_types: types
                 .iter()
                 .map(|str| MimeType::parse(str.clone()))
                 .collect::<Vec<_>>()
                 .into(),
-            available_actions: drag.source_actions,
-            serial: drag.serial,
-            data_device_id: data_device.id(),
-            data: drag.inner().clone(),
+            transfer_id: make_data_transfer_id(device.clone(), drag.serial),
             window_id,
         });
+        let offer = OfferHandle { data: drag.inner().clone(), serial: drag.serial };
 
-        current_drag.set_actions(&[]);
+        let id = view.transfer_id();
 
-        let id = current_drag.transfer_id();
+        let mut session = DragSession::new(offer, view, drag.source_actions);
+        session.set_actions(&[]);
 
-        self.dnd_state.receive_drag = Some(current_drag);
+        if let Some(old) = self.dnd_state.sessions.insert(device, session) {
+            old.abort();
+        }
 
         let scale_factor = self
             .windows
@@ -682,20 +850,19 @@ impl DataDeviceHandler for WinitState {
             return;
         };
 
-        if let Some(current_drag) = self.dnd_state.receive_drag() {
-            self.events_sink.push_window_event(
-                WindowEvent::DragLeft { id: current_drag.transfer_id() },
-                current_drag.window_id(),
-            );
+        if let Entry::Occupied(entry) = self.dnd_state.sessions.entry(data_device.id()) {
+            if entry.get().phase == Phase::Hovering {
+                let session = entry.remove();
 
-            if let Some(receive_drag) = self.dnd_state.receive_drag.take() {
-                receive_drag.finish();
+                self.events_sink.push_window_event(
+                    WindowEvent::DragLeft { id: session.view.transfer_id() },
+                    session.view.window_id(),
+                );
+
+                session.abort();
             }
         }
 
-        if let Some(drag) = data.drag_offer() {
-            drag.destroy();
-        }
         if let Some(selection) = data.selection_offer() {
             selection.destroy();
         }
@@ -709,31 +876,14 @@ impl DataDeviceHandler for WinitState {
         x: f64,
         y: f64,
     ) {
-        let Some(data) = data_device.data::<DataDeviceData>() else {
-            return;
-        };
-        let Some(drag) = data.drag_offer() else {
+        let Some(session) = self.dnd_state.sessions.get(&data_device.id()) else {
             // Selections (copy/paste) are not yet implemented
             return;
         };
 
-        // `selected_action` should only contain a single flag, but we check with `contains`
-        // just in case we or the compositor misunderstood the spec.
-        let proposed_action = if drag.selected_action.contains(WlDndAction::Move) {
-            Some(DndAction::Move)
-        } else if drag.selected_action.contains(WlDndAction::Copy) {
-            Some(DndAction::Copy)
-        } else if drag.selected_action.contains(WlDndAction::Ask) {
-            Some(DndAction::Ask)
-        } else {
-            None
-        };
-
-        let Some(current_drag) = self.dnd_state.receive_drag() else {
-            return;
-        };
-
-        let window_id = crate::make_wid(&drag.surface);
+        let id = session.view.transfer_id();
+        let window_id = session.view.window_id();
+        let proposed_action = session.proposed_action();
 
         let scale_factor = self
             .windows
@@ -744,7 +894,7 @@ impl DataDeviceHandler for WinitState {
         let position: PhysicalPosition<f64> = LogicalPosition::new(x, y).to_physical(scale_factor);
 
         self.events_sink.push_window_event(
-            WindowEvent::DragPosition { id: current_drag.transfer_id(), position, proposed_action },
+            WindowEvent::DragPosition { id, position, proposed_action },
             window_id,
         );
     }
@@ -759,46 +909,19 @@ impl DataDeviceHandler for WinitState {
         _: &QueueHandle<Self>,
         data_device: &WlDataDevice,
     ) {
-        let Some(data) = data_device.data::<DataDeviceData>() else {
-            return;
-        };
-        let Some(drag) = data.drag_offer() else {
+        let Some(session) = self.dnd_state.sessions.get_mut(&data_device.id()) else {
             // Selections (copy/paste) are not yet implemented
             return;
         };
 
-        let Some(current_drag) = self.dnd_state.receive_drag() else {
-            return;
-        };
-
-        let window_id = crate::make_wid(&drag.surface);
-
-        // `selected_action` should only contain a single flag, but we check with `contains`
-        // just in case we or the compositor misunderstood the spec.
-        let proposed_action = if drag.selected_action.contains(WlDndAction::Move) {
-            Some(DndAction::Move)
-        } else if drag.selected_action.contains(WlDndAction::Copy) {
-            Some(DndAction::Copy)
-        } else if drag.selected_action.contains(WlDndAction::Ask) {
-            Some(DndAction::Ask)
-        } else {
-            None
-        };
+        session.phase = Phase::Dropped;
 
         self.events_sink.push_window_event(
-            WindowEvent::DragDropped { id: current_drag.transfer_id(), proposed_action },
-            window_id,
+            WindowEvent::DragDropped {
+                id: session.view.transfer_id(),
+                proposed_action: session.proposed_action(),
+            },
+            session.view.window_id(),
         );
-
-        if let Some(receive_drag) = self.dnd_state.receive_drag.take() {
-            receive_drag.finish();
-        }
-
-        if let Some(drag) = data.drag_offer() {
-            drag.destroy();
-        }
-        if let Some(selection) = data.selection_offer() {
-            selection.destroy();
-        }
     }
 }
