@@ -20,6 +20,25 @@ mod fill;
 #[path = "util/tracing.rs"]
 mod tracing;
 
+// `url`'s `from_file_path`/`to_file_path` only exist on targets with local filesystem paths.
+#[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
+fn file_path_to_uri(path: &std::path::Path) -> Option<String> {
+    Some(url::Url::from_file_path(path).ok()?.to_string())
+}
+#[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
+fn file_path_to_uri(_path: &std::path::Path) -> Option<String> {
+    None
+}
+
+#[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
+fn uri_to_file_path(uri: &str) -> Option<std::path::PathBuf> {
+    url::Url::parse(uri).ok()?.to_file_path().ok()
+}
+#[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
+fn uri_to_file_path(_uri: &str) -> Option<std::path::PathBuf> {
+    None
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
 
@@ -104,7 +123,8 @@ impl ApplicationHandler for Application {
                             let this_file = root.join(file!());
                             let icon_file = this_file.parent().unwrap().join("data/icon.png");
 
-                            SendData::from_file_paths([icon_file])
+                            // `SendData::Uris` takes `file:` URI strings.
+                            Some(SendData::Uris(vec![file_path_to_uri(&icon_file)?]))
                         })
                         .with_type(TypeHint::Plaintext, |_, _| Some("Winit example".to_string()))
                         .with_type(TypeHint::Html, |_, _| {
@@ -163,10 +183,9 @@ impl ApplicationHandler for Application {
                         info!("URIs: {uris:#?}");
 
                         // If you only want to support dropping files, rather than arbitrary URIs,
-                        // you can use the `try_as_file_paths` helper method.
-                        let Ok(uris_as_paths) = value.try_as_file_paths() else {
-                            return;
-                        };
+                        // parse the `file:` URIs into paths yourself, e.g. with the `url` crate.
+                        let uris_as_paths: Vec<_> =
+                            uris.iter().filter_map(|u| uri_to_file_path(u)).collect();
                         info!("URIs as file paths: {uris_as_paths:#?}");
                     },
                     Some(TypeHint::Image { extension_hint: ext }) => {
