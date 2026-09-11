@@ -12,6 +12,7 @@ use calloop::PostAction;
 use dpi::{LogicalPosition, PhysicalPosition};
 use foldhash::{HashMap, HashSet};
 use rustix::pipe::{self, PipeFlags};
+use sctk::compositor::Surface;
 use sctk::data_device_manager::data_device::{DataDeviceData, DataDeviceHandler};
 use sctk::data_device_manager::data_offer::{
     DataOfferHandler, DragOffer, SelectionOffer, receive_to_fd,
@@ -889,7 +890,7 @@ pub struct DragSource {
     data: Box<dyn DataTransferSend>,
     selected_action: WlDndAction,
     window_id: WindowId,
-    _icon: Option<WlSurface>,
+    _icon: Option<Surface>,
 }
 
 impl DragSource {
@@ -897,7 +898,7 @@ impl DragSource {
         data_transfer_id: DataTransferId,
         data_source: SctkDragSource,
         data: Box<dyn DataTransferSend>,
-        icon: Option<WlSurface>,
+        icon: Option<Surface>,
         window_id: WindowId,
     ) -> Self {
         Self {
@@ -953,7 +954,7 @@ impl WinitState {
                 surface.attach(Some(buffer.wl_buffer()), icon.offset_x, icon.offset_y);
             }
 
-            Some(surface)
+            Some(Surface::from(surface))
         });
 
         let windows = self.windows.borrow();
@@ -982,7 +983,7 @@ impl WinitState {
         data_source.start_drag(
             data_device,
             window.window.wl_surface(),
-            icon_surface.as_ref(),
+            icon_surface.as_ref().map(Surface::wl_surface),
             serial,
         );
         let transfer_id = make_data_transfer_id(data_device.inner().id(), serial);
@@ -990,7 +991,7 @@ impl WinitState {
         // For some reason, if we commit before starting the drag then the offset isn't applied.
         // This doesn't seem to be documented anywhere, and it's possible that it's a bug in KDE.
         if let Some(surface) = &icon_surface {
-            surface.commit();
+            surface.wl_surface().commit();
         }
 
         self.data_transfer_state.send_drag =
