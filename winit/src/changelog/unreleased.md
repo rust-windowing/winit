@@ -43,3 +43,9 @@ changelog entry.
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
+
+### Changed
+
+- Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
+  `TypedData::try_as_file_paths` and `impl From<Vec<url::Url>> for SendData`. Use `SendData::Uris`
+  / `TypedData::try_as_uris` with `file:` URIs instead.
