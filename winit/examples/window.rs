@@ -2,10 +2,11 @@
 
 use std::error::Error;
 
-use tracing::{error, info};
+use softbuffer::{Context, Surface};
+use tracing::info;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
 #[cfg(web_platform)]
 use winit::platform::web::WindowAttributesWeb;
 use winit::window::{Window, WindowAttributes, WindowId};
@@ -17,7 +18,7 @@ mod tracing;
 
 #[derive(Default, Debug)]
 struct App {
-    window: Option<Box<dyn Window>>,
+    surface: Option<Surface<OwnedDisplayHandle, Box<dyn Window>>>,
 }
 
 impl ApplicationHandler for App {
@@ -27,14 +28,12 @@ impl ApplicationHandler for App {
         #[cfg(web_platform)]
         let window_attributes = WindowAttributes::default()
             .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
-        self.window = match event_loop.create_window(window_attributes) {
-            Ok(window) => Some(window),
-            Err(err) => {
-                error!("error creating window: {err}");
-                event_loop.exit();
-                return;
-            },
-        }
+        let window = event_loop.create_window(window_attributes).expect("failed creating window");
+
+        let context =
+            Context::new(event_loop.owned_display_handle()).expect("failed creating context");
+        let surface = Surface::new(&context, window).expect("failed creating surface");
+        self.surface = Some(surface);
     }
 
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _: WindowId, event: WindowEvent) {
@@ -44,8 +43,10 @@ impl ApplicationHandler for App {
                 info!("Close was requested; stopping");
                 event_loop.exit();
             },
-            WindowEvent::SurfaceResized(_) => {
-                self.window.as_ref().expect("resize event without a window").request_redraw();
+            WindowEvent::SurfaceResized(surface_size) => {
+                let surface = self.surface.as_mut().expect("resize event without a surface");
+                fill::resize(surface, surface_size);
+                surface.window().request_redraw();
             },
             WindowEvent::RedrawRequested => {
                 // Redraw the application.
@@ -54,13 +55,15 @@ impl ApplicationHandler for App {
                 // this event rather than in AboutToWait, since rendering in here allows
                 // the program to gracefully handle redraws requested by the OS.
 
-                let window = self.window.as_ref().expect("redraw request without a window");
+                let surface = self.surface.as_mut().expect("redraw event without a surface");
 
                 // Notify that you're about to draw.
-                window.pre_present_notify();
+                surface.window().pre_present_notify();
 
                 // Draw.
-                fill::fill_window(window.as_ref());
+                let mut buffer = surface.buffer_mut().expect("Failed to get the softbuffer buffer");
+                buffer.fill(0xff181818);
+                buffer.present().expect("Failed to present the softbuffer buffer");
 
                 // For contiguous redraw loop you can request a redraw from here.
                 // window.request_redraw();

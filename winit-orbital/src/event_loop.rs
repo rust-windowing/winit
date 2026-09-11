@@ -1,8 +1,10 @@
+// `EventSource` is macro-generated; the lint can't be allowed on the enum itself.
+#![allow(clippy::exhaustive_enums)]
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{iter, mem, slice};
 
 use bitflags::bitflags;
@@ -10,14 +12,15 @@ use orbclient::{
     ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MouseRelativeEvent,
     MoveEvent, QuitEvent, ResizeEvent, ScrollEvent, TextInputEvent,
 };
-use redox_event::{EventFlags, EventQueue};
+use redox_event::{EventFlags, EventQueue, UserData};
 use smol_str::SmolStr;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
-use winit_core::event::{self, Ime, Modifiers, StartCause};
+use winit_core::event::{self, Modifiers, StartCause};
+use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
@@ -29,6 +32,9 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowId};
 
 use crate::window::Window;
 use crate::{RedoxSocket, TimeSocket, WindowProperties};
+
+/// timeout from redox_syscall
+const EVENT_TIMEOUT_ID: usize = usize::MAX - 2;
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
     // Key constants from https://docs.rs/orbclient/latest/orbclient/event/index.html
@@ -156,6 +162,15 @@ fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
     (PhysicalKey::Code(key_code), named_key_opt)
 }
 
+pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+    convert_scancode(scancode.try_into().unwrap_or_default()).0
+}
+
+pub fn physicalkey_to_scancode(_physical_key: PhysicalKey) -> Option<u32> {
+    // TODO
+    None
+}
+
 fn element_state(pressed: bool) -> event::ElementState {
     if pressed { event::ElementState::Pressed } else { event::ElementState::Released }
 }
@@ -187,7 +202,9 @@ bitflags! {
 struct EventState {
     keyboard: KeyboardModifierState,
     mouse: MouseButtonState,
+    mouse_pos: (i32, i32),
     resize_opt: Option<(u32, u32)>,
+    text_input_event: Option<TextInputEvent>,
 }
 
 impl EventState {
@@ -294,6 +311,8 @@ impl EventState {
 
 #[derive(Debug)]
 pub struct EventLoop {
+    /// Has `run` or `run_on_demand` been called or a call to `pump_events` that starts the loop
+    loop_running: bool,
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: ActiveEventLoop,
     user_events_receiver: mpsc::Receiver<()>,
@@ -321,6 +340,7 @@ impl EventLoop {
             .map_err(|error| os_error!(format!("{error}")))?;
 
         Ok(Self {
+            loop_running: false,
             windows: Vec::new(),
             window_target: ActiveEventLoop {
                 control_flow: Cell::new(ControlFlow::default()),
@@ -342,8 +362,13 @@ impl EventLoop {
         window_target: &ActiveEventLoop,
         app: &mut A,
     ) {
+        let text_input_event = event_state.text_input_event.take();
+        if text_input_event.is_some() && !matches!(event_option, EventOption::Key(_)) {
+            tracing::warn!("got TextInput event without following Key event");
+        }
+
         match event_option {
-            EventOption::Key(KeyEvent { character, scancode, pressed }) => {
+            EventOption::Key(KeyEvent { character: _, scancode, pressed }) => {
                 // Convert scancode
                 let (physical_key, named_key_opt) = convert_scancode(scancode);
 
@@ -358,6 +383,7 @@ impl EventLoop {
                 let mut text_with_all_modifiers = None;
 
                 // Set key and text based on character
+                let character = text_input_event.map_or('\0', |event| event.character);
                 if character != '\0' {
                     let mut tmp = [0u8; 4];
                     let character_str = character.encode_utf8(&mut tmp);
@@ -409,23 +435,15 @@ impl EventLoop {
                     );
                 }
             },
-            EventOption::TextInput(TextInputEvent { character }) => {
-                app.window_event(
-                    window_target,
-                    window_id,
-                    event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
-                );
-                app.window_event(
-                    window_target,
-                    window_id,
-                    event::WindowEvent::Ime(Ime::Commit(character.into())),
-                );
+            EventOption::TextInput(event) => {
+                event_state.text_input_event = Some(event);
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
+                event_state.mouse_pos = (x, y);
                 app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
                     device_id: None,
                     primary: true,
-                    position: (x, y).into(),
+                    position: event_state.mouse_pos.into(),
                     source: event::PointerSource::Mouse,
                 });
             },
@@ -440,8 +458,9 @@ impl EventLoop {
                         device_id: None,
                         primary: true,
                         state,
-                        position: dpi::PhysicalPosition::default(),
+                        position: event_state.mouse_pos.into(),
                         button: button.into(),
+                        is_macos_activation_click: false,
                     });
                 }
             },
@@ -505,11 +524,42 @@ impl EventLoop {
         &mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
-        let mut start_cause = StartCause::Init;
-        loop {
-            app.new_events(&self.window_target, start_cause);
+        self.window_target.exit.set(false);
+        let res = loop {
+            match self.pump_app_events(None, &mut app) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
+                },
+                PumpStatus::Exit(code) => {
+                    break Err(EventLoopError::ExitFailure(code));
+                },
+                _ => {
+                    continue;
+                },
+            }
+        };
 
-            if start_cause == StartCause::Init {
+        drop(app);
+
+        // Handle window destroys that happened when dropping the app.
+        while let Some(destroy_id) = {
+            let mut destroys = self.window_target.destroys.lock().unwrap();
+            destroys.pop_front()
+        } {
+            self.windows
+                .retain(|(window, _event_state)| WindowId::from_raw(window.fd()) != destroy_id);
+        }
+
+        res
+    }
+
+    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+        // TODO: Unindent
+        {
+            app.new_events(&self.window_target, cause);
+
+            if cause == StartCause::Init {
+                // NB: For consistency all platforms must call `can_create_surfaces`
                 app.can_create_surfaces(&self.window_target);
             }
 
@@ -569,7 +619,7 @@ impl EventLoop {
                         orbital_event.to_option(),
                         event_state,
                         &self.window_target,
-                        &mut app,
+                        app,
                     );
                 }
 
@@ -613,79 +663,121 @@ impl EventLoop {
             }
 
             app.about_to_wait(&self.window_target);
+        }
+    }
 
-            if self.window_target.exiting() {
-                break;
-            }
+    pub fn pump_app_events<A: ApplicationHandler>(
+        &mut self,
+        timeout: Option<Duration>,
+        mut app: A,
+    ) -> PumpStatus {
+        if !self.loop_running {
+            self.loop_running = true;
 
-            let requested_resume = match self.window_target.control_flow() {
-                ControlFlow::Poll => {
-                    start_cause = StartCause::Poll;
-                    continue;
-                },
-                ControlFlow::Wait => None,
-                ControlFlow::WaitUntil(instant) => Some(instant),
-            };
-
-            // Re-using wake socket caused extra wake events before because there were leftover
-            // timeouts, and then new timeouts were added each time a spurious timeout expired.
-            let timeout_socket = TimeSocket::open().unwrap();
-
-            self.window_target
-                .event_socket
-                .subscribe(timeout_socket.0.fd(), EventSource::Time, EventFlags::READ)
-                .unwrap();
-
-            let start = Instant::now();
-            if let Some(instant) = requested_resume {
-                let mut time = timeout_socket.current_time().unwrap();
-
-                if let Some(duration) = instant.checked_duration_since(start) {
-                    time.tv_sec += duration.as_secs() as i64;
-                    time.tv_nsec += duration.subsec_nanos() as i64;
-                    // Normalize timespec so tv_nsec is not greater than one second.
-                    while time.tv_nsec >= 1_000_000_000 {
-                        time.tv_sec += 1;
-                        time.tv_nsec -= 1_000_000_000;
-                    }
-                }
-
-                timeout_socket.timeout(&time).unwrap();
-            }
-
-            // Wait for event if needed.
-            let event = loop {
-                match self.window_target.event_socket.next_event() {
-                    Ok(event) => break event,
-                    Err(err) if err.is_interrupt() => continue,
-                    Err(err) => {
-                        return Err(os_error!(format!("failed to read event: {err}")).into());
-                    },
-                }
-            };
-
-            // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
-            match requested_resume {
-                Some(requested_resume)
-                    if event.fd == timeout_socket.0.fd()
-                        && matches!(event.user_data, EventSource::Time) =>
-                {
-                    // If the event is from the special timeout socket, report that resume
-                    // time was reached.
-                    start_cause = StartCause::ResumeTimeReached { start, requested_resume };
-                },
-                _ => {
-                    // Normal window event or spurious timeout.
-                    start_cause = StartCause::WaitCancelled { start, requested_resume };
-                },
-            }
+            // Run the initial loop iteration.
+            self.single_iteration(&mut app, StartCause::Init);
         }
 
-        Ok(())
+        if self.window_target.exit.get() {
+            self.loop_running = false;
+            // TODO: other exit codes
+            return PumpStatus::Exit(0);
+        }
+
+        let start = Instant::now();
+        let timeout = {
+            let requested_resume = match self.window_target.control_flow() {
+                ControlFlow::Poll => Some(Duration::ZERO),
+                ControlFlow::Wait => None,
+                ControlFlow::WaitUntil(instant) => Some(instant.saturating_duration_since(start)),
+            };
+            min_timeout(timeout, requested_resume)
+        };
+
+        if let Some(timeout) = timeout {
+            self.window_target
+                .event_socket
+                .subscribe(
+                    EVENT_TIMEOUT_ID,
+                    UserData::from_user_data(timeout.as_millis() as usize),
+                    EventFlags::READ,
+                )
+                .expect("failed to register EVENT_TIMEOUT_ID")
+        }
+
+        // Wait for event if needed.
+        let event = loop {
+            match self.window_target.event_socket.next_event() {
+                Ok(event) => break event,
+                Err(err) if err.is_interrupt() => continue,
+                Err(err) => {
+                    panic!("failed to read event: {err}");
+                },
+            }
+        };
+
+        if timeout.is_some() && event.fd == EVENT_TIMEOUT_ID {
+            // NB: EVENT_TIMEOUT_ID is not a regular event ID.
+            // Here nothing is happened yet.
+            return PumpStatus::Continue;
+        }
+
+        // Normal window event or spurious timeout.
+        let cause = match self.window_target.control_flow() {
+            ControlFlow::Poll => StartCause::Poll,
+            ControlFlow::Wait => StartCause::WaitCancelled { start, requested_resume: None },
+            ControlFlow::WaitUntil(deadline) => {
+                if Instant::now() < deadline {
+                    StartCause::WaitCancelled { start, requested_resume: Some(deadline) }
+                } else {
+                    StartCause::ResumeTimeReached { start, requested_resume: deadline }
+                }
+            },
+        };
+
+        // Do actual event processing
+        self.single_iteration(&mut app, cause);
+
+        PumpStatus::Continue
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 
@@ -799,3 +891,10 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct PlatformSpecificEventLoopAttributes {}
+
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
+}

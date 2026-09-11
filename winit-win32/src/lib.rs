@@ -3,13 +3,14 @@
 //! The supported OS version is Windows 7 or higher, though Windows 10 is
 //! tested regularly.
 #![cfg(target_os = "windows")] // FIXME(madsmtm): Allow compiling on all platforms.
+#![warn(clippy::exhaustive_enums)]
 
 #[macro_use]
 mod util;
 mod dark_mode;
 mod definitions;
+mod dnd;
 mod dpi;
-mod drop_handler;
 mod event_loop;
 mod icon;
 mod ime;
@@ -54,6 +55,7 @@ pub type HMONITOR = *mut c_void;
 /// [`DWM_SYSTEMBACKDROP_TYPE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum BackdropType {
     /// Corresponds to `DWMSBT_AUTO`.
     ///
@@ -113,6 +115,7 @@ impl Default for Color {
 #[repr(i32)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum CornerPreference {
     /// Corresponds to `DWMWCP_DEFAULT`.
     ///

@@ -15,7 +15,7 @@ use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     ImeCapabilities, ImeRequest, ImeRequestError, Theme, UserAttentionType, Window as CoreWindow,
-    WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowPositioner, WindowType,
 };
 
 use super::event_loop::ActiveEventLoop;
@@ -36,10 +36,20 @@ impl Window {
         let mtm = window_target.mtm;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;
-        Ok(Window {
+        window_target.app_state.register_window(&delegate, mtm);
+        let window = Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
-        })
+        };
+        window.reposition();
+        Ok(window)
+    }
+
+    /// Recomputes this window's position (and, if constrained, its size) from its positioner
+    /// state, using [`winit_common::positioner::place_window`], and applies the result. No-op if
+    /// this window isn't anchored, or if it has no parent.
+    fn reposition(&self) {
+        self.maybe_wait_on_main(|delegate| delegate.reposition());
     }
 
     pub(crate) fn maybe_wait_on_main<R: Send>(
@@ -94,6 +104,18 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> WindowType {
+        self.maybe_wait_on_main(|delegate| delegate.window_type())
+    }
+
+    fn positioner(&self) -> WindowPositioner {
+        self.maybe_wait_on_main(|delegate| delegate.popup_positioner())
+    }
+
+    fn set_positioner(&self, positioner: WindowPositioner) {
+        self.maybe_wait_on_main(|delegate| delegate.set_popup_positioner(positioner));
+    }
+
     fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }

@@ -40,29 +40,33 @@ use windows_sys::Win32::UI::Input::{
     MOUSE_MOVE_RELATIVE, RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GWL_STYLE,
-    GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu, HTCAPTION, HTCLIENT, LoadCursorW,
-    MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx,
-    NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER, PEN_MASK_PRESSURE, PEN_MASK_ROTATION,
-    PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW,
-    QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA,
-    SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos,
-    SystemParametersInfoW, TranslateMessage, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE,
-    WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
-    WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
-    WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
-    WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE,
-    WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
-    WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS,
-    WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH,
-    WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM,
-    WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT,
-    WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    EnumThreadWindows, GW_OWNER, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu,
+    GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+    MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
+    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
+    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
+    RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage, WHEEL_DELTA,
+    WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
+    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP,
+    WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR,
+    WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE,
+    WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING,
+    WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT,
+    WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
+use windows_sys::core::BOOL;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
+use winit_core::data_transfer::{
+    DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
+};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
@@ -70,9 +74,9 @@ use winit_core::event::{
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
-    EventLoopProxy as RootEventLoopProxy, EventLoopProxyProvider,
-    OwnedDisplayHandle as CoreOwnedDisplayHandle,
+    ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
+    DndAction, DragIcon, EventLoopProvider, EventLoopProxy as RootEventLoopProxy,
+    EventLoopProxyProvider, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -82,15 +86,16 @@ pub(super) use self::runner::{Event, EventLoopRunner};
 use super::SelectedCursor;
 use super::window::set_skip_taskbar;
 use crate::dark_mode::try_theme;
+use crate::dnd::{DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData};
 use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
-use crate::drop_handler::FileDropHandler;
+use crate::event_loop::runner::PendingDrag;
 use crate::icon::WinCursor;
 use crate::ime::ImeContext;
 use crate::keyboard::KeyEventBuilder;
 use crate::keyboard_layout::LAYOUT_CACHE;
 use crate::monitor::{self, MonitorHandle};
 use crate::util::{WIN10_BUILD_VERSION, wrap_device_id};
-use crate::window::{InitData, Window};
+use crate::window::{self, InitData, Window};
 use crate::window_state::{CursorFlags, ImeState, WindowFlags, WindowState};
 use crate::{raw_input, util};
 
@@ -388,6 +393,41 @@ impl EventLoop {
     }
 }
 
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> RootEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
 impl Drop for EventLoop {
     fn drop(&mut self) {
         unsafe {
@@ -427,7 +467,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     ) -> Result<CustomCursor, RequestError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
-            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
+            _ => {
                 return Err(NotSupportedError::new("unsupported cursor kind").into());
             },
         };
@@ -478,6 +518,105 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
         self
     }
+
+    fn fetch_data_transfer(
+        &self,
+        id: DataTransferId,
+        type_: &dyn TransferType,
+    ) -> Result<AsyncRequestSerial, RequestError> {
+        let Some(state) = self.0.drag_state(id) else {
+            return Err(os_error!(UnknownDataTransfer(id)).into());
+        };
+        let hint = type_.hint().ok_or(RequestError::Ignored)?;
+        let typed_data = WinTypedData::new(state.data.clone(), hint)
+            .map(|value| Arc::new(value) as Arc<dyn TypedData>)
+            .ok_or(RequestError::Ignored)?;
+
+        let serial = AsyncRequestSerial::get();
+
+        self.0.send_event(Event::Window {
+            window_id: state.window_id,
+            event: WindowEvent::DataTransferReceived { id, serial, value: typed_data },
+        });
+
+        Ok(serial)
+    }
+
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+        let Some(state) = self.0.drag_state(id) else {
+            return Err(os_error!(UnknownDataTransfer(id)).into());
+        };
+
+        Ok(Box::new(WinDataTransfer::new(state.data.clone())))
+    }
+
+    fn set_valid_dnd_actions(
+        &self,
+        id: DataTransferId,
+        actions: &[DndAction],
+    ) -> Result<(), RequestError> {
+        let mut state = self.0.drag_state.borrow_mut();
+        let Some(state) = state.as_mut().filter(|s| s.id == id) else {
+            return Err(os_error!(UnknownDataTransfer(id)).into());
+        };
+        state.actions = actions.to_vec();
+        Ok(())
+    }
+
+    fn start_drag(
+        &self,
+        source: WindowId,
+        send_data: Box<dyn DataTransferSend>,
+        allowed_actions: &[DndAction],
+        icon: Option<DragIcon>,
+    ) -> Result<DataTransferId, RequestError> {
+        let allowed_effects = crate::dnd::dnd_actions_to_dropeffect_mask(allowed_actions);
+        // Win32 would happily run a modal `DoDragDrop` with `allowed_effects == 0`, but every
+        // target would see "no action allowed" and the drag would end in a guaranteed cancel
+        // after burning a full modal pump. Fail fast instead - the caller asked for a drag
+        // they explicitly refuse to allow.
+        if allowed_effects == 0 {
+            return Err(
+                NotSupportedError::new("start_drag called with an empty action mask").into()
+            );
+        }
+
+        let id = crate::dnd::next_data_transfer_id();
+        let data_object = SourceDataObject::new(send_data);
+        let drop_source = DropSource::new();
+
+        // Attach a drag preview if the app supplied one. Cosmetic failures must not abort the
+        // drag - the gesture still works, just without a custom image - so log and move on.
+        if let Some(icon) = icon {
+            if let Some(rgba) = icon.icon.cast_ref::<winit_core::icon::RgbaIcon>() {
+                let result = unsafe {
+                    crate::dnd::apply_drag_image(
+                        data_object.interface_ptr() as *mut _,
+                        rgba.width(),
+                        rgba.height(),
+                        rgba.buffer(),
+                        icon.offset_x,
+                        icon.offset_y,
+                    )
+                };
+                if let Err(hr) = result {
+                    tracing::warn!("Failed to attach drag image: hr=0x{hr:08x}");
+                }
+            } else {
+                tracing::warn!("DragIcon::icon must be an RgbaIcon on win32; ignoring");
+            }
+        }
+
+        self.0.pending_drag.replace(Some(PendingDrag {
+            window_id: source,
+            id,
+            data_object,
+            drop_source,
+            allowed_effects,
+        }));
+
+        Ok(id)
+    }
 }
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
@@ -486,6 +625,19 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
+
+/// An operation was attempted on a data transfer ID, but that ID was invalid.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct UnknownDataTransfer(pub DataTransferId);
+
+impl fmt::Display for UnknownDataTransfer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let id = self.0.into_raw();
+        write!(f, "Unknown data transfer with ID {id}")
+    }
+}
+
+impl std::error::Error for UnknownDataTransfer {}
 
 #[derive(Clone)]
 pub(crate) struct OwnedDisplayHandle;
@@ -961,6 +1113,31 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     userdata.send_window_event(window, Focused(false));
 }
 
+/// Repositions any anchored windows owned by `parent`. Win32 does not reposition owned windows
+/// when their owner moves (unlike Wayland subsurfaces or X11's override-redirect popups), so this
+/// has to be done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
+unsafe fn reposition_owned_windows(parent: HWND) {
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        if unsafe { GetWindow(hwnd, GW_OWNER) } != lparam as HWND {
+            return true.into(); // continue enumeration
+        }
+
+        let userdata_ptr = unsafe { util::get_window_long(hwnd, GWL_USERDATA) } as *mut WindowData;
+        if !userdata_ptr.is_null() {
+            let userdata = unsafe { &*userdata_ptr };
+            if userdata.window_state_lock().window_flags.contains(WindowFlags::ANCHORED) {
+                window::reposition_owned_popup(hwnd, &userdata.window_state);
+            }
+        }
+
+        true.into() // continue enumeration
+    }
+
+    unsafe {
+        EnumThreadWindows(GetCurrentThreadId(), Some(enum_proc), parent as LPARAM);
+    }
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 // This is the callback that is called by `DispatchMessage` in the events loop.
@@ -1177,6 +1354,14 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(0);
         },
 
+        WM_PAINT if userdata.event_loop_runner.source_drag.get().is_some() => {
+            // While a source-side drag is in flight, the app handler is on the stack (we're
+            // inside `start_drag` -> `DoDragDrop`), so we can neither dispatch `RedrawRequested`
+            // nor keep re-arming via `RDW_INTERNALPAINT` (that would spin in OLE's modal loop).
+            // Let `DefWindowProcW` validate the region and show stale content for the duration of
+            // the drag; the next real paint happens once `DoDragDrop` returns.
+            result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
+        },
         WM_PAINT => {
             userdata.window_state_lock().redraw_requested =
                 userdata.event_loop_runner.should_buffer();
@@ -1273,6 +1458,7 @@ unsafe fn public_window_callback_inner(
                                 window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
                             }
                         },
+                        _ => (),
                     }
                 }
             }
@@ -1289,6 +1475,8 @@ unsafe fn public_window_callback_inner(
                 let physical_position =
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
                 userdata.send_window_event(window, Moved(physical_position));
+
+                unsafe { reposition_owned_windows(window) };
             }
 
             // This is necessary for us to still get sent WM_SIZE.
@@ -1506,6 +1694,21 @@ unsafe fn public_window_callback_inner(
             // IME UI visibility flags are in lparam.
             let lparam = lparam & !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
+        },
+
+        WM_INPUTLANGCHANGE => {
+            // Refresh the cached keyboard layout for the newly activated input
+            // language. This message is sent (by Windows or by layout switchers
+            // such as Punto Switcher) after the layout changes. Refreshing the
+            // cache here prevents a freeze that otherwise occurs when switching
+            // layout via such tools. We still defer to `DefWindowProc` so the
+            // message keeps propagating to first-level child windows, as the
+            // Win32 documentation requires.
+            {
+                let mut layouts = LAYOUT_CACHE.lock().unwrap();
+                layouts.get_current_layout();
+            }
+            result = ProcResult::DefWindowProc(wparam);
         },
 
         // this is necessary for us to maintain minimize/restore state
@@ -1734,6 +1937,7 @@ unsafe fn public_window_callback_inner(
                     _ => unreachable!(),
                 }
                 .into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1763,6 +1967,7 @@ unsafe fn public_window_callback_inner(
                     _ => unreachable!(),
                 }
                 .into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1791,6 +1996,7 @@ unsafe fn public_window_callback_inner(
                 position,
                 // 1 is defined as back, 2 as forward; other codes are unexpected.
                 button: MouseButton::try_from_u8(b).unwrap().into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1820,6 +2026,7 @@ unsafe fn public_window_callback_inner(
                 position,
                 // 1 is defined as back, 2 as forward; other codes are unexpected.
                 button: MouseButton::try_from_u8(b).unwrap().into(),
+                is_macos_activation_click: false,
             });
             result = ProcResult::Value(0);
         },
@@ -1879,6 +2086,7 @@ unsafe fn public_window_callback_inner(
                             state: Pressed,
                             position,
                             button: Touch { finger_id, force: None },
+                            is_macos_activation_click: false,
                         });
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_UP) {
                         userdata.send_window_event(window, WindowEvent::PointerButton {
@@ -1887,6 +2095,7 @@ unsafe fn public_window_callback_inner(
                             state: Released,
                             position,
                             button: Touch { finger_id, force: None },
+                            is_macos_activation_click: false,
                         });
                         userdata.send_window_event(window, WindowEvent::PointerLeft {
                             device_id: None,
@@ -2048,6 +2257,7 @@ unsafe fn public_window_callback_inner(
                                 state: Pressed,
                                 position,
                                 button,
+                                is_macos_activation_click: false,
                             });
                         } else {
                             userdata.send_window_event(window, WindowEvent::PointerButton {
@@ -2056,6 +2266,7 @@ unsafe fn public_window_callback_inner(
                                 state: Released,
                                 position,
                                 button,
+                                is_macos_activation_click: false,
                             });
                             userdata.send_window_event(window, WindowEvent::PointerLeft {
                                 device_id: None,
@@ -2323,8 +2534,8 @@ unsafe fn public_window_callback_inner(
                 });
                 result = ProcResult::Value(0);
             } else if msg == TASKBAR_CREATED.get() {
-                let window_state = userdata.window_state_lock();
-                unsafe { set_skip_taskbar(window, window_state.skip_taskbar) };
+                let skip_taskbar = userdata.window_state_lock().skip_taskbar;
+                unsafe { set_skip_taskbar(window, skip_taskbar) };
                 result = ProcResult::DefWindowProc(wparam);
             } else {
                 result = ProcResult::DefWindowProc(wparam);
@@ -2336,6 +2547,13 @@ unsafe fn public_window_callback_inner(
         .event_loop_runner
         .catch_unwind(callback)
         .unwrap_or_else(|| result = ProcResult::Value(-1));
+
+    // We execute a new drag operation here instead of immediately starting it in
+    // `ActiveEventLoop::start_drag`. `DoDragDrop` is blocking and synchronous, so if we started
+    // it inside the event loop then an internal drag operation would be re-entrant and the
+    // application would not be able to handle the incoming messages. This is after the application
+    // has had a chance to handle mouse events.
+    userdata.event_loop_runner.try_execute_drag_drop();
 
     match result {
         ProcResult::DefWindowProc(wparam) => unsafe { DefWindowProcW(window, msg, wparam, lparam) },

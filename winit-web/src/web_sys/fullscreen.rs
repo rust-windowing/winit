@@ -88,6 +88,7 @@ pub(crate) fn request_fullscreen(
                 canvas.webkit_request_fullscreen();
             }
         },
+        _ => error!("This full screen mode is not supported"),
     }
 }
 

@@ -4,12 +4,13 @@ use std::thread;
 #[cfg(not(web_platform))]
 use std::time;
 
+use softbuffer::{Context, Surface};
 use tracing::{info, warn};
 #[cfg(web_platform)]
 use web_time as time;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -52,7 +53,7 @@ struct ControlFlowDemo {
     request_redraw: bool,
     wait_cancelled: bool,
     close_requested: bool,
-    window: Option<Box<dyn Window>>,
+    surface: Option<Surface<OwnedDisplayHandle, Box<dyn Window>>>,
 }
 
 impl ApplicationHandler for ControlFlowDemo {
@@ -69,7 +70,10 @@ impl ApplicationHandler for ControlFlowDemo {
         let window_attributes = WindowAttributes::default().with_title(
             "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
         );
-        self.window = Some(event_loop.create_window(window_attributes).unwrap());
+        let window = event_loop.create_window(window_attributes).unwrap();
+        let context = Context::new(event_loop.owned_display_handle()).unwrap();
+        let surface = Surface::new(&context, window).unwrap();
+        self.surface = Some(surface);
     }
 
     fn window_event(
@@ -112,9 +116,9 @@ impl ApplicationHandler for ControlFlowDemo {
                 _ => (),
             },
             WindowEvent::RedrawRequested => {
-                let window = self.window.as_ref().unwrap();
-                window.pre_present_notify();
-                fill::fill_window(window.as_ref());
+                let surface = self.surface.as_mut().unwrap();
+                surface.window().pre_present_notify();
+                fill::fill(surface);
             },
             _ => (),
         }
@@ -122,7 +126,7 @@ impl ApplicationHandler for ControlFlowDemo {
 
     fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.request_redraw && !self.wait_cancelled && !self.close_requested {
-            self.window.as_ref().unwrap().request_redraw();
+            self.surface.as_ref().unwrap().window().request_redraw();
         }
 
         match self.mode {

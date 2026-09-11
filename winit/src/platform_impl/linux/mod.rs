@@ -9,9 +9,13 @@ use std::time::Duration;
 
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
-use winit_core::error::{EventLoopError, NotSupportedError};
-use winit_core::event_loop::ActiveEventLoop;
+use winit_core::cursor::{CustomCursor, CustomCursorSource};
+use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event_loop::pump_events::PumpStatus;
+use winit_core::event_loop::{
+    ActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider, EventLoopProxy,
+    OwnedDisplayHandle,
+};
 #[cfg(wayland_platform)]
 pub(crate) use winit_wayland as wayland;
 #[cfg(x11_platform)]
@@ -164,6 +168,41 @@ impl EventLoop {
 
     pub fn window_target(&self) -> &dyn ActiveEventLoop {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> EventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, RequestError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 

@@ -4,8 +4,6 @@
 
 use std::ffi::c_void;
 
-use objc2::ffi::NSInteger;
-use objc2::runtime::AnyObject;
 use objc2_core_foundation::{CFString, CFUUID, cf_type};
 use objc2_core_graphics::CGDirectDisplayID;
 
@@ -26,17 +24,6 @@ unsafe extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> *mut CFUUID;
 
     pub fn CGDisplayGetDisplayIDFromUUID(uuid: &CFUUID) -> CGDirectDisplayID;
-}
-
-#[link(name = "CoreGraphics", kind = "framework")]
-unsafe extern "C" {
-    // Wildly used private APIs; Apple uses them for their Terminal.app.
-    pub fn CGSMainConnectionID() -> *mut AnyObject;
-    pub fn CGSSetWindowBackgroundBlurRadius(
-        connection_id: *mut AnyObject,
-        window_id: NSInteger,
-        radius: i64,
-    ) -> i32;
 }
 
 #[repr(transparent)]

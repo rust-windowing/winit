@@ -13,16 +13,16 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongW, SetWindowPos,
     ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WINDOWPLACEMENT, WS_BORDER, WS_CAPTION, WS_CHILD,
     WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
-    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
-    WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX,
-    WS_SYSMENU, WS_VISIBLE,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX,
+    WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
 use winit_core::icon::Icon;
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
+use winit_core::window::{ImeCapabilities, Theme, WindowAttributes, WindowPositioner, WindowType};
 
-use crate::{SelectedCursor, event_loop, util};
+use crate::{SelectedCursor, WindowAttributesWindows, event_loop, util};
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Debug)]
@@ -50,6 +50,21 @@ pub(crate) struct WindowState {
     pub preferred_theme: Option<Theme>,
 
     pub window_flags: WindowFlags,
+
+    /// The role of this window. Governs creation/role behavior (OS window style, decorations)
+    /// only -- see `anchored` for whether this window is positioned via the anchor system.
+    pub window_type: WindowType,
+
+    /// Whether this window is positioned relative to its parent using the anchor/gravity/
+    /// positioner system, either because it's a [`WindowType::Popup`] or because anchor
+    /// attributes were set on a [`WindowType::Window`]. Stored here (rather than only on the
+    /// `Window` struct) so it stays reachable from just an `hwnd` via `GWL_USERDATA` -- e.g. to
+    /// reposition an anchored window when its parent moves.
+    pub anchored: bool,
+
+    /// The positioner state backing `anchored` placement, meaningful only when `anchored` is
+    /// `true`.
+    pub positioner: WindowPositioner,
 
     pub ime_state: ImeState,
     pub ime_capabilities: Option<ImeCapabilities>,
@@ -140,6 +155,12 @@ bitflags! {
 
         const CLIP_CHILDREN = 1 << 22;
 
+        /// Whether this window is positioned relative to its parent via the anchor/gravity/
+        /// positioner system. Independent of `POPUP`, which only selects the OS window style --
+        /// a `WindowType::Window` can be `ANCHORED` too. Used to pick the coordinate frame in
+        /// `translate_outer_position`/`translate_outer_position_to_parent`.
+        const ANCHORED = 1 << 23;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
@@ -154,6 +175,7 @@ pub enum ImeState {
 impl WindowState {
     pub(crate) fn new(
         attributes: &WindowAttributes,
+        _win_attributes: &WindowAttributesWindows,
         scale_factor: f64,
         current_theme: Theme,
         preferred_theme: Option<Theme>,
@@ -184,6 +206,11 @@ impl WindowState {
             current_theme,
             preferred_theme,
             window_flags: WindowFlags::empty(),
+
+            window_type: attributes.window_type,
+            anchored: matches!(attributes.window_type, WindowType::Popup)
+                || attributes.positioner.is_some(),
+            positioner: attributes.positioner.unwrap_or_default(),
 
             ime_state: ImeState::Disabled,
             ime_capabilities: None,
@@ -275,23 +302,35 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_SYSMENU;
+        let mut style = WS_CLIPSIBLINGS;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
+        if self.contains(WindowFlags::POPUP) {
+            style |= WS_POPUP;
+            // Don't activate the popup (and thus don't deactivate the parent) when it is shown or
+            // clicked, unless the caller requested activation via `WindowAttributes::active`.
+            if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+                style_ex |= WS_EX_NOACTIVATE;
+            }
+        } else {
+            style |= WS_CAPTION | WS_SYSMENU | WS_BORDER;
 
-        if self.contains(WindowFlags::RESIZABLE) {
-            style |= WS_SIZEBOX;
-        }
-        if self.contains(WindowFlags::MAXIMIZABLE) {
-            style |= WS_MAXIMIZEBOX;
-        }
-        if self.contains(WindowFlags::MINIMIZABLE) {
-            style |= WS_MINIMIZEBOX;
-        }
+            if self.contains(WindowFlags::RESIZABLE) {
+                style |= WS_SIZEBOX;
+            }
+            if self.contains(WindowFlags::MAXIMIZABLE) {
+                style |= WS_MAXIMIZEBOX;
+            }
+            if self.contains(WindowFlags::MINIMIZABLE) {
+                style |= WS_MINIMIZEBOX;
+            }
+
+            if self.contains(WindowFlags::ON_TASKBAR) {
+                style_ex |= WS_EX_APPWINDOW;
+            }
+        };
+
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
-        }
-        if self.contains(WindowFlags::ON_TASKBAR) {
-            style_ex |= WS_EX_APPWINDOW;
         }
         if self.contains(WindowFlags::ALWAYS_ON_TOP) {
             style_ex |= WS_EX_TOPMOST;
@@ -299,17 +338,14 @@ impl WindowFlags {
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
-        if self.contains(WindowFlags::CHILD) {
-            style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+        if self.contains(WindowFlags::CHILD) && !self.contains(WindowFlags::POPUP) {
+            style |= WS_CHILD;
 
             // Remove decorations window styles for child
             if !self.contains(WindowFlags::MARKER_DECORATIONS) {
                 style &= !(WS_CAPTION | WS_BORDER);
                 style_ex &= !WS_EX_WINDOWEDGE;
             }
-        }
-        if self.contains(WindowFlags::POPUP) {
-            style |= WS_POPUP;
         }
         if self.contains(WindowFlags::MINIMIZED) {
             style |= WS_MINIMIZE;

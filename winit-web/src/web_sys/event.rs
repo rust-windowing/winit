@@ -153,7 +153,7 @@ pub fn pointer_source(event: &PointerEvent, kind: PointerKind) -> PointerSource 
 
             PointerSource::TabletTool { kind: tool, data }
         },
-        PointerKind::Unknown => PointerSource::Unknown,
+        _ => PointerSource::Unknown,
     }
 }
 

@@ -44,6 +44,7 @@ default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 android-game-activity = ["winit-android/game-activity"]
 android-native-activity = ["winit-android/native-activity"]
 mint = ["dpi/mint"]
+private-apple-apis = ["winit-appkit/private-apple-apis"]
 serde = [
     "dep:serde",
     "cursor-icon/serde",
@@ -55,9 +56,11 @@ serde = [
 ]
 wayland = ["winit-wayland"]
 wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
+wayland-csd-adwaita-cosmic-text = ["winit-wayland/csd-adwaita-cosmic-text"]
 wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
 wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
 wayland-csd-adwaita-notitlebar = ["winit-wayland/csd-adwaita-notitlebar"]
+wayland-csd-adwaita-skrifa = ["winit-wayland/csd-adwaita-skrifa"]
 wayland-dlopen = ["winit-wayland/dlopen"]
 x11 = ["winit-x11"]
 
@@ -76,9 +79,13 @@ winit-core.workspace = true
 
 [dev-dependencies]
 image = { workspace = true, features = ["png"] }
-softbuffer.workspace = true
 tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+# Launching a window without drawing to it has unpredictable results varying from platform to
+# platform. We use the `softbuffer` crate in our examples because of its ease of use to avoid
+# confusion around this. `glutin` or `wgpu` could also be used to fill the window buffer, but they
+# are more complicated to set up.
+softbuffer.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 winit-android.workspace = true

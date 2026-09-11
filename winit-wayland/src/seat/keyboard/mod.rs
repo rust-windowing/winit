@@ -129,9 +129,10 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(key_state), .. }
+            WlKeyboardEvent::Key { serial, key, state: WEnum::Value(key_state), .. }
                 if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
             {
+                seat_state.latest_input_serial.set(Some(serial));
                 let key = key + 8;
                 key_input(
                     keyboard_state,
@@ -204,7 +205,10 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     })
                     .ok();
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Released), .. } => {
+            WlKeyboardEvent::Key {
+                serial, key, state: WEnum::Value(WlKeyState::Released), ..
+            } => {
+                seat_state.latest_input_serial.set(Some(serial));
                 let key = key + 8;
 
                 key_input(

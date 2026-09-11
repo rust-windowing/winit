@@ -5,11 +5,12 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
+    use softbuffer::{Context, Surface};
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
     use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 
     #[path = "util/fill.rs"]
@@ -17,27 +18,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[path = "util/tracing.rs"]
     mod tracing;
 
-    #[derive(Default, Debug)]
+    #[derive(Debug)]
     struct App {
+        context: Context<OwnedDisplayHandle>,
         idx: usize,
+        surface: Option<Surface<OwnedDisplayHandle, Box<dyn Window>>>,
         window_id: Option<WindowId>,
-        window: Option<Box<dyn Window>>,
     }
 
     impl ApplicationHandler for App {
         fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
-            if let Some(window) = self.window.as_ref() {
-                window.request_redraw();
+            if let Some(surface) = self.surface.as_ref() {
+                surface.window().request_redraw();
             }
         }
 
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let window_attributes = WindowAttributes::default()
-                .with_title("Fantastic window number one!")
+                .with_title(format!("Fantastic window number {}!", self.idx))
                 .with_surface_size(winit::dpi::LogicalSize::new(128.0, 128.0));
             let window = event_loop.create_window(window_attributes).unwrap();
             self.window_id = Some(window.id());
-            self.window = Some(window);
+
+            let surface = Surface::new(&self.context, window).unwrap();
+            self.surface = Some(surface);
         }
 
         fn window_event(
@@ -53,19 +57,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
 
-            let window = match self.window.as_mut() {
-                Some(window) => window,
-                None => return,
+            let Some(surface) = self.surface.as_mut() else {
+                return;
             };
 
             match event {
                 WindowEvent::CloseRequested => {
                     info!("Window {} CloseRequested", self.idx);
-                    fill::cleanup_window(window.as_ref());
-                    self.window = None;
+                    self.surface = None;
                 },
                 WindowEvent::RedrawRequested => {
-                    fill::fill_window(window.as_ref());
+                    fill::fill(surface);
                 },
                 _ => (),
             }
@@ -76,7 +78,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut event_loop = EventLoop::new().unwrap();
 
-    let mut app = App { idx: 1, ..Default::default() };
+    let context = Context::new(event_loop.owned_display_handle()).unwrap();
+    let mut app = App { context, idx: 1, surface: None, window_id: None };
     event_loop.run_app_on_demand(&mut app)?;
 
     info!("Finished first loop");
