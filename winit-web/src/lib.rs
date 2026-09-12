@@ -19,6 +19,35 @@
 //! [wasm_bindgen]: https://docs.rs/wasm-bindgen
 //! [Rust and WebAssembly book]: https://rustwasm.github.io/book
 //!
+//! ## Canvas size
+//!
+//! Give the canvas a CSS `width` and `height` before rendering. Its HTML `width` and `height`
+//! attributes specify the drawing buffer size, which is managed by your renderer (for example,
+//! Wgpu or Softbuffer). Without an independent CSS size, changing the drawing buffer size can
+//! also change the layout size. At scale factors other than 1, resizing the drawing buffer in
+//! response to [`WindowEvent::SurfaceResized`] can then cause the canvas to repeatedly grow or
+//! shrink.
+//!
+//! For example, a canvas with this style keeps a logical size of 800 by 600 pixels regardless of
+//! the drawing buffer size:
+//!
+//! ```html
+//! <canvas id="canvas" style="width: 800px; height: 600px;"></canvas>
+//! ```
+//!
+//! Responsive CSS is also supported, provided the canvas's layout size does not depend on its
+//! drawing buffer size. For example, `width: 100%; height: 100%` can fill a parent element whose
+//! width and height are set independently of the canvas.
+//!
+//! Alternatively, use
+//! [`WindowAttributes::with_surface_size`][winit_core::window::WindowAttributes::with_surface_size]
+//! together with
+//! [`WindowAttributesWeb::with_append(true)`][WindowAttributesWeb::with_append] to let Winit set
+//! the initial CSS size. For a canvas you insert yourself, insert it before calling
+//! [`Window::request_surface_size`]; size requests made while the canvas is detached or hidden
+//! with `display: none` are ignored. Appending the canvas alone does not give it an independent
+//! CSS size.
+//!
 //! ## CSS properties
 //!
 //! It is recommended **not** to apply certain CSS properties to the canvas:
@@ -168,6 +197,7 @@ impl WindowAttributesWeb {
     /// the default one will be created.
     ///
     /// In any case, the canvas won't be automatically inserted into the Web page.
+    /// Give it an independent [CSS size][self#canvas-size] before rendering.
     ///
     /// [`None`] by default.
     pub fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {

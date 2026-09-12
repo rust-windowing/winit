@@ -71,8 +71,10 @@ impl ApplicationHandler for App {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         #[cfg(not(web_platform))]
         let window_attributes = WindowAttributes::default();
+        // Set a CSS size independent of the drawing buffer to avoid resize feedback on HiDPI.
         #[cfg(web_platform)]
         let window_attributes = WindowAttributes::default()
+            .with_surface_size(dpi::LogicalSize::new(800.0, 600.0))
             .with_platform_attributes(Box::new(WindowAttributesWeb::default().with_append(true)));
         let window = event_loop.create_window(window_attributes).expect("failed creating window");
 
