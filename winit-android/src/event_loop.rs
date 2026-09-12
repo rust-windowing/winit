@@ -15,8 +15,8 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
-use winit_core::event_loop::pump_events::PumpStatus;
-use winit_core::event_loop::run_on_demand::{EventLoopExtPumpEvents, EventLoopExtRunOnDemand};
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,

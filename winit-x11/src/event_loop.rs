@@ -609,7 +609,7 @@ impl EventLoopExtRunOnDemand for EventLoop {
     fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
         self.event_processor.target.clear_exit();
         let exit = loop {
-            match self.pump_app_events(None, &mut app) {
+            match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
