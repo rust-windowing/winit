@@ -356,7 +356,7 @@ impl EventLoop {
         })
     }
 
-    fn process_event<A: ApplicationHandler>(
+    fn process_event(
         window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
@@ -521,7 +521,7 @@ impl EventLoop {
         }
     }
 
-    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+    fn single_iteration(&mut self, app: &mut dyn ApplicationHandler, cause: StartCause) {
         // TODO: Unindent
         {
             app.new_events(&self.window_target, cause);
