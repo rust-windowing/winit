@@ -621,13 +621,35 @@ impl_dyn_casting!(PlatformWindowAttributes);
 ///
 /// ## Threading
 ///
-/// This is `Send + Sync`, meaning that it can be freely used from other
-/// threads.
+/// This is `Send + Sync`, so it can be used from other threads. Some methods execute work on
+/// the main thread or the thread running the event loop, and wait for that work to complete.
+/// For Winit's backends:
 ///
-/// However, some platforms (macOS, Web and iOS) only allow user interface
-/// interactions on the main thread, so on those platforms, if you use the
-/// window from a thread other than the main, the code is scheduled to run on
-/// the main thread, and your thread may be blocked until that completes.
+/// - **macOS:** Methods on this trait synchronously execute on the main thread, except for
+///   [`rwh_06_display_handle`][Self::rwh_06_display_handle] and
+///   [`rwh_06_window_handle`][Self::rwh_06_window_handle]. This includes setters and methods that
+///   are unsupported on macOS. Dropping the window also waits for the main thread.
+/// - **iOS:** Methods on this trait synchronously execute on the main thread, except for
+///   [`window_type`][Self::window_type], [`positioner`][Self::positioner],
+///   [`set_positioner`][Self::set_positioner] and the two raw-window-handle accessors.
+/// - **Web:** Methods that wait for the main thread are identified in their platform-specific
+///   documentation below. Other methods on this trait do not wait for main-thread work to complete.
+///   For example, [`request_redraw`][Self::request_redraw] schedules work without waiting, while
+///   [`set_title`][Self::set_title] waits even though it returns no value.
+/// - **Windows:** [`set_cursor_grab`][Self::set_cursor_grab] and
+///   [`set_cursor_visible`][Self::set_cursor_visible] wait for work on the event loop's thread.
+///   [`set_title`][Self::set_title], [`title`][Self::title] and
+///   [`set_window_icon`][Self::set_window_icon] use synchronous window messages, which also wait
+///   for that thread to process them.
+///
+/// Calls made on the thread that executes the work run directly. When calling from another
+/// thread, keep the thread running the event loop processing events. Making that thread wait for a
+/// worker that calls a synchronous window method can deadlock.
+///
+/// These notes describe waiting for work on another thread; they do not guarantee that a
+/// method is free of other blocking operations, such as acquiring locks or communicating with
+/// the window system. Completing a method's main-thread work also does not imply that a
+/// requested window-state change has finished; see the individual method's documentation.
 ///
 /// ## Platform-specific
 ///
@@ -663,6 +685,11 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     fn set_positioner(&self, _positioner: WindowPositioner) {}
 
     /// Returns an identifier unique to the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     fn id(&self) -> WindowId;
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and
@@ -716,7 +743,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///   This is currently unimplemented, and this function always returns 1.0.
     /// - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
     ///   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
-    ///   both the screen scaling and the browser zoom level and can go below `1.0`.
+    ///   both the screen scaling and the browser zoom level and can go below `1.0`. When called
+    ///   from another thread, blocks until the work on the main thread completes.
     /// - **Orbital:** This is currently unimplemented, and this function always returns 1.0.
     ///
     /// [`WindowEvent::ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
@@ -840,7 +868,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web:** Returns the top-left coordinates relative to the viewport.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport. When called from
+    ///   another thread, blocks until the work on the main thread completes.
     /// - **Android:** Always returns [`RequestError::NotSupported`].
     /// - **Wayland:** For a top-level window this always returns [`RequestError::NotSupported`],
     ///   since the compositor does not report absolute positions. For a [`WindowType::Popup`] the
@@ -889,6 +918,7 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
+    ///   When called from another thread, blocks until the work on the main thread completes.
     ///
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
@@ -925,7 +955,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
+    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`]. When
+    ///   called from another thread, blocks until the work on the main thread completes.
     ///
     /// [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
@@ -940,7 +971,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
-    ///   [`Window::surface_size`]._
+    ///   [`Window::surface_size`]._ When called from another thread, blocks until the work on the
+    ///   main thread completes.
     fn outer_size(&self) -> PhysicalSize<u32>;
 
     /// The inset area of the surface that is unobstructed.
@@ -962,6 +994,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     /// - **Android / Orbital / Wayland / Windows / X11:** Unimplemented, returns `(0, 0, 0, 0)`.
     ///
     /// ## Example
@@ -1047,6 +1081,10 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Windows:** When called from another thread, blocks while the event loop's thread
+    ///   processes synchronous window messages.
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     /// - **iOS / Android:** Unsupported.
     fn set_title(&self, title: &str);
 
@@ -1213,6 +1251,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     /// - **Android:** Will always return `None`.
     /// - **Orbital / Web:** Can only return `None` or `Borderless(None)`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
@@ -1257,6 +1297,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
+    ///   Changing the icon uses a synchronous window message. When called from another thread,
+    ///   waits for the event loop's thread to process it.
     ///
     /// - **X11:** Has no universal guidelines for icon sizes, so you're at the whims of the WM.
     ///   That said, it's usually in the same ballpark as on Windows.
@@ -1442,6 +1484,11 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// This queries the same state information as [`WindowEvent::Focused`].
     ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
+    ///
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
     fn has_focus(&self) -> bool;
 
@@ -1479,6 +1526,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     /// - **iOS / Android / x11 / Orbital:** Unsupported.
     /// - **Wayland:** Only returns theme overrides.
     fn theme(&self) -> Option<Theme>;
@@ -1498,6 +1547,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Windows:** When called from another thread, blocks while the event loop's thread
+    ///   processes synchronous window messages.
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
     fn title(&self) -> String;
 
@@ -1545,6 +1596,13 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///     .unwrap();
     /// # }
     /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** When called from another thread, blocks until the work on the event loop's
+    ///   thread completes.
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError>;
 
     /// Modifies the cursor's visibility.
@@ -1553,7 +1611,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows:** The cursor is only hidden within the confines of the window.
+    /// - **Windows:** The cursor is only hidden within the confines of the window. When called from
+    ///   another thread, blocks until the work on the event loop's thread completes.
     /// - **X11:** The cursor is only hidden within the confines of the window.
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor
@@ -1610,12 +1669,22 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// Returns the monitor on which the window currently resides.
     ///
     /// Returns `None` if current monitor can't be detected.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     fn current_monitor(&self) -> Option<MonitorHandle>;
 
     /// Returns the list of all the monitors available on the system.
     ///
     /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for
     /// convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     ///
     /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     fn available_monitors(&self) -> Box<dyn Iterator<Item = MonitorHandle>>;
@@ -1628,6 +1697,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Web:** When called from another thread, blocks until the work on the main thread
+    ///   completes.
     /// - **Wayland:** Always returns `None`.
     ///
     /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
