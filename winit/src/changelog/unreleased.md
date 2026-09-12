@@ -43,3 +43,5 @@ changelog entry.
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
+- On Web, give the window, IME, and application examples an explicit canvas
+  size to prevent repeated resizing at scale factors other than 1.

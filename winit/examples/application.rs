@@ -150,8 +150,10 @@ impl Application {
 
         #[cfg(web_platform)]
         {
-            window_attributes =
-                window_attributes.with_platform_attributes(Box::new(window_attributes_web()));
+            // Keep the CSS size independent of the renderer's drawing buffer size.
+            window_attributes = window_attributes
+                .with_surface_size(LogicalSize::new(800.0, 600.0))
+                .with_platform_attributes(Box::new(window_attributes_web()));
         }
 
         let window = event_loop.create_window(window_attributes)?;
