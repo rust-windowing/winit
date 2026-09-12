@@ -111,22 +111,22 @@ fn run_on_demand(
 
     #[cfg(macos_platform)]
     if let Some(event_loop) = event_loop.downcast_mut::<winit_appkit::EventLoop>() {
-        event_loop.run_app_on_demand(app)?;
+        return event_loop.run_app_on_demand(app);
     }
 
     #[cfg(x11_platform)]
     if let Some(event_loop) = event_loop.downcast_mut::<winit_x11::EventLoop>() {
-        event_loop.run_app_on_demand(app)?;
+        return event_loop.run_app_on_demand(app);
     }
 
     #[cfg(wayland_platform)]
     if let Some(event_loop) = event_loop.downcast_mut::<winit_wayland::EventLoop>() {
-        event_loop.run_app_on_demand(app)?;
+        return event_loop.run_app_on_demand(app);
     }
 
     #[cfg(orbital_platform)]
     if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital:EventLoop>() {
-        event_loop.run_app_on_demand(app)?;
+        return event_loop.run_app_on_demand(app);
     }
 
     unreachable!("Not supported by backend");
