@@ -460,10 +460,11 @@ impl EventProcessor {
                 dnd.init_state(version, source_window, window, types.into()).transfer_id
             };
 
-            app.window_event(&self.target, window_id, WindowEvent::DragEntered {
-                id: transfer_id,
-                position: None,
-            });
+            app.window_event(
+                &self.target,
+                window_id,
+                WindowEvent::DragEntered { id: transfer_id, position: None },
+            );
             return;
         }
 
@@ -523,16 +524,20 @@ impl EventProcessor {
                 state.transfer_id
             };
 
-            app.window_event(&self.target, window_id, WindowEvent::DragPosition {
-                id: transfer_id,
-                position: PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64),
-                // `Copy` is the default. Other actions are possible in X11, but the specification
-                // does not properly explain how to implement them (only giving a vague description
-                // of `XdndMove`). For simplicity's sake, we simply do not implement non-copy drag
-                // on X11.
-                // See https://www.freedesktop.org/wiki/Specifications/XDND/
-                proposed_action: Some(DndAction::Copy),
-            });
+            app.window_event(
+                &self.target,
+                window_id,
+                WindowEvent::DragPosition {
+                    id: transfer_id,
+                    position: PhysicalPosition::new(coords.dst_x as f64, coords.dst_y as f64),
+                    // `Copy` is the default. Other actions are possible in X11, but the specification
+                    // does not properly explain how to implement them (only giving a vague description
+                    // of `XdndMove`). For simplicity's sake, we simply do not implement non-copy drag
+                    // on X11.
+                    // See https://www.freedesktop.org/wiki/Specifications/XDND/
+                    proposed_action: Some(DndAction::Copy),
+                },
+            );
 
             return;
         }
@@ -586,9 +591,11 @@ impl EventProcessor {
             let Some(state) = dnd.state() else {
                 return;
             };
-            app.window_event(&self.target, window_id, WindowEvent::DragLeft {
-                id: state.transfer_id,
-            });
+            app.window_event(
+                &self.target,
+                window_id,
+                WindowEvent::DragLeft { id: state.transfer_id },
+            );
         }
     }
 
@@ -664,11 +671,11 @@ impl EventProcessor {
 
         let window_id = mkwid(xwindow);
 
-        app.window_event(&self.target, window_id, WindowEvent::DataTransferReceived {
-            id: transfer_id,
-            serial,
-            value,
-        });
+        app.window_event(
+            &self.target,
+            window_id,
+            WindowEvent::DataTransferReceived { id: transfer_id, serial, value },
+        );
 
         let dnd = self.target.dnd.borrow();
 
@@ -805,10 +812,14 @@ impl EventProcessor {
                 drop(shared_state_lock);
 
                 let surface_size = Arc::new(Mutex::new(new_surface_size));
-                app.window_event(&self.target, window_id, WindowEvent::ScaleFactorChanged {
-                    scale_factor: new_scale_factor,
-                    surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
-                });
+                app.window_event(
+                    &self.target,
+                    window_id,
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor: new_scale_factor,
+                        surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(&surface_size)),
+                    },
+                );
 
                 let new_surface_size = *surface_size.lock().unwrap();
                 drop(surface_size);

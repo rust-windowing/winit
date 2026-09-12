@@ -48,10 +48,10 @@ define_class!(
         fn become_key_window(&self) {
             let _entered = debug_span!("becomeKeyWindow").entered();
             let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
-                window_id: self.id(),
-                event: WindowEvent::Focused(true),
-            });
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::Window { window_id: self.id(), event: WindowEvent::Focused(true) },
+            );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
@@ -59,10 +59,10 @@ define_class!(
         fn resign_key_window(&self) {
             let _entered = debug_span!("resignKeyWindow").entered();
             let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::Window {
-                window_id: self.id(),
-                event: WindowEvent::Focused(false),
-            });
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::Window { window_id: self.id(), event: WindowEvent::Focused(false) },
+            );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }
     }

@@ -11,6 +11,17 @@ use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::{Duration, Instant};
 use std::{fmt, mem, ptr, slice, str};
 
+use crate::atoms::{
+    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, Atoms,
+    WM_DELETE_WINDOW,
+};
+use crate::dnd::Dnd;
+use crate::event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
+use crate::ime::{self, Ime, ImeCreationError, ImeSender};
+use crate::util::{self, CustomCursor};
+use crate::window::{UnownedWindow, Window};
+use crate::xdisplay::{XConnection, XError, XNotSupported};
+use crate::{Selection, SelectionType, XlibErrorHook, ffi, xsettings};
 use calloop::generic::Generic;
 use calloop::ping::Ping;
 use calloop::{EventLoop as Loop, Readiness};
@@ -23,6 +34,7 @@ use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
 use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -36,18 +48,6 @@ use x11rb::protocol::xinput::{self, ConnectionExt as _};
 use x11rb::protocol::{ErrorKind, xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
-use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
-use crate::atoms::{
-    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, Atoms,
-    WM_DELETE_WINDOW,
-};
-use crate::dnd::Dnd;
-use crate::event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
-use crate::ime::{self, Ime, ImeCreationError, ImeSender};
-use crate::util::{self, CustomCursor};
-use crate::window::{UnownedWindow, Window};
-use crate::xdisplay::{XConnection, XError, XNotSupported};
-use crate::{Selection, SelectionType, XlibErrorHook, ffi, xsettings};
 
 // Xinput constants not defined in x11rb
 pub(crate) const ALL_DEVICES: u16 = 0;
@@ -606,7 +606,10 @@ impl EventLoop {
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
         self.event_processor.target.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, app) {
@@ -637,7 +640,11 @@ impl EventLoopExtRunOnDemand for EventLoop {
 }
 
 impl EventLoopExtPumpEvents for EventLoop {
-    fn pump_app_events(&mut self, timeout: Option<Duration>, app: &mut dyn ApplicationHandler) -> PumpStatus {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut dyn ApplicationHandler,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
@@ -1187,15 +1194,18 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIScrollClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
-                    scroll_axes.push((info.number, ScrollAxis {
-                        increment: info.increment,
-                        orientation: match info.scroll_type {
-                            ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                            ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                            _ => unreachable!(),
+                    scroll_axes.push((
+                        info.number,
+                        ScrollAxis {
+                            increment: info.increment,
+                            orientation: match info.scroll_type {
+                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                _ => unreachable!(),
+                            },
+                            position: 0.0,
                         },
-                        position: 0.0,
-                    }));
+                    ));
                 } else if ty == ffi::XITouchClass {
                     r#type = Some(DeviceType::Touch);
                 } else if r#type.is_none() && ty == ffi::XIValuatorClass {

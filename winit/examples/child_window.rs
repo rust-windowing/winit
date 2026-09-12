@@ -129,7 +129,11 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut event_loop = EventLoop::new().unwrap();
     let context = Context::new(event_loop.owned_display_handle()).unwrap();
-    event_loop.run_app(Box::new(Application { context, parent_window_id: None, windows: HashMap::new() }))
+    event_loop.run_app(Box::new(Application {
+        context,
+        parent_window_id: None,
+        windows: HashMap::new(),
+    }))
 }
 
 #[cfg(not(any(wayland_platform, x11_platform, macos_platform, windows_platform)))]

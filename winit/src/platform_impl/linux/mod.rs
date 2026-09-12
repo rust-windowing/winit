@@ -12,11 +12,11 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider, EventLoopProxy,
     OwnedDisplayHandle,
 };
-use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 #[cfg(wayland_platform)]
 pub(crate) use winit_wayland as wayland;
 #[cfg(x11_platform)]
@@ -194,13 +194,20 @@ impl EventLoopProvider for EventLoop {
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app_on_demand(app))
     }
 }
 
 impl EventLoopExtPumpEvents for EventLoop {
-    fn pump_app_events(&mut self, timeout: Option<Duration>, app: &mut dyn ApplicationHandler) -> PumpStatus {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut dyn ApplicationHandler,
+    ) -> PumpStatus {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_app_events(timeout, app))
     }
 }

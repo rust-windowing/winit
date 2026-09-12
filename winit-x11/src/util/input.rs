@@ -20,10 +20,10 @@ impl XConnection {
         mask: xinput::XIEventMask,
     ) -> Result<VoidCookie<'_>, X11Error> {
         self.xcb_connection()
-            .xinput_xi_select_events(window, &[xinput::EventMask {
-                deviceid: device_id,
-                mask: vec![mask],
-            }])
+            .xinput_xi_select_events(
+                window,
+                &[xinput::EventMask { deviceid: device_id, mask: vec![mask] }],
+            )
             .map_err(Into::into)
     }
 

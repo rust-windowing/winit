@@ -24,7 +24,7 @@ fn main() -> std::process::ExitCode {
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::pump_events::{PumpStatus};
+    use winit::event_loop::pump_events::PumpStatus;
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 

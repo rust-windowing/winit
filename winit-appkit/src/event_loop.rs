@@ -26,12 +26,12 @@ use winit_core::data_transfer::{
 use winit_core::error::{EventLoopError, RequestError};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, DragIcon, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowId};
 
@@ -159,11 +159,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let data = Arc::new(pb.with_type(type_));
 
         self.app_state.maybe_queue_with_handler(move |app, event_loop| {
-            app.window_event(event_loop, window_id, WindowEvent::DataTransferReceived {
-                id,
-                serial,
-                value: data,
-            });
+            app.window_event(
+                event_loop,
+                window_id,
+                WindowEvent::DataTransferReceived { id, serial, value: data },
+            );
         });
 
         Ok(serial)
@@ -467,7 +467,10 @@ impl EventLoopExtRunOnDemand for EventLoop {
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
         self.app_state.clear_exit();
         self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
@@ -555,10 +558,7 @@ impl EventLoopExtPumpEvents for EventLoop {
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app(
-        &mut self,
-        mut app: Box<dyn ApplicationHandler>,
-    ) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         let result = self.run_app_on_demand(&mut app);
         // SAFETY: unsure that the state is dropped before the exit from the event loop.
         drop(app);

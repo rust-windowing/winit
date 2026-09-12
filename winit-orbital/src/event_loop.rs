@@ -19,12 +19,12 @@ use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{self, Modifiers, StartCause};
 use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
     PhysicalKey,
@@ -441,36 +441,50 @@ impl EventLoop {
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
                 event_state.mouse_pos = (x, y);
-                app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
-                    device_id: None,
-                    primary: true,
-                    position: event_state.mouse_pos.into(),
-                    source: event::PointerSource::Mouse,
-                });
+                app.window_event(
+                    window_target,
+                    window_id,
+                    event::WindowEvent::PointerMoved {
+                        device_id: None,
+                        primary: true,
+                        position: event_state.mouse_pos.into(),
+                        source: event::PointerSource::Mouse,
+                    },
+                );
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
-                app.device_event(window_target, None, event::DeviceEvent::PointerMotion {
-                    delta: (dx as f64, dy as f64),
-                });
+                app.device_event(
+                    window_target,
+                    None,
+                    event::DeviceEvent::PointerMotion { delta: (dx as f64, dy as f64) },
+                );
             },
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
-                    app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
-                        device_id: None,
-                        primary: true,
-                        state,
-                        position: event_state.mouse_pos.into(),
-                        button: button.into(),
-                        is_macos_activation_click: false,
-                    });
+                    app.window_event(
+                        window_target,
+                        window_id,
+                        event::WindowEvent::PointerButton {
+                            device_id: None,
+                            primary: true,
+                            state,
+                            position: event_state.mouse_pos.into(),
+                            button: button.into(),
+                            is_macos_activation_click: false,
+                        },
+                    );
                 }
             },
             EventOption::Scroll(ScrollEvent { x, y }) => {
-                app.window_event(window_target, window_id, event::WindowEvent::MouseWheel {
-                    device_id: None,
-                    delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
-                    phase: event::TouchPhase::Moved,
-                });
+                app.window_event(
+                    window_target,
+                    window_id,
+                    event::WindowEvent::MouseWheel {
+                        device_id: None,
+                        delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
+                        phase: event::TouchPhase::Moved,
+                    },
+                );
             },
             EventOption::Quit(QuitEvent {}) => {
                 app.window_event(window_target, window_id, event::WindowEvent::CloseRequested);
@@ -640,7 +654,10 @@ impl EventLoop {
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
         self.window_target.exit.set(false);
         let res = loop {
             match self.pump_app_events(None, app) {
@@ -670,7 +687,11 @@ impl EventLoopExtRunOnDemand for EventLoop {
 }
 
 impl EventLoopExtPumpEvents for EventLoop {
-    fn pump_app_events(&mut self, timeout: Option<Duration>, app: &mut dyn ApplicationHandler) -> PumpStatus {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut dyn ApplicationHandler,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
@@ -743,10 +764,7 @@ impl EventLoopExtPumpEvents for EventLoop {
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app(
-        &mut self,
-        mut app: Box<dyn ApplicationHandler>,
-    ) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         let result = self.run_app_on_demand(&mut app);
         // SAFETY: unsure that the state is dropped before the exit from the event loop.
         drop(app);
