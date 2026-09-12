@@ -8,7 +8,6 @@ use winit_core::error::EventLoopError;
 use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 
 // Limit this example to only compatible platforms.
-#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, orbital_platform))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 

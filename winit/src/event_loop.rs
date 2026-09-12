@@ -45,6 +45,11 @@ impl EventLoop {
     /// This is an alias of `EventLoop::builder().build()`.
     #[inline]
     pub fn new() -> Result<EventLoop, EventLoopError> {
+        #[cfg(windows_platform)]
+        let native_event_loop = platform_impl::EventLoop::new(
+            &mut platform_impl::PlatformSpecificEventLoopAttributes::default(),
+        )?;
+        #[cfg(not(windows_platform))]
         let native_event_loop = platform_impl::EventLoop::new(
             &platform_impl::PlatformSpecificEventLoopAttributes::default(),
         )?;
