@@ -453,10 +453,10 @@ impl EventLoop {
             || self.redraw_receiver.has_incoming()
     }
 
-    fn poll_events_with_timeout<A: ApplicationHandler>(
+    fn poll_events_with_timeout(
         &mut self,
         mut timeout: Option<Duration>,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         let start = Instant::now();
 
@@ -519,7 +519,7 @@ impl EventLoop {
         self.single_iteration(app, cause);
     }
 
-    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+    fn single_iteration(&mut self, app: &mut dyn ApplicationHandler, cause: StartCause) {
         app.new_events(&self.event_processor.target, cause);
 
         // NB: For consistency all platforms must call `can_create_surfaces` even though X11
@@ -580,7 +580,7 @@ impl EventLoop {
         app.about_to_wait(&self.event_processor.target);
     }
 
-    fn drain_events<A: ApplicationHandler>(&mut self, app: &mut A) {
+    fn drain_events(&mut self, app: &mut dyn ApplicationHandler) {
         let mut xev = MaybeUninit::uninit();
 
         while let Some(xev) = self.event_processor.poll_one_event(&mut xev) {

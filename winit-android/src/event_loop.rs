@@ -169,10 +169,10 @@ impl EventLoop {
         &self.window_target
     }
 
-    fn single_iteration<A: ApplicationHandler>(
+    fn single_iteration(
         &mut self,
         main_event: Option<MainEvent<'_>>,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         trace!("Mainloop iteration");
 
@@ -313,11 +313,11 @@ impl EventLoop {
         self.pending_redraw = pending_redraw;
     }
 
-    fn handle_input_event<A: ApplicationHandler>(
+    fn handle_input_event(
         &mut self,
         android_app: &AndroidApp,
         event: &InputEvent<'_>,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) -> InputStatus {
         let mut input_status = InputStatus::Handled;
         match event {
@@ -510,10 +510,10 @@ impl EventLoop {
         input_status
     }
 
-    fn poll_events_with_timeout<A: ApplicationHandler>(
+    fn poll_events_with_timeout(
         &mut self,
         mut timeout: Option<Duration>,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         let start = Instant::now();
 
