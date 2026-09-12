@@ -130,7 +130,7 @@ fn pump_events(
     }
 
     #[cfg(orbital_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital:EventLoop>() {
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital::EventLoop>() {
         return event_loop.pump_app_events(timeout, app);
     }
 

@@ -121,7 +121,7 @@ fn run_on_demand(
     }
 
     #[cfg(orbital_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital:EventLoop>() {
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital::EventLoop>() {
         return event_loop.run_app_on_demand(app);
     }
 
