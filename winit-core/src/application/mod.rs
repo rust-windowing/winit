@@ -158,7 +158,7 @@ pub trait ApplicationHandler {
     /// }
     ///
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let event_loop = EventLoop::new()?;
+    ///     let mut event_loop = EventLoop::new()?;
     ///
     ///     let (sender, receiver) = mpsc::channel();
     ///
@@ -180,7 +180,7 @@ pub trait ApplicationHandler {
     ///         }
     ///     });
     ///
-    ///     event_loop.run_app(MyApp { receiver })?;
+    ///     event_loop.run_app(Box::new(MyApp { receiver }))?;
     ///
     ///     background_thread.join().unwrap();
     ///
