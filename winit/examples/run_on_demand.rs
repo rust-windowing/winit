@@ -1,15 +1,9 @@
 #![allow(clippy::single_match)]
 
-use std::any::Any;
-
-use winit::event_loop::EventLoop;
-use winit_core::application::ApplicationHandler;
-use winit_core::error::EventLoopError;
-use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
-
 // Limit this example to only compatible platforms.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
+    use std::any::Any;
 
     use softbuffer::{Context, Surface};
     use tracing::info;
@@ -17,6 +11,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
+
+    use winit_core::error::EventLoopError;
+    use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 
     #[path = "util/fill.rs"]
     mod fill;
@@ -79,6 +76,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+
+    fn run_on_demand(
+        event_loop: &mut EventLoop,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
+        let event_loop = event_loop.raw_event_loop_mut() as &mut dyn Any;
+
+        #[cfg(windows_platform)]
+        if let Some(event_loop) = event_loop.downcast_mut::<winit_win32::EventLoop>() {
+            return event_loop.run_app_on_demand(app);
+        }
+
+        #[cfg(macos_platform)]
+        if let Some(event_loop) = event_loop.downcast_mut::<winit_appkit::EventLoop>() {
+            return event_loop.run_app_on_demand(app);
+        }
+
+        #[cfg(any(x11_platform, wayland_platform))]
+        if let Some(event_loop) = event_loop.downcast_mut::<winit::platform_impl::linux::EventLoop>() {
+            return event_loop.run_app_on_demand(app);
+        }
+
+        #[cfg(orbital_platform)]
+        if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital::EventLoop>() {
+            return event_loop.run_app_on_demand(app);
+        }
+
+        unreachable!("Not supported by backend");
+    }
+
     tracing::init();
 
     let mut event_loop = EventLoop::new()?;
@@ -95,36 +122,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_on_demand(&mut event_loop, &mut app)?;
     info!("Finished second loop");
     Ok(())
-}
-
-#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, orbital_platform))]
-fn run_on_demand(
-    event_loop: &mut EventLoop,
-    app: &mut dyn ApplicationHandler,
-) -> Result<(), EventLoopError> {
-    let event_loop = event_loop.raw_event_loop_mut() as &mut dyn Any;
-
-    #[cfg(windows_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_win32::EventLoop>() {
-        return event_loop.run_app_on_demand(app);
-    }
-
-    #[cfg(macos_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_appkit::EventLoop>() {
-        return event_loop.run_app_on_demand(app);
-    }
-
-    #[cfg(any(x11_platform, wayland_platform))]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit::platform_impl::linux::EventLoop>() {
-        return event_loop.run_app_on_demand(app);
-    }
-
-    #[cfg(orbital_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital::EventLoop>() {
-        return event_loop.run_app_on_demand(app);
-    }
-
-    unreachable!("Not supported by backend");
 }
 
 #[cfg(not(any(
