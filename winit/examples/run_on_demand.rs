@@ -2,8 +2,8 @@
 
 // Limit this example to only compatible platforms.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::time::Duration;
     use std::any::Any;
+    use std::time::Duration;
 
     use softbuffer::{Context, Surface};
     use tracing::info;
@@ -76,7 +76,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-
     fn run_on_demand(
         event_loop: &mut EventLoop,
         app: &mut dyn ApplicationHandler,
@@ -94,7 +93,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         #[cfg(any(x11_platform, wayland_platform))]
-        if let Some(event_loop) = event_loop.downcast_mut::<winit::platform_impl::linux::EventLoop>() {
+        if let Some(event_loop) =
+            event_loop.downcast_mut::<winit::platform_impl::linux::EventLoop>()
+        {
             return event_loop.run_app_on_demand(app);
         }
 
