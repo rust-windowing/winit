@@ -12,7 +12,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use winit::event::WindowEvent;
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
-
     use winit_core::error::EventLoopError;
     use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 

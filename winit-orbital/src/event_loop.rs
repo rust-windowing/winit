@@ -441,50 +441,36 @@ impl EventLoop {
             },
             EventOption::Mouse(MouseEvent { x, y }) => {
                 event_state.mouse_pos = (x, y);
-                app.window_event(
-                    window_target,
-                    window_id,
-                    event::WindowEvent::PointerMoved {
-                        device_id: None,
-                        primary: true,
-                        position: event_state.mouse_pos.into(),
-                        source: event::PointerSource::Mouse,
-                    },
-                );
+                app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
+                    device_id: None,
+                    primary: true,
+                    position: event_state.mouse_pos.into(),
+                    source: event::PointerSource::Mouse,
+                });
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
-                app.device_event(
-                    window_target,
-                    None,
-                    event::DeviceEvent::PointerMotion { delta: (dx as f64, dy as f64) },
-                );
+                app.device_event(window_target, None, event::DeviceEvent::PointerMotion {
+                    delta: (dx as f64, dy as f64),
+                });
             },
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
-                    app.window_event(
-                        window_target,
-                        window_id,
-                        event::WindowEvent::PointerButton {
-                            device_id: None,
-                            primary: true,
-                            state,
-                            position: event_state.mouse_pos.into(),
-                            button: button.into(),
-                            is_macos_activation_click: false,
-                        },
-                    );
+                    app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
+                        device_id: None,
+                        primary: true,
+                        state,
+                        position: event_state.mouse_pos.into(),
+                        button: button.into(),
+                        is_macos_activation_click: false,
+                    });
                 }
             },
             EventOption::Scroll(ScrollEvent { x, y }) => {
-                app.window_event(
-                    window_target,
-                    window_id,
-                    event::WindowEvent::MouseWheel {
-                        device_id: None,
-                        delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
-                        phase: event::TouchPhase::Moved,
-                    },
-                );
+                app.window_event(window_target, window_id, event::WindowEvent::MouseWheel {
+                    device_id: None,
+                    delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
+                    phase: event::TouchPhase::Moved,
+                });
             },
             EventOption::Quit(QuitEvent {}) => {
                 app.window_event(window_target, window_id, event::WindowEvent::CloseRequested);
