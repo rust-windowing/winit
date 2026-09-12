@@ -94,6 +94,14 @@ fn main() -> std::process::ExitCode {
     }
 }
 
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    android_platform,
+    orbital_platform,
+))]
 fn pump_events(
     event_loop: &mut EventLoop,
     app: &mut dyn ApplicationHandler,
