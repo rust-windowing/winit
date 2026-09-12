@@ -173,8 +173,8 @@ impl EventLoop {
 
 impl EventLoopProvider for EventLoop {
     fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
+        &mut self,
+        mut app: Box<dyn ApplicationHandler>,
     ) -> Result<(), EventLoopError> {
         let result = self.run_app_on_demand(&mut app);
         // SAFETY: unsure that the state is dropped before the exit from the event loop.
