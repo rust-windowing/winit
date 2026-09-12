@@ -310,7 +310,7 @@ impl EventLoop {
     }
 
     // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
-    pub fn run_app_never_return(&mut self, mut app: Box<dyn ApplicationHandler>) -> ! {
+    pub fn run_app_never_return(&mut self, app: Box<dyn ApplicationHandler>) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
@@ -335,7 +335,7 @@ impl EventLoop {
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         self.run_app_never_return(app)
     }
 

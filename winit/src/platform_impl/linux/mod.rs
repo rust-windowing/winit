@@ -204,6 +204,10 @@ impl EventLoopProvider for EventLoop {
     ) -> Result<CustomCursor, RequestError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
+
+    fn window_target(&self) -> &dyn ActiveEventLoop {
+        self.window_target()
+    }
 }
 
 impl AsFd for EventLoop {

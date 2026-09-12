@@ -637,7 +637,7 @@ impl EventLoopExtPumpEvents for EventLoop {
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut app);
+            self.poll_events_with_timeout(timeout, app);
         }
         if self.exiting() {
             self.loop_running = false;
