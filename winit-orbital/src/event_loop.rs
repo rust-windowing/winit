@@ -361,7 +361,7 @@ impl EventLoop {
         event_option: EventOption,
         event_state: &mut EventState,
         window_target: &ActiveEventLoop,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         let text_input_event = event_state.text_input_event.take();
         if text_input_event.is_some() && !matches!(event_option, EventOption::Key(_)) {

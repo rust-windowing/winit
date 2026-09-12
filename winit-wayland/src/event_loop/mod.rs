@@ -49,6 +49,7 @@ use proxy::EventLoopProxy;
 use sink::EventSink;
 pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
+
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
@@ -180,10 +181,10 @@ impl EventLoop {
         Ok(event_loop)
     }
 
-    fn poll_events_with_timeout<A: ApplicationHandler>(
+    fn poll_events_with_timeout(
         &mut self,
         mut timeout: Option<Duration>,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         let cause = loop {
             let start = Instant::now();
@@ -281,7 +282,7 @@ impl EventLoop {
         true
     }
 
-    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+    fn single_iteration(&mut self, app: &mut dyn ApplicationHandler, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
         // We retain these grow-only scratch buffers as part of the EventLoop
@@ -555,7 +556,10 @@ impl EventLoop {
 }
 
 impl EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
         self.active_event_loop.clear_exit();
         let exit = loop {
             match self.pump_app_events(None, app) {
@@ -582,12 +586,16 @@ impl EventLoopExtRunOnDemand for EventLoop {
 }
 
 impl EventLoopExtPumpEvents for EventLoop {
-    fn pump_app_events(&mut self, timeout: Option<Duration>, app: &mut dyn ApplicationHandler) -> PumpStatus {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut dyn ApplicationHandler,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // Run the initial loop iteration.
-            self.single_iteration(&mut app, StartCause::Init);
+            self.single_iteration(app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
