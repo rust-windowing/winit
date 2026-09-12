@@ -400,8 +400,7 @@ impl EventLoopExtPumpEvents for EventLoop {
 
 impl EventLoopProvider for EventLoop {
     fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
-        let result = self.run_app_on_demand(&mut app);
-        result
+        self.run_app_on_demand(&mut app)
     }
 
     fn create_proxy(&self) -> RootEventLoopProxy {

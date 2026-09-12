@@ -154,7 +154,7 @@ impl EventLoop {
     ///
     /// The `EventLoopProvider` implements `Any`, so this can be used to downcast to platform
     /// specific event loops.
-    pub fn raw_event_loop_mut<'a>(&'a mut self) -> &'a mut dyn EventLoopProvider {
+    pub fn raw_event_loop_mut(&mut self) -> &mut dyn EventLoopProvider {
         self.event_loop.as_mut()
     }
 
