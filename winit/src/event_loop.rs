@@ -46,7 +46,7 @@ impl EventLoop {
     #[inline]
     pub fn new() -> Result<EventLoop, EventLoopError> {
         let native_event_loop = platform_impl::EventLoop::new(
-            &mut platform_impl::PlatformSpecificEventLoopAttributes::default(),
+            &platform_impl::PlatformSpecificEventLoopAttributes::default(),
         )?;
         Ok(Self::new_custom_provider(Box::new(native_event_loop)))
     }
