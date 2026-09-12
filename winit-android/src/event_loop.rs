@@ -16,6 +16,7 @@ use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use winit_core::event_loop::pump_events::PumpStatus;
+use winit_core::event_loop::run_on_demand::{EventLoopExtPumpEvents, EventLoopExtRunOnDemand};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -509,58 +510,6 @@ impl EventLoop {
         input_status
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        self.window_target.clear_exit();
-        loop {
-            match self.pump_app_events(None, &mut app) {
-                PumpStatus::Exit(0) => {
-                    break Ok(());
-                },
-                PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
-                },
-                _ => {
-                    continue;
-                },
-            }
-        }
-    }
-
-    pub fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut app: A,
-    ) -> PumpStatus {
-        if !self.loop_running {
-            self.loop_running = true;
-
-            // Reset the internal state for the loop as we start running to
-            // ensure consistent behaviour in case the loop runs and exits more
-            // than once
-            self.pending_redraw = false;
-            self.cause = StartCause::Init;
-
-            // run the initial loop iteration
-            self.single_iteration(None, &mut app);
-        }
-
-        // Consider the possibility that the `StartCause::Init` iteration could
-        // request to Exit
-        if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut app);
-        }
-        if self.exiting() {
-            self.loop_running = false;
-
-            PumpStatus::Exit(0)
-        } else {
-            PumpStatus::Continue
-        }
-    }
-
     fn poll_events_with_timeout<A: ApplicationHandler>(
         &mut self,
         mut timeout: Option<Duration>,
@@ -644,11 +593,64 @@ impl EventLoop {
     }
 }
 
-impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
+impl EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
     ) -> Result<(), EventLoopError> {
+        self.window_target.clear_exit();
+        loop {
+            match self.pump_app_events(None, app) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
+                },
+                PumpStatus::Exit(code) => {
+                    break Err(EventLoopError::ExitFailure(code));
+                },
+                _ => {
+                    continue;
+                },
+            }
+        }
+    }
+}
+
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut dyn ApplicationHandler,
+    ) -> PumpStatus {
+        if !self.loop_running {
+            self.loop_running = true;
+
+            // Reset the internal state for the loop as we start running to
+            // ensure consistent behaviour in case the loop runs and exits more
+            // than once
+            self.pending_redraw = false;
+            self.cause = StartCause::Init;
+
+            // run the initial loop iteration
+            self.single_iteration(None, app);
+        }
+
+        // Consider the possibility that the `StartCause::Init` iteration could
+        // request to Exit
+        if !self.exiting() {
+            self.poll_events_with_timeout(timeout, &mut app);
+        }
+        if self.exiting() {
+            self.loop_running = false;
+
+            PumpStatus::Exit(0)
+        } else {
+            PumpStatus::Continue
+        }
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         let result = self.run_app_on_demand(&mut app);
         // SAFETY: unsure that the state is dropped before the exit from the event loop.
         drop(app);
@@ -676,6 +678,10 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, RequestError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+
+    fn window_target(&self) -> &dyn RootActiveEventLoop {
+        self.window_target()
     }
 }
 
