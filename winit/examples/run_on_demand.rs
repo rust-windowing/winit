@@ -1,5 +1,12 @@
 #![allow(clippy::single_match)]
 
+use std::any::Any;
+
+use winit::event_loop::EventLoop;
+use winit_core::application::ApplicationHandler;
+use winit_core::error::EventLoopError;
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
+
 // Limit this example to only compatible platforms.
 #[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, orbital_platform))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -9,7 +16,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -76,20 +82,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::init();
 
-    let mut event_loop = EventLoop::new().unwrap();
+    let mut event_loop = EventLoop::new()?;
 
-    let context = Context::new(event_loop.owned_display_handle()).unwrap();
+    let context = Context::new(event_loop.owned_display_handle())?;
     let mut app = App { context, idx: 1, surface: None, window_id: None };
-    event_loop.run_app_on_demand(&mut app)?;
+    run_on_demand(&mut event_loop, &mut app)?;
 
     info!("Finished first loop");
     info!("Waiting 5 seconds");
     std::thread::sleep(Duration::from_secs(5));
 
     app.idx += 1;
-    event_loop.run_app_on_demand(&mut app)?;
+    run_on_demand(&mut event_loop, &mut app)?;
     info!("Finished second loop");
     Ok(())
+}
+
+fn run_on_demand(
+    event_loop: &mut EventLoop,
+    app: &mut dyn ApplicationHandler,
+) -> Result<(), EventLoopError> {
+    let event_loop = event_loop.raw_event_loop_mut() as &mut dyn Any;
+
+    #[cfg(windows_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_win32::EventLoop>() {
+        return event_loop.run_app_on_demand(app);
+    }
+
+    #[cfg(macos_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_appkit::EventLoop>() {
+        event_loop.run_app_on_demand(app)?;
+    }
+
+    #[cfg(x11_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_x11::EventLoop>() {
+        event_loop.run_app_on_demand(app)?;
+    }
+
+    #[cfg(wayland_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_wayland::EventLoop>() {
+        event_loop.run_app_on_demand(app)?;
+    }
+
+    #[cfg(orbital_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital:EventLoop>() {
+        event_loop.run_app_on_demand(app)?;
+    }
+
+    unreachable!("Not supported by backend");
 }
 
 #[cfg(not(any(

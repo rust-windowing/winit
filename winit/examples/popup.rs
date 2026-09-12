@@ -193,16 +193,16 @@ fn main() -> Result<(), impl std::error::Error> {
         event_loop.create_window(window_attributes).unwrap()
     }
 
-    let event_loop = EventLoop::new().unwrap();
+    let mut event_loop = EventLoop::new().unwrap();
     let context = Context::new(event_loop.owned_display_handle()).unwrap();
-    event_loop.run_app(Application {
+    event_loop.run_app(Box::new(Application {
         context,
         parent_window_id: None,
         windows: HashMap::new(),
         popups: Vec::default(),
         position: Default::default(),
         main_window: None,
-    })
+    }))
 }
 
 #[cfg(not(any(x11_platform, macos_platform, windows_platform, wayland_platform)))]

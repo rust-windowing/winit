@@ -310,7 +310,7 @@ impl EventLoop {
     }
 
     // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
-    pub fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> ! {
+    pub fn run_app_never_return(&mut self, mut app: Box<dyn ApplicationHandler>) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
@@ -335,7 +335,7 @@ impl EventLoop {
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         self.run_app_never_return(app)
     }
 
@@ -360,5 +360,9 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, RequestError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+
+    fn window_target(&self) -> &dyn RootActiveEventLoop {
+        self.window_target()
     }
 }

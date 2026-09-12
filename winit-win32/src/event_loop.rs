@@ -72,7 +72,8 @@ use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
     TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
-use winit_core::event_loop::pump_events::PumpStatus;
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, DragIcon, EventLoopProvider, EventLoopProxy as RootEventLoopProxy,
@@ -252,69 +253,6 @@ impl EventLoop {
         ActiveEventLoop::from_ref(&self.runner)
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        self.runner.clear_exit();
-
-        // SAFETY: The resetter is not leaked.
-        let _app_resetter = unsafe { self.runner.set_app(&mut app) };
-
-        let exit_code = loop {
-            self.wait_for_messages(None);
-            // wait_for_messages calls user application before and after waiting
-            // so it may have decided to exit.
-            if let Some(code) = self.exit_code() {
-                break code;
-            }
-
-            self.dispatch_peeked_messages();
-
-            if let Some(code) = self.exit_code() {
-                break code;
-            }
-        };
-
-        self.runner.loop_destroyed();
-
-        self.runner.reset_runner();
-
-        if exit_code == 0 { Ok(()) } else { Err(EventLoopError::ExitFailure(exit_code)) }
-    }
-
-    pub fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut app: A,
-    ) -> PumpStatus {
-        // SAFETY: The resetter is not leaked.
-        let _app_resetter = unsafe { self.runner.set_app(&mut app) };
-
-        self.runner.wakeup();
-
-        if self.exit_code().is_none() {
-            self.wait_for_messages(timeout);
-        }
-        // wait_for_messages calls user application before and after waiting
-        // so it may have decided to exit.
-        if self.exit_code().is_none() {
-            self.dispatch_peeked_messages();
-        }
-
-        if let Some(code) = self.runner.exit_code() {
-            self.runner.loop_destroyed();
-
-            // Immediately reset the internal state for the loop to allow
-            // the loop to be run more than once.
-            self.runner.reset_runner();
-            PumpStatus::Exit(code)
-        } else {
-            self.runner.prepare_wait();
-            PumpStatus::Continue
-        }
-    }
-
     /// Waits until new event messages arrive to be peeked.
     /// Doesn't peek messages itself.
     ///
@@ -393,14 +331,76 @@ impl EventLoop {
     }
 }
 
-impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
+impl EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand(
+        &mut self,
+        mut app: &mut dyn ApplicationHandler,
     ) -> Result<(), EventLoopError> {
+        self.runner.clear_exit();
+
+        // SAFETY: The resetter is not leaked.
+        let _app_resetter = unsafe { self.runner.set_app(&mut app) };
+
+        let exit_code = loop {
+            self.wait_for_messages(None);
+            // wait_for_messages calls user application before and after waiting
+            // so it may have decided to exit.
+            if let Some(code) = self.exit_code() {
+                break code;
+            }
+
+            self.dispatch_peeked_messages();
+
+            if let Some(code) = self.exit_code() {
+                break code;
+            }
+        };
+
+        self.runner.loop_destroyed();
+
+        self.runner.reset_runner();
+
+        if exit_code == 0 { Ok(()) } else { Err(EventLoopError::ExitFailure(exit_code)) }
+    }
+}
+
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<Duration>,
+        mut app: &mut dyn ApplicationHandler,
+    ) -> PumpStatus {
+        // SAFETY: The resetter is not leaked.
+        let _app_resetter = unsafe { self.runner.set_app(&mut app) };
+
+        self.runner.wakeup();
+
+        if self.exit_code().is_none() {
+            self.wait_for_messages(timeout);
+        }
+        // wait_for_messages calls user application before and after waiting
+        // so it may have decided to exit.
+        if self.exit_code().is_none() {
+            self.dispatch_peeked_messages();
+        }
+
+        if let Some(code) = self.runner.exit_code() {
+            self.runner.loop_destroyed();
+
+            // Immediately reset the internal state for the loop to allow
+            // the loop to be run more than once.
+            self.runner.reset_runner();
+            PumpStatus::Exit(code)
+        } else {
+            self.runner.prepare_wait();
+            PumpStatus::Continue
+        }
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         let result = self.run_app_on_demand(&mut app);
-        // SAFETY: unsure that the state is dropped before the exit from the event loop.
-        drop(app);
         result
     }
 
@@ -425,6 +425,10 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, RequestError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+
+    fn window_target(&self) -> &dyn RootActiveEventLoop {
+        self.window_target()
     }
 }
 

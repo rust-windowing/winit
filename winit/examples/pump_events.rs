@@ -1,5 +1,11 @@
 #![allow(clippy::single_match)]
 
+use std::any::Any;
+use std::time::Duration;
+use winit::event_loop::EventLoop;
+use winit_core::application::ApplicationHandler;
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+
 // Limit this example to only compatible platforms.
 #[cfg(any(
     windows_platform,
@@ -18,7 +24,7 @@ fn main() -> std::process::ExitCode {
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+    use winit::event_loop::pump_events::{PumpStatus};
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -73,7 +79,7 @@ fn main() -> std::process::ExitCode {
 
     loop {
         let timeout = Some(Duration::ZERO);
-        let status = event_loop.pump_app_events(timeout, &mut app);
+        let status = pump_events(&mut event_loop, &mut app, timeout);
 
         if let PumpStatus::Exit(exit_code) = status {
             break ExitCode::from(exit_code as u8);
@@ -86,6 +92,46 @@ fn main() -> std::process::ExitCode {
         info!("Update()");
         sleep(Duration::from_millis(16));
     }
+}
+
+fn pump_events(
+    event_loop: &mut EventLoop,
+    app: &mut dyn ApplicationHandler,
+    timeout: Option<Duration>,
+) -> PumpStatus {
+    let event_loop = event_loop.raw_event_loop_mut() as &mut dyn Any;
+
+    #[cfg(windows_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_win32::EventLoop>() {
+        return event_loop.pump_app_events(timeout, app);
+    }
+
+    #[cfg(macos_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_appkit::EventLoop>() {
+        return event_loop.pump_app_events(timeout, app);
+    }
+
+    #[cfg(x11_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_x11::EventLoop>() {
+        return event_loop.pump_app_events(timeout, app);
+    }
+
+    #[cfg(wayland_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_wayland::EventLoop>() {
+        return event_loop.pump_app_events(timeout, app);
+    }
+
+    #[cfg(android_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_android::EventLoop>() {
+        return event_loop.pump_app_events(timeout, app);
+    }
+
+    #[cfg(orbital_platform)]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit_orbital:EventLoop>() {
+        return event_loop.pump_app_events(timeout, app);
+    }
+
+    unreachable!("Not supported by backend");
 }
 
 #[cfg(any(ios_platform, web_platform))]

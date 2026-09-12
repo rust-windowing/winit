@@ -43,8 +43,8 @@ impl EventLoop {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 
-    pub fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.elw.run(Box::new(app));
+    pub fn register_app(&mut self, app: Box<dyn ApplicationHandler>) {
+        self.elw.run(app);
     }
 
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
@@ -83,7 +83,7 @@ impl EventLoop {
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         self.register_app(app);
         Ok(())
     }
@@ -109,5 +109,9 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CoreCustomCursor, RequestError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+
+    fn window_target(&self) -> &dyn RootActiveEventLoop {
+        self.window_target()
     }
 }

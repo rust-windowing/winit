@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing_init::init();
 
-    let event_loop = EventLoop::new()?;
+    let mut event_loop = EventLoop::new()?;
     let (sender, receiver) = mpsc::channel();
 
     // Wire the user event from another thread.
@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         });
     }
 
-    let app = Application::new(&event_loop, receiver, sender);
+    let app = Box::new(Application::new(&event_loop, receiver, sender));
     Ok(event_loop.run_app(app)?)
 }
 

@@ -345,7 +345,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing_init::init();
 
-    let event_loop = EventLoop::new()?;
+    let mut event_loop = EventLoop::new()?;
 
     info!(
         r#"This showcases the use of an input method engine (IME) by emulating a text edit field.
@@ -369,7 +369,7 @@ Use CTRL+h to cycle content hint permutations.
     };
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
-    event_loop.run_app(app)?;
+    event_loop.run_app(Box::new(app))?;
 
     Ok(())
 }

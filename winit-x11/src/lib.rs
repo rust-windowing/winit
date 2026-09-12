@@ -128,18 +128,6 @@ pub trait EventLoopExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-/// Additional methods when building event loop that are specific to X11.
-pub trait EventLoopBuilderExtX11 {
-    /// Force using X11.
-    fn with_x11(&mut self) -> &mut Self;
-
-    /// Whether to allow the event loop to be created off of the main thread.
-    ///
-    /// By default, the window is only allowed to be created on the main
-    /// thread, to make platform compatibility easier.
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
-}
-
 /// Additional methods on [`Window`] that are specific to X11.
 ///
 /// [`Window`]: crate::window::Window

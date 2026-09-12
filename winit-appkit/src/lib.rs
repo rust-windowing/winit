@@ -552,61 +552,6 @@ impl PlatformWindowAttributes for WindowAttributesMacOS {
     }
 }
 
-pub trait EventLoopBuilderExtMacOS {
-    /// Sets the activation policy for the application. If used, this will override
-    /// any relevant settings provided in the package manifest.
-    /// For instance, `with_activation_policy(ActivationPolicy::Regular)` will prevent
-    /// the application from running as an "agent", even if LSUIElement is set to true.
-    ///
-    /// If unused, the Winit will honor the package manifest.
-    ///
-    /// # Example
-    ///
-    /// Set the activation policy to "accessory".
-    ///
-    /// ```
-    /// use winit::event_loop::EventLoop;
-    /// #[cfg(target_os = "macos")]
-    /// use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
-    ///
-    /// let mut builder = EventLoop::builder();
-    /// #[cfg(target_os = "macos")]
-    /// builder.with_activation_policy(ActivationPolicy::Accessory);
-    /// # if false { // We can't test this part
-    /// let event_loop = builder.build();
-    /// # }
-    /// ```
-    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self;
-
-    /// Used to control whether a default menubar menu is created.
-    ///
-    /// Menu creation is enabled by default.
-    ///
-    /// # Example
-    ///
-    /// Disable creating a default menubar.
-    ///
-    /// ```
-    /// use winit::event_loop::EventLoop;
-    /// #[cfg(target_os = "macos")]
-    /// use winit::platform::macos::EventLoopBuilderExtMacOS;
-    ///
-    /// let mut builder = EventLoop::builder();
-    /// #[cfg(target_os = "macos")]
-    /// builder.with_default_menu(false);
-    /// # if false { // We can't test this part
-    /// let event_loop = builder.build();
-    /// # }
-    /// ```
-    fn with_default_menu(&mut self, enable: bool) -> &mut Self;
-
-    /// Used to prevent the application from automatically activating when launched if
-    /// another application is already active.
-    ///
-    /// The default behavior is to ignore other applications and activate when launched.
-    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
-}
-
 /// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
     /// Returns a pointer to the NSScreen representing this monitor.

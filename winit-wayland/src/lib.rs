@@ -71,18 +71,6 @@ pub trait EventLoopExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-/// Additional methods when building event loop that are specific to Wayland.
-pub trait EventLoopBuilderExtWayland {
-    /// Force using Wayland.
-    fn with_wayland(&mut self) -> &mut Self;
-
-    /// Whether to allow the event loop to be created off of the main thread.
-    ///
-    /// By default, the window is only allowed to be created on the main
-    /// thread, to make platform compatibility easier.
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
-}
-
 /// Additional methods on [`Window`] that are specific to Wayland.
 ///
 /// [`Window`]: crate::window::Window

@@ -91,7 +91,7 @@
 //! # // Intentionally use `fn main` for clarity
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a new event loop.
-//!     let event_loop = EventLoop::new()?;
+//!     let mut event_loop = EventLoop::new()?;
 //!
 //!     // Configure settings before launching.
 //!
@@ -105,7 +105,7 @@
 //!     event_loop.set_control_flow(ControlFlow::Wait);
 //!
 //!     // Launch and begin running the event loop.
-//!     event_loop.run_app(App::default())?;
+//!     event_loop.run_app(Box::new(App::default()))?;
 //!
 //!     Ok(())
 //! }

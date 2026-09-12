@@ -53,5 +53,6 @@ pub trait EventLoopExtRunOnDemand {
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`EventLoopProvider::run_app`]: crate::event_loop::EventLoopProvider::run_app
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
+    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler)
+    -> Result<(), EventLoopError>;
 }

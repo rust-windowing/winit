@@ -9,8 +9,6 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 use std::marker::PhantomData;
-#[cfg(any(x11_platform, wayland_platform))]
-use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 pub use winit_core::event_loop::*;
@@ -37,85 +35,26 @@ use crate::platform_impl;
 /// [`Window`]: crate::window::Window
 #[derive(Debug)]
 pub struct EventLoop {
-    pub(crate) event_loop: platform_impl::EventLoop,
+    pub(crate) event_loop: Box<dyn EventLoopProvider>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
-/// Object that allows building the event loop.
-///
-/// This is used to make specifying options that affect the whole application
-/// easier. But note that constructing multiple event loops is not supported.
-///
-/// This can be created using [`EventLoop::builder`].
-#[derive(Default, Debug, PartialEq, Eq, Hash)]
-pub struct EventLoopBuilder {
-    pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
-}
-
-impl EventLoopBuilder {
-    /// Builds a new event loop.
-    ///
-    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
-    /// and only once per application.***
-    ///
-    /// Calling this function will result in display backend initialisation.
-    ///
-    /// ## Panics
-    ///
-    /// Attempting to create the event loop off the main thread will panic. This
-    /// restriction isn't strictly necessary on all platforms, but is imposed to
-    /// eliminate any nasty surprises when porting to platforms that require it.
-    /// `EventLoopBuilderExt::with_any_thread` functions are exposed in the relevant
-    /// [`platform`] module if the target platform supports creating an event
-    /// loop on any thread.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland/X11:** to prevent running under `Wayland` or `X11` unset `WAYLAND_DISPLAY` or
-    ///   `DISPLAY` respectively when building the event loop.
-    /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
-    ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
-    ///
-    /// [`platform`]: crate::platform
-    #[cfg_attr(
-        android_platform,
-        doc = "[`.with_android_app(app)`]: \
-               crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
-    )]
-    #[cfg_attr(
-        not(android_platform),
-        doc = "[`.with_android_app(app)`]: #only-available-on-android"
-    )]
-    #[inline]
-    pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
-        let _entered = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
-
-        // Certain platforms accept a mutable reference in their API.
-        #[allow(clippy::unnecessary_mut_passed)]
-        Ok(EventLoop {
-            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific)?,
-            _marker: PhantomData,
-        })
-    }
-}
-
 impl EventLoop {
-    /// Create the event loop.
+    /// Create the event loop defaulting to the native backend.
     ///
     /// This is an alias of `EventLoop::builder().build()`.
     #[inline]
     pub fn new() -> Result<EventLoop, EventLoopError> {
-        Self::builder().build()
+        let native_event_loop = platform_impl::EventLoop::new(
+            &mut platform_impl::PlatformSpecificEventLoopAttributes::default(),
+        )?;
+        Ok(Self::new_custom_provider(Box::new(native_event_loop)))
     }
 
-    /// Start building a new event loop.
-    ///
-    /// This returns an [`EventLoopBuilder`], to allow configuring the event loop before creation.
-    ///
-    /// To get the actual event loop, call [`build`][EventLoopBuilder::build] on that.
+    /// Create the event loop with a specified backend.
     #[inline]
-    pub fn builder() -> EventLoopBuilder {
-        EventLoopBuilder { platform_specific: Default::default() }
+    pub fn new_custom_provider(event_loop: Box<dyn EventLoopProvider>) -> EventLoop {
+        Self { event_loop, _marker: PhantomData }
     }
 
     /// Run the event loop with the given application on the calling thread.
@@ -163,7 +102,7 @@ impl EventLoop {
     /// If this requirement is prohibitive for you, consider using [`run_app_on_demand`] instead
     /// (though note that this is not available on iOS and web).
     #[inline]
-    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+    pub fn run_app(&mut self, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         self.event_loop.run_app(app)
     }
 
@@ -210,10 +149,26 @@ impl EventLoop {
     ) -> Result<CustomCursor, RequestError> {
         self.event_loop.window_target().create_custom_cursor(custom_cursor)
     }
+
+    /// Returns the platform specific `EventLoopProvider`.
+    ///
+    /// The `EventLoopProvider` implements `Any`, so this can be used to downcast to platform
+    /// specific event loops.
+    pub fn raw_event_loop_mut<'a>(&'a mut self) -> &'a mut dyn EventLoopProvider {
+        self.event_loop.as_mut()
+    }
+
+    /// Returns the platform specific `EventLoopProvider`.
+    ///
+    /// The `EventLoopProvider` implements `Any`, so this can be used to downcast to platform
+    /// specific event loops.
+    pub fn raw_event_loop(&mut self) -> &dyn EventLoopProvider {
+        self.event_loop.as_ref()
+    }
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         self.run_app(app)
     }
 
@@ -239,6 +194,10 @@ impl EventLoopProvider for EventLoop {
     ) -> Result<CustomCursor, RequestError> {
         self.create_custom_cursor(custom_cursor)
     }
+
+    fn window_target(&self) -> &dyn ActiveEventLoop {
+        self.event_loop.window_target()
+    }
 }
 
 impl HasDisplayHandle for EventLoop {
@@ -246,231 +205,3 @@ impl HasDisplayHandle for EventLoop {
         HasDisplayHandle::display_handle(self.event_loop.window_target().rwh_06_handle())
     }
 }
-
-#[cfg(any(x11_platform, wayland_platform))]
-impl AsFd for EventLoop {
-    /// Get the underlying [EventLoop]'s `fd` which you can register
-    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_app_events`] API.
-    ///
-    /// [`calloop`]: https://crates.io/crates/calloop
-    /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.event_loop.as_fd()
-    }
-}
-
-#[cfg(any(x11_platform, wayland_platform))]
-impl AsRawFd for EventLoop {
-    /// Get the underlying [EventLoop]'s raw `fd` which you can register
-    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_app_events`] API.
-    ///
-    /// [`calloop`]: https://crates.io/crates/calloop
-    /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events
-    fn as_raw_fd(&self) -> RawFd {
-        self.event_loop.as_raw_fd()
-    }
-}
-
-#[cfg(any(
-    windows_platform,
-    macos_platform,
-    android_platform,
-    orbital_platform,
-    x11_platform,
-    wayland_platform,
-    docsrs,
-))]
-impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
-    fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<std::time::Duration>,
-        app: A,
-    ) -> winit_core::event_loop::pump_events::PumpStatus {
-        self.event_loop.pump_app_events(timeout, app)
-    }
-}
-
-#[allow(unused_imports)]
-#[cfg(any(
-    windows_platform,
-    macos_platform,
-    android_platform,
-    orbital_platform,
-    x11_platform,
-    wayland_platform,
-    docsrs,
-))]
-impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app_on_demand(app)
-    }
-}
-
-#[cfg(any(web_platform, docsrs))]
-impl winit_core::event_loop::register::EventLoopExtRegister for EventLoop {
-    fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.event_loop.register_app(app)
-    }
-}
-
-#[cfg(android_platform)]
-impl winit_android::EventLoopExtAndroid for EventLoop {
-    fn android_app(&self) -> &winit_android::activity::AndroidApp {
-        &self.event_loop.android_app
-    }
-}
-
-#[cfg(android_platform)]
-impl winit_android::EventLoopBuilderExtAndroid for EventLoopBuilder {
-    fn with_android_app(&mut self, app: winit_android::activity::AndroidApp) -> &mut Self {
-        self.platform_specific.android_app = Some(app);
-        self
-    }
-
-    fn handle_volume_keys(&mut self) -> &mut Self {
-        self.platform_specific.ignore_volume_keys = false;
-        self
-    }
-}
-
-#[cfg(macos_platform)]
-impl winit_appkit::EventLoopBuilderExtMacOS for EventLoopBuilder {
-    #[inline]
-    fn with_activation_policy(
-        &mut self,
-        activation_policy: winit_appkit::ActivationPolicy,
-    ) -> &mut Self {
-        self.platform_specific.activation_policy = Some(activation_policy);
-        self
-    }
-
-    #[inline]
-    fn with_default_menu(&mut self, enable: bool) -> &mut Self {
-        self.platform_specific.default_menu = enable;
-        self
-    }
-
-    #[inline]
-    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
-        self.platform_specific.activate_ignoring_other_apps = ignore;
-        self
-    }
-}
-
-#[cfg(wayland_platform)]
-impl winit_wayland::EventLoopExtWayland for EventLoop {
-    #[inline]
-    fn is_wayland(&self) -> bool {
-        self.event_loop.is_wayland()
-    }
-}
-
-#[cfg(wayland_platform)]
-impl winit_wayland::EventLoopBuilderExtWayland for EventLoopBuilder {
-    #[inline]
-    fn with_wayland(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);
-        self
-    }
-
-    #[inline]
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
-        self.platform_specific.any_thread = any_thread;
-        self
-    }
-}
-
-#[cfg(web_platform)]
-impl winit_web::EventLoopExtWeb for EventLoop {
-    fn set_poll_strategy(&self, strategy: winit_web::PollStrategy) {
-        self.event_loop.set_poll_strategy(strategy);
-    }
-
-    fn poll_strategy(&self) -> winit_web::PollStrategy {
-        self.event_loop.poll_strategy()
-    }
-
-    fn set_wait_until_strategy(&self, strategy: winit_web::WaitUntilStrategy) {
-        self.event_loop.set_wait_until_strategy(strategy);
-    }
-
-    fn wait_until_strategy(&self) -> winit_web::WaitUntilStrategy {
-        self.event_loop.wait_until_strategy()
-    }
-
-    fn has_multiple_screens(&self) -> Result<bool, winit_core::error::NotSupportedError> {
-        self.event_loop.has_multiple_screens()
-    }
-
-    fn request_detailed_monitor_permission(&self) -> winit_web::MonitorPermissionFuture {
-        self.event_loop.request_detailed_monitor_permission()
-    }
-
-    fn has_detailed_monitor_permission(&self) -> winit_web::HasMonitorPermissionFuture {
-        self.event_loop.has_detailed_monitor_permission()
-    }
-}
-
-#[cfg(windows_platform)]
-impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
-    #[inline]
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
-        self.platform_specific.any_thread = any_thread;
-        self
-    }
-
-    #[inline]
-    fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self {
-        self.platform_specific.dpi_aware = dpi_aware;
-        self
-    }
-
-    #[inline]
-    fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
-    where
-        F: FnMut(*const core::ffi::c_void) -> bool + 'static,
-    {
-        self.platform_specific.msg_hook = Some(Box::new(callback));
-        self
-    }
-}
-
-#[cfg(x11_platform)]
-impl winit_x11::EventLoopExtX11 for EventLoop {
-    #[inline]
-    fn is_x11(&self) -> bool {
-        !self.event_loop.is_wayland()
-    }
-}
-
-#[cfg(x11_platform)]
-impl winit_x11::EventLoopBuilderExtX11 for EventLoopBuilder {
-    #[inline]
-    fn with_x11(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
-        self
-    }
-
-    #[inline]
-    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
-        self.platform_specific.any_thread = any_thread;
-        self
-    }
-}
-
-/// ```compile_error
-/// use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
-/// use winit::event_loop::EventLoop;
-///
-/// let mut event_loop = EventLoop::new().unwrap();
-/// event_loop.run_app_on_demand(|_, _| {
-///     // Attempt to run the event loop re-entrantly; this must fail.
-///     event_loop.run_app_on_demand(|_, _| {});
-/// });
-/// ```
-#[allow(dead_code)]
-fn test_run_on_demand_cannot_access_event_loop() {}

@@ -29,7 +29,7 @@ use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use winit_core::error::{EventLoopError, NotSupportedError, OsError, RequestError};
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
-use winit_core::event_loop::pump_events::PumpStatus;
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, DragIcon, EventLoopProvider, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -48,7 +48,7 @@ pub mod sink;
 use proxy::EventLoopProxy;
 use sink::EventSink;
 pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
-
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
@@ -178,76 +178,6 @@ impl EventLoop {
         };
 
         Ok(event_loop)
-    }
-
-    pub fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        self.active_event_loop.clear_exit();
-        let exit = loop {
-            match self.pump_app_events(None, &mut app) {
-                PumpStatus::Exit(0) => {
-                    break Ok(());
-                },
-                PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
-                },
-                _ => {
-                    continue;
-                },
-            }
-        };
-
-        // Applications aren't allowed to carry windows between separate
-        // `run_on_demand` calls but if they have only just dropped their
-        // windows we need to make sure those last requests are sent to the
-        // compositor.
-        let _ = self.roundtrip().map_err(EventLoopError::Os);
-
-        exit
-    }
-
-    pub fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut app: A,
-    ) -> PumpStatus {
-        if !self.loop_running {
-            self.loop_running = true;
-
-            // Run the initial loop iteration.
-            self.single_iteration(&mut app, StartCause::Init);
-        }
-
-        // Consider the possibility that the `StartCause::Init` iteration could
-        // request to Exit.
-        if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut app);
-        }
-
-        if let Some(code) = self.exit_code() {
-            self.loop_running = false;
-
-            PumpStatus::Exit(code)
-        } else {
-            // NOTE: spawn a wake-up thread, thus if we have code reading the wayland connection
-            // in parallel to winit, we ensure that the loop itself is marked as having events.
-            if timeout.is_some() && self.pump_event_notifier.is_none() {
-                self.pump_event_notifier = Some(PumpEventNotifier::spawn(
-                    self.active_event_loop.handle.connection.clone(),
-                    self.active_event_loop.event_loop_awakener.clone(),
-                ));
-            }
-
-            if let Some(pump_event_notifier) = self.pump_event_notifier.as_ref() {
-                // Notify that we don't have to wait, since we're out of winit.
-                *pump_event_notifier.control.0.lock().unwrap() = PumpEventNotifierAction::Monitor;
-                pump_event_notifier.control.1.notify_one();
-            }
-
-            PumpStatus::Continue
-        }
     }
 
     fn poll_events_with_timeout<A: ApplicationHandler>(
@@ -624,11 +554,75 @@ impl EventLoop {
     }
 }
 
+impl EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler) -> Result<(), EventLoopError> {
+        self.active_event_loop.clear_exit();
+        let exit = loop {
+            match self.pump_app_events(None, app) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
+                },
+                PumpStatus::Exit(code) => {
+                    break Err(EventLoopError::ExitFailure(code));
+                },
+                _ => {
+                    continue;
+                },
+            }
+        };
+
+        // Applications aren't allowed to carry windows between separate
+        // `run_on_demand` calls but if they have only just dropped their
+        // windows we need to make sure those last requests are sent to the
+        // compositor.
+        let _ = self.roundtrip().map_err(EventLoopError::Os);
+
+        exit
+    }
+}
+
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events(&mut self, timeout: Option<Duration>, app: &mut dyn ApplicationHandler) -> PumpStatus {
+        if !self.loop_running {
+            self.loop_running = true;
+
+            // Run the initial loop iteration.
+            self.single_iteration(&mut app, StartCause::Init);
+        }
+
+        // Consider the possibility that the `StartCause::Init` iteration could
+        // request to Exit.
+        if !self.exiting() {
+            self.poll_events_with_timeout(timeout, app);
+        }
+
+        if let Some(code) = self.exit_code() {
+            self.loop_running = false;
+
+            PumpStatus::Exit(code)
+        } else {
+            // NOTE: spawn a wake-up thread, thus if we have code reading the wayland connection
+            // in parallel to winit, we ensure that the loop itself is marked as having events.
+            if timeout.is_some() && self.pump_event_notifier.is_none() {
+                self.pump_event_notifier = Some(PumpEventNotifier::spawn(
+                    self.active_event_loop.handle.connection.clone(),
+                    self.active_event_loop.event_loop_awakener.clone(),
+                ));
+            }
+
+            if let Some(pump_event_notifier) = self.pump_event_notifier.as_ref() {
+                // Notify that we don't have to wait, since we're out of winit.
+                *pump_event_notifier.control.0.lock().unwrap() = PumpEventNotifierAction::Monitor;
+                pump_event_notifier.control.1.notify_one();
+            }
+
+            PumpStatus::Continue
+        }
+    }
+}
+
 impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
+    fn run_app(&mut self, mut app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         let result = self.run_app_on_demand(&mut app);
         // SAFETY: unsure that the state is dropped before the exit from the event loop.
         drop(app);
@@ -656,6 +650,10 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CoreCustomCursor, RequestError> {
         self.active_event_loop.create_custom_cursor(custom_cursor)
+    }
+
+    fn window_target(&self) -> &dyn RootActiveEventLoop {
+        &self.active_event_loop
     }
 }
 

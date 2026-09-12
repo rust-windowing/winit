@@ -21,7 +21,7 @@ use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
 
 /// Common methods to implement for the platform event loop.
-pub trait EventLoopProvider: fmt::Debug {
+pub trait EventLoopProvider: fmt::Debug + Any {
     /// Run the event loop with the given application on the calling thread.
     ///
     /// The `app` is dropped when the event loop is shut down.
@@ -81,7 +81,7 @@ pub trait EventLoopProvider: fmt::Debug {
     ///
     /// The semantics of this function is defined by the target platform. Consult the implementor
     /// docs for details.
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError>;
+    fn run_app(&mut self, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError>;
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
@@ -107,6 +107,8 @@ pub trait EventLoopProvider: fmt::Debug {
         &self,
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, RequestError>;
+
+    fn window_target(&self) -> &dyn crate::event_loop::ActiveEventLoop;
 }
 
 pub trait ActiveEventLoop: Any + fmt::Debug {

@@ -42,9 +42,9 @@ fn main() -> Result<(), impl std::error::Error> {
     info!("Press 'R' to toggle request_redraw() calls.");
     info!("Press 'Esc' to close the window.");
 
-    let event_loop = EventLoop::new().unwrap();
+    let mut event_loop = EventLoop::new().unwrap();
 
-    event_loop.run_app(ControlFlowDemo::default())
+    event_loop.run_app(Box::new(ControlFlowDemo::default()))
 }
 
 #[derive(Default, Debug)]
