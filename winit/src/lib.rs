@@ -301,6 +301,6 @@ pub use winit_core::{
 };
 #[macro_use]
 mod os_error;
-mod platform_impl;
+pub mod platform_impl;
 
 pub mod platform;

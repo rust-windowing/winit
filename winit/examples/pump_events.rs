@@ -111,13 +111,8 @@ fn pump_events(
         return event_loop.pump_app_events(timeout, app);
     }
 
-    #[cfg(x11_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_x11::EventLoop>() {
-        return event_loop.pump_app_events(timeout, app);
-    }
-
-    #[cfg(wayland_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_wayland::EventLoop>() {
+    #[cfg(any(x11_platform, wayland_platform))]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit::platform_impl::linux::EventLoop>() {
         return event_loop.pump_app_events(timeout, app);
     }
 

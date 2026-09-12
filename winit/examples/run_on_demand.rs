@@ -98,6 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, orbital_platform))]
 fn run_on_demand(
     event_loop: &mut EventLoop,
     app: &mut dyn ApplicationHandler,
@@ -114,13 +115,8 @@ fn run_on_demand(
         return event_loop.run_app_on_demand(app);
     }
 
-    #[cfg(x11_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_x11::EventLoop>() {
-        return event_loop.run_app_on_demand(app);
-    }
-
-    #[cfg(wayland_platform)]
-    if let Some(event_loop) = event_loop.downcast_mut::<winit_wayland::EventLoop>() {
+    #[cfg(any(x11_platform, wayland_platform))]
+    if let Some(event_loop) = event_loop.downcast_mut::<winit::platform_impl::linux::EventLoop>() {
         return event_loop.run_app_on_demand(app);
     }
 
