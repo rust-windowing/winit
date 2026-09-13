@@ -165,6 +165,8 @@ impl WindowState {
                 //
                 // This ensures that we can always reach the min size and the increments are
                 // calculated from it.
+                let increments =
+                    LogicalSize::new(increments.width.max(1), increments.height.max(1));
                 let snap = |size: u32, min: u32, increment: u32, floor: u32| {
                     let steps = size.saturating_sub(min) / increment;
                     let floor_steps = floor.saturating_sub(min).div_ceil(increment);
