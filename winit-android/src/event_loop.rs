@@ -98,18 +98,84 @@ impl RedrawRequester {
     }
 }
 
+/// Tracks the native Android surface independently from the Activity lifecycle.
+///
+/// A paused Activity can still have a visible surface, while an active Activity may not have one.
+/// Redraw and resize delivery therefore follows `InitWindow` / `TerminateWindow` instead.
+#[derive(Debug, Default)]
+struct SurfaceLifecycle {
+    has_surface: bool,
+    last_size: Option<PhysicalSize<u32>>,
+}
+
+impl SurfaceLifecycle {
+    fn begin(&mut self) {
+        self.has_surface = true;
+        self.last_size = None;
+    }
+
+    fn end(&mut self) {
+        self.has_surface = false;
+        self.last_size = None;
+    }
+
+    fn has_surface(&self) -> bool {
+        self.has_surface
+    }
+
+    fn note_size(&mut self, size: PhysicalSize<u32>) -> bool {
+        if !self.has_surface || self.last_size == Some(size) {
+            return false;
+        }
+
+        self.last_size = Some(size);
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn surface_resize_cache_follows_native_surface_not_activity_state() {
+        let size = PhysicalSize::new(1280, 720);
+        let mut surface = SurfaceLifecycle::default();
+
+        assert!(!surface.note_size(size));
+
+        surface.begin();
+        assert!(surface.has_surface());
+        assert!(surface.note_size(size));
+        assert!(!surface.note_size(size));
+
+        // Pause does not alter the native surface state, so a paused but visible Activity still
+        // dispatches a real resize.
+        assert!(surface.note_size(PhysicalSize::new(720, 1280)));
+
+        surface.end();
+        assert!(!surface.has_surface());
+        assert!(!surface.note_size(size));
+
+        // The next native surface must report its first size even if it matches the old one.
+        surface.begin();
+        assert!(surface.note_size(size));
+    }
+}
+
 #[derive(Debug)]
 pub struct EventLoop {
     pub android_app: AndroidApp,
     window_target: ActiveEventLoop,
     redraw_flag: SharedFlag,
     loop_running: bool, // Dispatched `NewEvents<Init>`
-    running: bool,
+    surface_lifecycle: SurfaceLifecycle,
     pending_redraw: bool,
     cause: StartCause,
     primary_pointer: Option<FingerId>,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
+    last_scale_factor: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -143,6 +209,7 @@ impl EventLoop {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(android_app.create_waker()));
 
         let redraw_flag = SharedFlag::new();
+        let last_scale_factor = scale_factor(android_app);
 
         Ok(Self {
             android_app: android_app.clone(),
@@ -156,11 +223,12 @@ impl EventLoop {
             },
             redraw_flag,
             loop_running: false,
-            running: false,
+            surface_lifecycle: Default::default(),
             pending_redraw: false,
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
+            last_scale_factor,
         })
     }
 
@@ -177,7 +245,7 @@ impl EventLoop {
 
         let cause = self.cause;
         let mut pending_redraw = self.pending_redraw;
-        let mut resized = false;
+        let mut surface_may_have_resized = false;
 
         app.new_events(&self.window_target, cause);
 
@@ -186,15 +254,30 @@ impl EventLoop {
 
             match event {
                 MainEvent::InitWindow { .. } => {
+                    self.surface_lifecycle.begin();
                     app.can_create_surfaces(&self.window_target);
                 },
                 MainEvent::TerminateWindow { .. } => {
                     app.destroy_surfaces(&self.window_target);
+                    self.surface_lifecycle.end();
+                    pending_redraw = false;
                 },
-                MainEvent::WindowResized { .. } => resized = true,
-                MainEvent::RedrawNeeded { .. } => pending_redraw = true,
+                MainEvent::WindowResized { .. } => {
+                    if self.surface_lifecycle.has_surface() {
+                        surface_may_have_resized = true;
+                        pending_redraw = true;
+                    }
+                },
+                MainEvent::RedrawNeeded { .. } => {
+                    if self.surface_lifecycle.has_surface() {
+                        pending_redraw = true;
+                    }
+                },
                 MainEvent::ContentRectChanged { .. } => {
-                    warn!("TODO: find a way to notify application of content rect change");
+                    if self.surface_lifecycle.has_surface() {
+                        surface_may_have_resized = true;
+                        pending_redraw = true;
+                    }
                 },
                 MainEvent::GainedFocus => {
                     HAS_FOCUS.store(true, Ordering::Relaxed);
@@ -207,9 +290,8 @@ impl EventLoop {
                     app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 },
                 MainEvent::ConfigChanged { .. } => {
-                    let old_scale_factor = scale_factor(&self.android_app);
                     let scale_factor = scale_factor(&self.android_app);
-                    if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
+                    if (scale_factor - self.last_scale_factor).abs() > f64::EPSILON {
                         let new_surface_size = Arc::new(Mutex::new(screen_size(&self.android_app)));
                         let event = event::WindowEvent::ScaleFactorChanged {
                             surface_size_writer: SurfaceSizeWriter::new(Arc::downgrade(
@@ -219,6 +301,11 @@ impl EventLoop {
                         };
 
                         app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                        self.last_scale_factor = scale_factor;
+                    }
+                    if self.surface_lifecycle.has_surface() {
+                        surface_may_have_resized = true;
+                        pending_redraw = true;
                     }
                 },
                 MainEvent::LowMemory => {
@@ -228,9 +315,7 @@ impl EventLoop {
                     app.resumed(self.window_target());
                 },
                 MainEvent::Resume { .. } => {
-                    debug!("App Resumed - is running");
-                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
-                    self.running = true;
+                    debug!("App resumed");
                 },
                 MainEvent::SaveState { .. } => {
                     // XXX: how to forward this state to applications?
@@ -238,9 +323,7 @@ impl EventLoop {
                     warn!("TODO: forward saveState notification to application");
                 },
                 MainEvent::Pause => {
-                    debug!("App Paused - stopped running");
-                    // TODO: This is incorrect - will be solved in https://github.com/rust-windowing/winit/pull/3897
-                    self.running = false;
+                    debug!("App paused");
                 },
                 MainEvent::Stop => {
                     app.suspended(self.window_target());
@@ -251,8 +334,10 @@ impl EventLoop {
                     warn!("TODO: forward onDestroy notification to application");
                 },
                 MainEvent::InsetsChanged { .. } => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: handle Android InsetsChanged notification");
+                    if self.surface_lifecycle.has_surface() {
+                        surface_may_have_resized = true;
+                        pending_redraw = true;
+                    }
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
@@ -285,17 +370,13 @@ impl EventLoop {
             app.proxy_wake_up(&self.window_target);
         }
 
-        if self.running {
-            if resized {
-                let size = if let Some(native_window) = self.android_app.native_window().as_ref() {
-                    let width = native_window.width() as _;
-                    let height = native_window.height() as _;
-                    PhysicalSize::new(width, height)
-                } else {
-                    PhysicalSize::new(0, 0)
-                };
-                let event = event::WindowEvent::SurfaceResized(size);
-                app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+        if self.surface_lifecycle.has_surface() {
+            if surface_may_have_resized {
+                let size = screen_size(&self.android_app);
+                if self.surface_lifecycle.note_size(size) {
+                    let event = event::WindowEvent::SurfaceResized(size);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                }
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
@@ -570,7 +651,7 @@ impl EventLoop {
 
         self.pending_redraw |= self.redraw_flag.get_and_reset();
 
-        timeout = if self.running
+        timeout = if self.surface_lifecycle.has_surface()
             && (self.pending_redraw
                 || self.window_target.event_loop_proxy.wake_up.load(Ordering::Relaxed))
         {
@@ -601,9 +682,9 @@ impl EventLoop {
                     //
                     // For now, user_events and redraw_requests are the only reasons to expect
                     // a wake up here so we can ignore the wake up if there are no events/requests.
-                    // We also ignore wake ups while suspended.
+                    // We also ignore wake ups while the native surface is unavailable.
                     self.pending_redraw |= self.redraw_flag.get_and_reset();
-                    if !self.running
+                    if !self.surface_lifecycle.has_surface()
                         || (!self.pending_redraw
                             && !self.window_target.event_loop_proxy.wake_up.load(Ordering::Relaxed))
                     {
