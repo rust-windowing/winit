@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On macOS, add the opt-in `macos-quit-as-close` feature to review native Quit requests through window close handlers and return normally from `run_app_on_demand`.

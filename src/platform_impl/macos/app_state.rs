@@ -10,6 +10,11 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
+#[cfg(feature = "macos-quit-as-close")]
+use super::window::WinitWindow;
+#[cfg(feature = "macos-quit-as-close")]
+use objc2_app_kit::NSApplicationTerminateReply;
+
 use super::event_handler::EventHandler;
 use super::event_loop::{notify_windows_of_exit, stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
@@ -35,6 +40,8 @@ pub(super) struct AppState {
     is_running: Cell<bool>,
     /// Whether the user has requested the event loop to exit.
     exit: Cell<bool>,
+    #[cfg(feature = "macos-quit-as-close")]
+    quit_requested: Cell<bool>,
     control_flow: Cell<ControlFlow>,
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
@@ -61,6 +68,16 @@ declare_class!(
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
 
     unsafe impl NSApplicationDelegate for ApplicationDelegate {
+        #[cfg(feature = "macos-quit-as-close")]
+        #[method(applicationShouldTerminate:)]
+        fn app_should_terminate(&self, _sender: &NSApplication) -> NSApplicationTerminateReply {
+            // Return to the normal run loop; do not terminate underneath the
+            // application's close confirmation or enter AppKit's modal wait.
+            self.ivars().quit_requested.set(true);
+            self.ivars().run_loop.wakeup();
+            NSApplicationTerminateReply::NSTerminateCancel
+        }
+
         #[method(applicationDidFinishLaunching:)]
         fn app_did_finish_launching(&self, notification: &NSNotification) {
             self.did_finish_launching(notification)
@@ -93,6 +110,8 @@ impl ApplicationDelegate {
             is_launched: Cell::new(false),
             is_running: Cell::new(false),
             exit: Cell::new(false),
+            #[cfg(feature = "macos-quit-as-close")]
+            quit_requested: Cell::new(false),
             control_flow: Cell::new(ControlFlow::default()),
             waker: RefCell::new(EventLoopWaker::new()),
             start_time: Cell::new(None),
@@ -380,6 +399,35 @@ impl ApplicationDelegate {
         }
 
         self.handle_event(Event::UserEvent(HandlePendingUserEvents));
+
+        #[cfg(feature = "macos-quit-as-close")]
+        if self.ivars().quit_requested.replace(false) {
+            // This boundary runs after resumed/initial window construction and
+            // outside application callbacks. Retain only winit windows: native
+            // file panels must keep their own cancellation/lifetime rules.
+            let app = NSApplication::sharedApplication(mtm);
+            let windows: Vec<_> = app
+                .windows()
+                .into_iter()
+                .filter_map(|window| {
+                    if window.is_kind_of::<WinitWindow>() {
+                        // SAFETY: The dynamic class was checked above.
+                        Some(unsafe { Retained::cast::<WinitWindow>(window) })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if windows.is_empty() {
+                // No application window remains to review the request. Leave
+                // through the event loop so run_app_on_demand returns normally.
+                self.exit();
+            } else {
+                for window in windows {
+                    self.handle_window_event(window.id(), WindowEvent::CloseRequested);
+                }
+            }
+        }
 
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
