@@ -7,13 +7,15 @@ use std::sync::{Arc, OnceLock};
 use dispatch2::MainThreadBound;
 use objc2::rc::{Retained, Weak};
 use objc2::runtime::AnyObject;
-use objc2::{AnyThread, DefinedClass as _, MainThreadMarker, Message, define_class, msg_send};
+use objc2::{
+    AnyThread, ClassType, DefinedClass as _, MainThreadMarker, Message, define_class, msg_send,
+};
 use objc2_app_kit::{
     NSDragOperation, NSPasteboard, NSPasteboardType, NSPasteboardTypeFileURL, NSPasteboardTypeHTML,
     NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
     NSPasteboardWriting, NSPasteboardWritingOptions,
 };
-use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString, NSURL};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
@@ -266,41 +268,44 @@ impl TypedData for PasteboardValue {
     }
 
     fn try_as_uris(&self) -> io::Result<Vec<String>> {
-        // TODO: We should probably use `readObjects`, need to check how that works.
         if self.type_().hint() != Some(TypeHint::UriList) {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
         self.pasteboard.ns_pasteboard.get_on_main(|pasteboard| {
-            let Some(items) = pasteboard.pasteboardItems() else {
-                // The pasteboard didn't expose any items, so we try with the deprecated method.
-                #[expect(deprecated)]
-                let property_list = match pasteboard
-                    .propertyListForType(unsafe { objc2_app_kit::NSFilenamesPboardType })
-                {
-                    Some(property_list) => property_list,
-                    None => {
-                        return pasteboard
-                            .stringForType(unsafe { NSPasteboardTypeFileURL })
-                            .map(|ns_str| vec![ns_str.to_string()])
-                            .ok_or_else(|| io::ErrorKind::InvalidData.into());
-                    },
-                };
-
-                let paths = property_list
-                    .downcast::<NSArray>()
-                    .unwrap()
-                    .into_iter()
-                    .map(|file| file.downcast::<NSString>().unwrap().to_string())
-                    .collect();
-
-                return Ok(paths);
-            };
-
-            Ok(items
+            let classes = NSArray::from_slice(&[NSURL::class()]);
+            let uris = unsafe { pasteboard.readObjectsForClasses_options(&classes, None) }
                 .into_iter()
-                .filter_map(|item| item.stringForType(unsafe { NSPasteboardTypeFileURL }))
-                .map(|ns_str| ns_str.to_string())
+                .flatten()
+                .filter_map(|url| url.downcast::<NSURL>().ok())
+                .filter(|url| url.isFileURL())
+                .filter_map(|url| {
+                    url.filePathURL()
+                        .as_deref()
+                        .unwrap_or(&url)
+                        .absoluteString()
+                        .map(|uri| uri.to_string())
+                })
+                .collect::<Vec<_>>();
+
+            if !uris.is_empty() {
+                return Ok(uris);
+            }
+
+            // The pasteboard didn't expose any file URLs, so we try with the deprecated method.
+            #[expect(deprecated)]
+            let property_list = pasteboard
+                .propertyListForType(unsafe { objc2_app_kit::NSFilenamesPboardType })
+                .ok_or(io::ErrorKind::InvalidData)?;
+
+            Ok(property_list
+                .downcast::<NSArray>()
+                .unwrap()
+                .into_iter()
+                .filter_map(|file| {
+                    NSURL::fileURLWithPath(&file.downcast::<NSString>().unwrap()).absoluteString()
+                })
+                .map(|uri| uri.to_string())
                 .collect())
         })
     }
