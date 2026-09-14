@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::ops::{BitOr, ControlFlow};
+use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use dispatch2::MainThreadBound;
@@ -13,7 +14,7 @@ use objc2_app_kit::{
     NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
     NSPasteboardWriting, NSPasteboardWritingOptions,
 };
-use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString, NSURL};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
@@ -303,6 +304,23 @@ impl TypedData for PasteboardValue {
                 .map(|ns_str| ns_str.to_string())
                 .collect())
         })
+    }
+
+    fn try_as_file_paths(&self) -> io::Result<Vec<PathBuf>> {
+        self.try_as_uris()?
+            .into_iter()
+            .map(|uri| {
+                let url = NSURL::URLWithString(&NSString::from_str(&uri))
+                    .ok_or(io::ErrorKind::InvalidData)?;
+                if !url.isFileURL() {
+                    return Err(io::ErrorKind::InvalidData.into());
+                }
+
+                url.filePathURL()
+                    .and_then(|url| url.to_file_path())
+                    .ok_or_else(|| io::ErrorKind::InvalidData.into())
+            })
+            .collect()
     }
 
     fn try_as_string(&self) -> io::Result<String> {
