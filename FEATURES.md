@@ -130,6 +130,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the corner rounding preference
 
 ### macOS
+* Opt-in review of native application Quit requests through window close handlers.
 * Window activation policy
 * Window movable by background
 * Transparent titlebar

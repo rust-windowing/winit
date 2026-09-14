@@ -17,6 +17,30 @@
 //! [#2087]: https://github.com/rust-windowing/winit/issues/2087
 //! [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
 //!
+//! ## Reviewing application Quit requests
+//!
+//! The opt-in `macos-quit-as-close` Cargo feature routes native Quit requests
+//! (including Command-Q, the application menu and the Dock) through
+//! [`WindowEvent::CloseRequested`](crate::event::WindowEvent::CloseRequested).
+//! This lets an application review unsaved work or cancel Quit using the same
+//! policy as window close. The application must eventually close its windows
+//! and call [`ActiveEventLoop::exit`] if it accepts the request.
+//!
+//! Requests received before the next event-loop boundary coalesce. Close
+//! requests are dispatched outside application callbacks, after initial window
+//! creation, to Winit windows only; native file panels are left untouched.
+//! If there are no Winit windows, the event loop exits normally. In particular,
+//! `run_app_on_demand` can return so code after it and local destructors run.
+//! This does not intercept forced process termination or OS signals.
+//! AppKit's termination request is declined immediately; a system logout or
+//! shutdown attempt can therefore be cancelled while the application reviews it.
+//! Multi-window applications receive separate close requests and remain
+//! responsible for coordinating a single application-wide decision if needed.
+//!
+//! Without the feature, native Quit retains the existing AppKit termination
+//! behavior. Cargo features are additive: enabling it anywhere in the dependency
+//! graph enables this behavior for the whole process.
+//!
 //! ## Custom `NSApplicationDelegate`
 //!
 //! Winit usually handles everything related to the lifecycle events of the application. Sometimes,
