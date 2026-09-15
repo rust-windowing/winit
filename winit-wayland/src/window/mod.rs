@@ -25,7 +25,6 @@ use winit_core::window::{
 use super::ActiveEventLoop;
 use super::types::xdg_activation::XdgActivationTokenData;
 use crate::window::common::WindowCommon;
-use crate::window::state::WindowType;
 use crate::{WindowAttributesWayland, output};
 pub(crate) mod state;
 pub use state::WindowState;
@@ -383,23 +382,7 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = if let WindowType::Window { last_configure, .. } =
-            &self.window_state.lock().unwrap().window
-        {
-            last_configure
-                .as_ref()
-                .map(|last_configure| last_configure.is_fullscreen())
-                .unwrap_or_default()
-        } else {
-            false
-        };
-
-        if is_fullscreen {
-            let current_monitor = self.current_monitor();
-            Some(Fullscreen::Borderless(current_monitor))
-        } else {
-            None
-        }
+        self.common.fullscreen()
     }
 
     #[inline]

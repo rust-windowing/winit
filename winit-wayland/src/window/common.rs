@@ -278,6 +278,10 @@ impl WindowCommon {
         s.is_maximized()
     }
 
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        self.state.upgrade()?.lock().ok()?.fullscreen()
+    }
+
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let Some(s) = self.state.upgrade() else { return };
         let s = s.lock().unwrap();

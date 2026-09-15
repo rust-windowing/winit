@@ -329,7 +329,7 @@ impl CoreWindow for Dialog {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        None
+        self.common.fullscreen()
     }
 
     #[inline]

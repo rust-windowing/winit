@@ -1038,6 +1038,24 @@ impl WindowState {
         if maximized { xdg_toplevel.set_maximized() } else { xdg_toplevel.unset_maximized() }
     }
 
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        let is_fullscreen = match &self.window {
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure
+                .as_ref()
+                .map(|last_configure| last_configure.is_fullscreen())
+                .unwrap_or_default(),
+            _ => false,
+        };
+
+        if is_fullscreen {
+            let current_monitor = self.current_monitor();
+            Some(Fullscreen::Borderless(current_monitor))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let Some(xdg_toplevel) = self.xdg_toplevel() else {
             return;
