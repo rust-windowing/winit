@@ -1,20 +1,12 @@
-//! The Wayland window.
-
-use std::ffi::c_void;
-use std::ptr::NonNull;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
-use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
-use sctk::reexports::client::Proxy;
-use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shell::WaylandSurface;
-use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
-use tracing::warn;
+use sctk::shell::xdg::window::WindowDecorations;
 use winit_core::cursor::Cursor;
 use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -23,152 +15,137 @@ use winit_core::window::{
 };
 
 use super::ActiveEventLoop;
-use super::types::xdg_activation::XdgActivationTokenData;
+use crate::WindowAttributesWayland;
+use crate::window::Handles;
 use crate::window::common::WindowCommon;
-use crate::window::state::WindowType;
-use crate::{WindowAttributesWayland, output};
-pub(crate) mod state;
-pub use state::WindowState;
-pub(crate) mod handles;
-pub use handles::Handles;
-use handles::WindowRequests;
-pub mod common;
+use crate::window::handles::WindowRequests;
+use crate::window::state::{WindowState, WindowType};
 
-/// The Wayland window.
 #[derive(Debug)]
-pub struct Window {
-    /// Reference to the underlying SCTK window.
-    window: SctkWindow,
-
-    /// The state of the window.
-    window_state: Arc<Mutex<WindowState>>,
-
+pub struct Dialog {
     common: WindowCommon,
 }
 
-impl Window {
+impl Dialog {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
+        fn error(message: &'static str) -> RequestError {
+            RequestError::NotSupported(NotSupportedError::new(message))
+        }
+
+        let modal = attributes.modal.unwrap_or(false);
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
-
         let monitors = state.monitors.clone();
-
-        let surface = state.compositor_state.create_surface(&queue_handle);
-        let compositor = state.compositor_state.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
-        let display = event_loop_window_target.handle.connection.display();
+        let parent_window_handle =
+            attributes.parent_window().ok_or(error("Dialog without a parent is not supported!"))?;
 
-        let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
-
-        // We prefer server side decorations, however to not have decorations we ask for client
-        // side decorations instead.
-        let default_decorations = if attributes.decorations {
-            WindowDecorations::RequestServer
-        } else {
-            WindowDecorations::RequestClient
+        let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
+            return Err(error("A Dialog requires a parent wayland window handle"));
         };
 
-        let window =
-            state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
+        let (dialog, dialog_state) = {
+            let windows = state.windows.borrow();
+            let parent_window_id =
+                WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
+            let Some(parent_window_state) = windows.get(&parent_window_id) else {
+                return Err(error("Invalid parent id"));
+            };
+            let mut parent_window_state = parent_window_state.lock().unwrap();
+            let parent_xdg_toplevel = {
+                match &parent_window_state.window {
+                    WindowType::Window { window, .. } => window.xdg_toplevel().clone(),
+                    WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().clone(),
+                    WindowType::Popup { .. } => {
+                        return Err(error("Parent of a dialog must be a window or a dialog"));
+                    },
+                }
+            };
 
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
-            *attributes
+            // We prefer server side decorations, however to not have decorations we ask for client
+            // side decorations instead.
+            let default_decorations = if attributes.decorations {
+                WindowDecorations::RequestServer
+            } else {
+                WindowDecorations::RequestClient
+            };
+
+            let surface = state.compositor_state.create_surface(&queue_handle);
+            let dialog = state
+                .xdg_shell
+                .create_dialog(
+                    surface.clone(),
+                    default_decorations,
+                    &queue_handle,
+                    &parent_xdg_toplevel,
+                )
+                .map_err(|_| error("Failed to create dialog"))?;
+            parent_window_state.add_child(super::make_wid(dialog.wl_surface()));
+            let scale_factor = parent_window_state.scale_factor();
+            drop(parent_window_state);
+
+            let WindowAttributesWayland { activation_token, prefer_csd, .. } = *attributes
                 .platform
                 .take()
                 .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
                 .unwrap_or_default();
 
-        let mut scale_factor = None;
-        if let Some(RawWindowHandle::Wayland(handle)) = attributes.parent_window() {
-            if let Some(s) =
-                state.windows.borrow().get(&WindowId::from_raw(handle.surface.as_ptr() as usize))
+            let mut dialog_state = WindowState::new(
+                event_loop_window_target,
+                &state,
+                attributes.surface_size.ok_or(error("Invalid size for dialog"))?,
+                WindowType::Dialog { dialog: dialog.clone(), last_configure: None },
+                attributes.preferred_theme,
+                prefer_csd,
+                scale_factor,
+                Some(parent_window_id),
+            );
+
+            dialog.set_modal(modal);
+
+            dialog_state.set_window_icon(attributes.window_icon);
+
+            // Set transparency hint.
+            dialog_state.set_transparent(attributes.transparent);
+
+            // Set blur.
+            let _ = dialog_state.set_blur(attributes.blur);
+
+            // Set the decorations hint.
+            dialog_state.set_decorate(attributes.decorations);
+
+            // Set the window title.
+            dialog_state.set_title(attributes.title);
+
+            // Set the min and max sizes. We must set the hints upon creating a window, so
+            // we use the default `1.` scaling...
+            let min_size = attributes.min_surface_size.map(|size| size.to_logical(1.));
+            let max_size = attributes.max_surface_size.map(|size| size.to_logical(1.));
+            dialog_state.set_min_surface_size(min_size);
+            dialog_state.set_max_surface_size(max_size);
+
+            // Non-resizable implies that the min and max sizes are set to the same value.
+            dialog_state.set_resizable(attributes.resizable);
+
+            // Activate the window when the token is passed.
+            if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token)
             {
-                scale_factor = Some(s.lock().unwrap().scale_factor());
+                xdg_activation.activate(token.into_raw(), &surface);
             }
-        }
-        let scale_factor = scale_factor.unwrap_or(1.0);
 
-        let mut window_state = WindowState::new(
-            event_loop_window_target,
-            &state,
-            size,
-            state::WindowType::Window { window: window.clone(), last_configure: None },
-            attributes.preferred_theme,
-            prefer_csd,
-            scale_factor,
-            None,
-        );
+            // Do initial commit
+            dialog.commit();
 
-        window_state.set_window_icon(attributes.window_icon);
-
-        // Set transparency hint.
-        window_state.set_transparent(attributes.transparent);
-
-        // Set blur.
-        let _ = window_state.set_blur(attributes.blur);
-
-        // Set the decorations hint.
-        window_state.set_decorate(attributes.decorations);
-
-        // Set the app_id.
-        if let Some(name) = app_name.map(|name| name.general) {
-            window.set_app_id(name);
-        }
-
-        // Set the window title.
-        window_state.set_title(attributes.title);
-
-        // Set the min and max sizes. We must set the hints upon creating a window, so
-        // we use the default `1.` scaling...
-        let min_size = attributes.min_surface_size.map(|size| size.to_logical(1.));
-        let max_size = attributes.max_surface_size.map(|size| size.to_logical(1.));
-        window_state.set_min_surface_size(min_size);
-        window_state.set_max_surface_size(max_size);
-
-        // Non-resizable implies that the min and max sizes are set to the same value.
-        window_state.set_resizable(attributes.resizable);
-
-        // Set startup mode.
-        match attributes.fullscreen {
-            Some(Fullscreen::Exclusive(..)) => {
-                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
-            },
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
-                });
-
-                window.set_fullscreen(output)
-            },
-            _ if attributes.maximized => window.set_maximized(),
-            _ => (),
+            let dialog_state = Arc::new(Mutex::new(dialog_state));
+            (dialog, dialog_state)
         };
 
-        window_state.set_cursor(attributes.cursor);
-
-        // Apply resize increments.
-        if let Some(increments) = attributes.surface_resize_increments {
-            let increments = increments.to_logical(window_state.scale_factor());
-            window_state.set_resize_increments(Some(increments));
-        }
-
-        // Activate the window when the token is passed.
-        if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token) {
-            xdg_activation.activate(token.into_raw(), &surface);
-        }
-
-        // XXX Do initial commit.
-        window.commit();
-
-        // Add the window and window requests into the state.
-        let window_state = Arc::new(Mutex::new(window_state));
-        let window_id = super::make_wid(&surface);
-        state.windows.get_mut().insert(window_id, window_state.clone());
-
+        let window_id = super::make_wid(dialog.wl_surface());
+        state.windows.get_mut().insert(window_id, dialog_state.clone());
         let window_requests = WindowRequests {
             redraw_requested: AtomicBool::new(true),
             closed: AtomicBool::new(false),
@@ -181,76 +158,50 @@ impl Window {
 
         let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
-
         // Do a roundtrip.
         event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
 
         // XXX Wait for the initial configure to arrive.
-        while !window_state.lock().unwrap().is_configured() {
+        while !dialog_state.lock().unwrap().is_configured() {
             event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
+            // The compositor may dismiss a dialog by sending
+            // dialog_done before configure. Detect that and bail out instead of looping forever.
+            if state
+                .window_compositor_updates
+                .iter()
+                .any(|u| u.window_id == window_id && u.close_window)
+            {
+                return Err(error("Dialog was dismissed by the compositor before configure"));
+            }
         }
 
         // Wake-up event loop, so it'll send initial redraw requested.
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
         event_loop_awakener.ping();
 
-        let state_weak = Arc::downgrade(&window_state);
-
         Ok(Self {
-            window,
-            window_state,
             common: WindowCommon {
-                state: state_weak,
+                state: Arc::downgrade(&dialog_state),
                 window_id,
-                display,
+                display: event_loop_window_target.handle.connection.display().clone(),
                 handles: Handles {
                     queue_handle,
                     window_requests,
                     monitors,
                     event_loop_awakener,
                     window_events_sink,
-
-                    compositor,
-
                     xdg_activation,
                     attention_requested: Arc::new(AtomicBool::new(false)),
+                    compositor: state.compositor_state.clone(),
                 },
             },
         })
     }
-
-    pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
-    }
 }
 
-impl Window {
-    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, RequestError> {
-        let xdg_activation = match self.common.handles.xdg_activation.as_ref() {
-            Some(xdg_activation) => xdg_activation,
-            None => return Err(NotSupportedError::new("xdg_activation_v1 is not available").into()),
-        };
-
-        let serial = AsyncRequestSerial::get();
-
-        let data = XdgActivationTokenData::Obtain((self.common.id(), serial));
-        let xdg_activation_token =
-            xdg_activation.get_activation_token(&self.common.handles.queue_handle, data);
-        xdg_activation_token.set_surface(self.surface());
-        xdg_activation_token.commit();
-
-        Ok(serial)
-    }
-
-    #[inline]
-    pub fn surface(&self) -> &WlSurface {
-        self.window.wl_surface()
-    }
-}
-
-impl CoreWindow for Window {
+impl CoreWindow for Dialog {
     fn window_type(&self) -> winit_core::window::WindowType {
-        winit_core::window::WindowType::Window
+        winit_core::window::WindowType::Dialog
     }
 
     fn id(&self) -> WindowId {
@@ -284,7 +235,7 @@ impl CoreWindow for Window {
     }
 
     fn set_outer_position(&self, _position: Position) {
-        // Not possible.
+        // Not possible
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
@@ -352,17 +303,12 @@ impl CoreWindow for Window {
 
     fn enabled_buttons(&self) -> WindowButtons {
         // TODO(kchibisov) v5 of the xdg_shell allows that.
-        WindowButtons::all()
+        // Minimize does not make any sense
+        WindowButtons::CLOSE | WindowButtons::MAXIMIZE
     }
 
-    fn set_minimized(&self, minimized: bool) {
-        // You can't unminimize the window on Wayland.
-        if !minimized {
-            warn!("Unminimizing is ignored on Wayland.");
-            return;
-        }
-
-        self.window.set_minimized();
+    fn set_minimized(&self, _minimized: bool) {
+        // A dialog cannot be minimized
     }
 
     fn is_minimized(&self) -> Option<bool> {
@@ -371,7 +317,7 @@ impl CoreWindow for Window {
     }
 
     fn set_maximized(&self, maximized: bool) {
-        self.common.set_maximized(maximized)
+        self.common.set_maximized(maximized);
     }
 
     fn is_maximized(&self) -> bool {
@@ -383,23 +329,7 @@ impl CoreWindow for Window {
     }
 
     fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = if let WindowType::Window { last_configure, .. } =
-            &self.window_state.lock().unwrap().window
-        {
-            last_configure
-                .as_ref()
-                .map(|last_configure| last_configure.is_fullscreen())
-                .unwrap_or_default()
-        } else {
-            false
-        };
-
-        if is_fullscreen {
-            let current_monitor = self.current_monitor();
-            Some(Fullscreen::Borderless(current_monitor))
-        } else {
-            None
-        }
+        None
     }
 
     #[inline]
@@ -419,11 +349,11 @@ impl CoreWindow for Window {
 
     #[inline]
     fn is_decorated(&self) -> bool {
-        self.common.is_decorated().unwrap()
+        self.common.is_decorated().unwrap_or_default()
     }
 
     fn set_window_level(&self, level: WindowLevel) {
-        self.common.set_window_level(level);
+        self.common.set_window_level(level)
     }
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
@@ -489,7 +419,7 @@ impl CoreWindow for Window {
     }
 
     fn show_window_menu(&self, position: Position) {
-        self.common.show_window_menu(position);
+        self.common.show_window_menu(position)
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {

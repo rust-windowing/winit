@@ -22,6 +22,7 @@ use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 use sctk::seat::pointer::{PointerData, ThemedPointer};
 use sctk::shell::WaylandSurface;
+use sctk::shell::xdg::dialog::Dialog;
 use sctk::shell::xdg::popup::{ConfigureKind, Popup, PopupConfigure};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
@@ -29,9 +30,11 @@ use sctk::shm::Shm;
 use sctk::shm::slot::SlotPool;
 use sctk::subcompositor::SubcompositorState;
 use tracing::{info, warn};
+use wayland_protocols::xdg::shell::client::xdg_toplevel;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use winit_core::cursor::{CursorIcon, CustomCursor as CoreCustomCursor};
 use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::monitor::Fullscreen;
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme, WindowId,
     WindowPositioner,
@@ -46,7 +49,9 @@ use crate::state::{WindowCompositorUpdate, WinitState};
 use crate::types::bgr_effects::{BgrEffectManager, SurfaceBlurEffect};
 use crate::types::cursor::{CustomCursor, SelectedCursor, WaylandCustomCursor};
 use crate::types::xdg_toplevel_icon_manager::ToplevelIcon;
-use crate::{ActiveEventLoop, logical_to_physical_rounded};
+use crate::{ActiveEventLoop, logical_to_physical_rounded, output};
+
+mod core_window;
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -71,6 +76,10 @@ pub enum WindowType {
 
         positioner: WindowPositioner,
     },
+    Dialog {
+        dialog: Dialog,
+        last_configure: Option<WindowConfigure>,
+    },
 }
 
 impl WindowType {
@@ -78,6 +87,7 @@ impl WindowType {
         match self {
             Self::Window { last_configure, .. } => last_configure.is_some(),
             Self::Popup { last_configure, .. } => last_configure.is_some(),
+            Self::Dialog { last_configure, .. } => last_configure.is_some(),
         }
     }
 }
@@ -87,6 +97,7 @@ impl WaylandSurface for WindowType {
         match self {
             Self::Window { window, .. } => window.wl_surface(),
             Self::Popup { popup, .. } => popup.wl_surface(),
+            Self::Dialog { dialog, .. } => dialog.wl_surface(),
         }
     }
 }
@@ -96,6 +107,7 @@ impl XdgSurface for WindowType {
         match self {
             Self::Window { window, .. } => window.xdg_surface(),
             Self::Popup { popup, .. } => popup.xdg_surface(),
+            Self::Dialog { dialog, .. } => dialog.xdg_surface(),
         }
     }
 }
@@ -297,6 +309,14 @@ impl WindowState {
         }
     }
 
+    pub(crate) fn xdg_toplevel(&self) -> Option<&xdg_toplevel::XdgToplevel> {
+        match &self.window {
+            WindowType::Window { window, .. } => Some(window.xdg_toplevel()),
+            WindowType::Dialog { dialog, .. } => Some(dialog.xdg_toplevel()),
+            WindowType::Popup { .. } => None,
+        }
+    }
+
     // HACK: Currently to get the data device to initiate a drag-and-drop, we iterate through all
     // focused seats to find one with a pointer capability. This is definitely wrong.
     pub(crate) fn focused_seats(&self) -> impl Iterator<Item = &ObjectId> {
@@ -342,6 +362,47 @@ impl WindowState {
             FrameCallbackState::Requested => (),
         }
     }
+
+    pub fn configure_dialog(
+        &mut self,
+        configure: WindowConfigure,
+        shm: &Shm,
+        subcompositor: &Option<Arc<SubcompositorState>>,
+    ) -> bool {
+        let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
+
+        let new_state = configure.state;
+        if let WindowType::Dialog { last_configure, .. } = &mut self.window {
+            let old_state = last_configure.as_ref().map(|configure| configure.state);
+
+            let state_change_requires_resize = old_state
+                .map(|old_state| {
+                    !old_state
+                        .symmetric_difference(new_state)
+                        .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
+                        .is_empty()
+                })
+                // NOTE: `None` is present for the initial configure, thus we must always resize.
+                .unwrap_or(true);
+
+            // NOTE: Set the configure before doing a resize, since we query it during it.
+            *last_configure = Some(configure);
+
+            if state_change_requires_resize || new_size != self.surface_size() {
+                self.resize(new_size);
+                true
+            } else {
+                false
+            }
+        } else {
+            tracing::error!(
+                "configure_dialog called for window type unequal of dialog. This should never \
+                 happen, because we start configuring with a dialog"
+            );
+            false
+        }
+    }
+
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
@@ -382,12 +443,17 @@ impl WindowState {
         }
     }
 
-    pub fn configure_window(
+    /// Creates (or drops) the CSD frame per `configure`'s decoration mode, and computes the
+    /// surface size to apply, accounting for borders, configure bounds, and resize increments.
+    ///
+    /// Shared between `configure_window` and `configure_dialog`, since both configure an
+    /// `xdg_toplevel`-based surface from the same [`WindowConfigure`] event shape.
+    fn configure_frame_and_size(
         &mut self,
-        configure: WindowConfigure,
+        configure: &WindowConfigure,
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
-    ) -> bool {
+    ) -> LogicalSize<u32> {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -428,7 +494,7 @@ impl WindowState {
             self.frame = None;
         }
 
-        let stateless = Self::is_stateless(&configure);
+        let stateless = Self::is_stateless(configure);
 
         let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.
@@ -454,7 +520,7 @@ impl WindowState {
 
         // Apply configure bounds only when compositor let the user decide what size to pick.
         if constrain {
-            let bounds = self.surface_size_bounds(&configure);
+            let bounds = self.surface_size_bounds(configure);
             new_size.width =
                 bounds.0.map(|bound_w| new_size.width.min(bound_w.get())).unwrap_or(new_size.width);
             new_size.height = bounds
@@ -498,6 +564,17 @@ impl WindowState {
                 new_size = (width, height).into();
             }
         }
+
+        new_size
+    }
+
+    pub fn configure_window(
+        &mut self,
+        configure: WindowConfigure,
+        shm: &Shm,
+        subcompositor: &Option<Arc<SubcompositorState>>,
+    ) -> bool {
+        let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
 
         let new_state = configure.state;
         if let WindowType::Window { last_configure, .. } = &mut self.window {
@@ -559,45 +636,47 @@ impl WindowState {
 
     /// Start interacting drag resize.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                let xdg_toplevel = window.xdg_toplevel();
-
-                // TODO(kchibisov) handle touch serials.
-                self.apply_on_pointer(|_, data| {
-                    if let Some(serial) = data.latest_button_serial() {
-                        let seat = data.seat();
-                        xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
-                    }
-                });
-
-                Ok(())
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Drag resize for popup not supported",
+                )));
             },
-            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
-                "Drag resize for popup not supported",
-            ))),
-        }
+        };
+
+        // TODO(kchibisov) handle touch serials.
+        self.apply_on_pointer(|_, data| {
+            if let Some(serial) = data.latest_button_serial() {
+                let seat = data.seat();
+                xdg_toplevel.resize(seat, serial, resize_direction_to_xdg(direction));
+            }
+        });
+        Ok(())
     }
 
     /// Start the window drag.
     pub fn drag_window(&self) -> Result<(), RequestError> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                let xdg_toplevel = window.xdg_toplevel();
-                // TODO(kchibisov) handle touch serials.
-                self.apply_on_pointer(|_, data| {
-                    if let Some(serial) = data.latest_button_serial() {
-                        let seat = data.seat();
-                        xdg_toplevel._move(seat, serial);
-                    }
-                });
-
-                Ok(())
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Drag for popup not supported",
+                )));
             },
-            WindowType::Popup { .. } => Err(RequestError::NotSupported(NotSupportedError::new(
-                "Drag for popup not supported",
-            ))),
-        }
+        };
+
+        // TODO(kchibisov) handle touch serials.
+        self.apply_on_pointer(|_, data| {
+            if let Some(serial) = data.latest_button_serial() {
+                let seat = data.seat();
+                xdg_toplevel._move(seat, serial);
+            }
+        });
+
+        Ok(())
     }
 
     /// Tells whether the window should be closed.
@@ -612,37 +691,38 @@ impl WindowState {
         window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
-                    FrameAction::Minimize => window.set_minimized(),
-                    FrameAction::Maximize => window.set_maximized(),
-                    FrameAction::UnMaximize => window.unset_maximized(),
-                    FrameAction::Close => WinitState::queue_close(updates, window_id),
-                    FrameAction::Move => self.has_pending_move = Some(serial),
-                    FrameAction::Resize(edge) => {
-                        let edge = match edge {
-                            ResizeEdge::None => XdgResizeEdge::None,
-                            ResizeEdge::Top => XdgResizeEdge::Top,
-                            ResizeEdge::Bottom => XdgResizeEdge::Bottom,
-                            ResizeEdge::Left => XdgResizeEdge::Left,
-                            ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
-                            ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
-                            ResizeEdge::Right => XdgResizeEdge::Right,
-                            ResizeEdge::TopRight => XdgResizeEdge::TopRight,
-                            ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
-                            _ => return None,
-                        };
-                        window.resize(seat, serial, edge);
-                    },
-                    FrameAction::ShowMenu(x, y) => window.show_window_menu(seat, serial, (x, y)),
-                    _ => (),
-                };
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return None,
+        };
 
-                Some(false)
+        match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
+            FrameAction::Minimize => xdg_toplevel.set_minimized(),
+            FrameAction::Maximize => xdg_toplevel.set_maximized(),
+            FrameAction::UnMaximize => xdg_toplevel.unset_maximized(),
+            FrameAction::Close => WinitState::queue_close(updates, window_id),
+            FrameAction::Move => self.has_pending_move = Some(serial),
+            FrameAction::Resize(edge) => {
+                let edge = match edge {
+                    ResizeEdge::None => XdgResizeEdge::None,
+                    ResizeEdge::Top => XdgResizeEdge::Top,
+                    ResizeEdge::Bottom => XdgResizeEdge::Bottom,
+                    ResizeEdge::Left => XdgResizeEdge::Left,
+                    ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
+                    ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
+                    ResizeEdge::Right => XdgResizeEdge::Right,
+                    ResizeEdge::TopRight => XdgResizeEdge::TopRight,
+                    ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
+                    _ => return None,
+                };
+                xdg_toplevel.resize(seat, serial, edge);
             },
-            WindowType::Popup { .. } => None,
-        }
+            FrameAction::ShowMenu(x, y) => xdg_toplevel.show_window_menu(seat, serial, x, y),
+            _ => (),
+        };
+
+        Some(false)
     }
 
     pub fn frame_point_left(&mut self) {
@@ -671,6 +751,24 @@ impl WindowState {
                     // so try to apply move.
                     if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
                         window.move_(seat, serial);
+                        None
+                    } else {
+                        cursor
+                    }
+                } else {
+                    None
+                }
+            },
+            WindowType::Dialog { dialog, .. } => {
+                // Take the serial if we had any, so it doesn't stick around.
+                let serial = self.has_pending_move.take();
+
+                if let Some(frame) = self.frame.as_mut() {
+                    let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
+                    // If we have a cursor change, that means that cursor is over the decorations,
+                    // so try to apply move.
+                    if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
+                        dialog.xdg_toplevel()._move(seat, serial);
                         None
                     } else {
                         cursor
@@ -758,6 +856,18 @@ impl WindowState {
                     true
                 }
             },
+            WindowType::Dialog { last_configure, .. } => {
+                let csd = last_configure
+                    .as_ref()
+                    .map(|configure| configure.decoration_mode == DecorationMode::Client)
+                    .unwrap_or(false);
+                if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
+                    !frame.is_hidden()
+                } else {
+                    // Server side decorations.
+                    true
+                }
+            },
             WindowType::Popup { .. } => false, // Popup window does not have any decoration
         }
     }
@@ -816,7 +926,7 @@ impl WindowState {
     pub fn reload_cursor_style(&mut self) {
         if self.cursor_visible {
             match &self.selected_cursor {
-                SelectedCursor::Named(icon) => self.set_cursor(*icon),
+                SelectedCursor::Named(icon) => self.set_cursor_icon(*icon),
                 SelectedCursor::Custom(cursor) => self.apply_custom_cursor(cursor),
             }
         } else {
@@ -846,6 +956,11 @@ impl WindowState {
                     self.resize(surface_size.to_logical(self.scale_factor()))
                 }
             },
+            WindowType::Dialog { last_configure, .. } => {
+                if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
+                    self.resize(surface_size.to_logical(self.scale_factor()))
+                }
+            },
             WindowType::Popup { popup, xdg_positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
                 xdg_positioner.set_size(size.width, size.height);
@@ -855,7 +970,7 @@ impl WindowState {
             },
         }
 
-        logical_to_physical_rounded(self.surface_size(), self.scale_factor())
+        self.surface_size_physical()
     }
 
     /// Resize the window to the new surface size.
@@ -863,10 +978,14 @@ impl WindowState {
         self.size = surface_size;
 
         // Update the stateless size.
-        if let WindowType::Window { last_configure, .. } = &mut self.window {
-            if let Some(true) = last_configure.as_ref().map(Self::is_stateless) {
-                self.stateless_size = surface_size;
-            }
+        match &mut self.window {
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => {
+                if let Some(true) = last_configure.as_ref().map(Self::is_stateless) {
+                    self.stateless_size = surface_size;
+                }
+            },
+            _ => (),
         }
 
         // Update the inner frame.
@@ -909,6 +1028,47 @@ impl WindowState {
         }
     }
 
+    pub(crate) fn set_maximized(&self, maximized: bool) {
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return,
+        };
+
+        if maximized { xdg_toplevel.set_maximized() } else { xdg_toplevel.unset_maximized() }
+    }
+
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let Some(xdg_toplevel) = self.xdg_toplevel() else {
+            return;
+        };
+        match fullscreen {
+            Some(Fullscreen::Borderless(monitor)) => {
+                let output = monitor.as_ref().and_then(|monitor| {
+                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
+                });
+
+                xdg_toplevel.set_fullscreen(output)
+            },
+            Some(_) => {
+                warn!("this fullscreen mode is ignored on Wayland");
+            },
+            None => xdg_toplevel.unset_fullscreen(),
+        }
+    }
+
+    pub(crate) fn is_maximized(&self) -> bool {
+        let last_configure = match &self.window {
+            WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Dialog { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => return false,
+        };
+        last_configure
+            .as_ref()
+            .map(|last_configure| last_configure.is_maximized())
+            .unwrap_or_default()
+    }
+
     /// Get the scale factor of the window.
     #[inline]
     pub fn scale_factor(&self) -> f64 {
@@ -916,7 +1076,7 @@ impl WindowState {
     }
 
     /// Set the cursor icon.
-    pub fn set_cursor(&mut self, cursor_icon: CursorIcon) {
+    pub fn set_cursor_icon(&mut self, cursor_icon: CursorIcon) {
         self.selected_cursor = SelectedCursor::Named(cursor_icon);
 
         if !self.cursor_visible {
@@ -1004,37 +1164,46 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            // Ensure that the window has the right minimum size.
-            let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
-            size.width = size.width.max(MIN_WINDOW_SIZE.width);
-            size.height = size.height.max(MIN_WINDOW_SIZE.height);
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return,
+        };
 
-            // Add the borders.
-            let size = self
-                .frame
-                .as_ref()
-                .map(|frame| frame.add_borders(size.width, size.height).into())
-                .unwrap_or(size);
+        // Ensure that the window has the right minimum size.
+        let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
+        size.width = size.width.max(MIN_WINDOW_SIZE.width);
+        size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
-            self.min_surface_size = size;
-            window.set_min_size(Some(size.into()));
-        }
+        // Add the borders.
+        let size = self
+            .frame
+            .as_ref()
+            .map(|frame| frame.add_borders(size.width, size.height).into())
+            .unwrap_or(size);
+
+        self.min_surface_size = size;
+        xdg_toplevel.set_min_size(size.width as _, size.height as _);
     }
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            let size = size.map(|size| {
-                self.frame
-                    .as_ref()
-                    .map(|frame| frame.add_borders(size.width, size.height).into())
-                    .unwrap_or(size)
-            });
+        let xdg_toplevel = match &self.window {
+            WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
+            WindowType::Popup { .. } => return,
+        };
 
-            self.max_surface_size = size;
-            window.set_max_size(size.map(Into::into));
-        }
+        let size = size.map(|size| {
+            self.frame
+                .as_ref()
+                .map(|frame| frame.add_borders(size.width, size.height).into())
+                .unwrap_or(size)
+        });
+
+        self.max_surface_size = size;
+        let size = size.unwrap_or_default();
+        xdg_toplevel.set_max_size(size.width as _, size.height as _);
     }
 
     /// Set the CSD theme.
@@ -1136,19 +1305,21 @@ impl WindowState {
     }
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            // TODO(kchibisov) handle touch serials.
-            self.apply_on_pointer(|_, data| {
-                if let Some(serial) = data.latest_button_serial() {
-                    let seat = data.seat();
-                    window.show_window_menu(seat, serial, position.into());
-                }
-            });
-        }
+        let Some(xdg_toplevel) = self.xdg_toplevel() else { return };
+
+        // TODO(kchibisov) handle touch serials.
+        self.apply_on_pointer(|_, data| {
+            if let Some(serial) = data.latest_button_serial() {
+                let seat = data.seat();
+                xdg_toplevel.show_window_menu(seat, serial, position.x as _, position.y as _);
+            }
+        });
     }
 
     /// Set the position of the cursor.
-    pub fn set_cursor_position(&self, position: LogicalPosition<f64>) -> Result<(), RequestError> {
+    pub fn set_cursor_position(&self, position: dpi::Position) -> Result<(), RequestError> {
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
         if self.pointer_constraints.is_none() {
             return Err(NotSupportedError::new("zwp_pointer_constraints is not available").into());
         }
@@ -1174,7 +1345,7 @@ impl WindowState {
 
         if self.cursor_visible {
             match &self.selected_cursor {
-                SelectedCursor::Named(icon) => self.set_cursor(*icon),
+                SelectedCursor::Named(icon) => self.set_cursor_icon(*icon),
                 SelectedCursor::Custom(cursor) => self.apply_custom_cursor(cursor),
             }
         } else {
@@ -1188,6 +1359,19 @@ impl WindowState {
         }
     }
 
+    fn request_decoration_mode(&self, mode: Option<DecorationMode>) {
+        match &self.window {
+            WindowType::Window { window, .. } => window.request_decoration_mode(mode),
+            WindowType::Dialog { dialog: _dialog, .. } => {
+                // Enable once a new sctk release was created with the following
+                // PR included
+                // https://github.com/Smithay/client-toolkit/pull/540
+                // dialog.request_decoration_mode(mode)
+            },
+            WindowType::Popup { .. } => {},
+        }
+    }
+
     /// Whether show or hide client side decorations.
     #[inline]
     pub fn set_decorate(&mut self, decorate: bool) {
@@ -1197,29 +1381,28 @@ impl WindowState {
 
         self.decorate = decorate;
 
-        match &self.window {
-            WindowType::Window { window, last_configure } => {
-                match last_configure.as_ref().map(|configure| configure.decoration_mode) {
-                    Some(DecorationMode::Server) if !self.decorate => {
-                        // To disable decorations we should request client and hide the frame.
-                        window.request_decoration_mode(Some(DecorationMode::Client))
-                    },
-                    _ if self.decorate && self.prefer_csd => {
-                        window.request_decoration_mode(Some(DecorationMode::Client))
-                    },
-                    _ if self.decorate => {
-                        window.request_decoration_mode(Some(DecorationMode::Server))
-                    },
-                    _ => (),
-                }
+        let last_configure = match &self.window {
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => return, // Popup does not have any decoration
+        };
 
-                if let Some(frame) = self.frame.as_mut() {
-                    frame.set_hidden(!decorate);
-                    // Force the resize.
-                    self.resize(self.size);
-                }
+        match last_configure.as_ref().map(|configure| configure.decoration_mode) {
+            Some(DecorationMode::Server) if !self.decorate => {
+                // To disable decorations we should request client and hide the frame.
+                self.request_decoration_mode(Some(DecorationMode::Client))
             },
-            WindowType::Popup { .. } => (), // Popup does not have any decoration
+            _ if self.decorate && self.prefer_csd => {
+                self.request_decoration_mode(Some(DecorationMode::Client))
+            },
+            _ if self.decorate => self.request_decoration_mode(Some(DecorationMode::Server)),
+            _ => (),
+        }
+
+        if let Some(frame) = self.frame.as_mut() {
+            frame.set_hidden(!decorate);
+            // Force the resize.
+            self.resize(self.size);
         }
     }
 
@@ -1357,6 +1540,7 @@ impl WindowState {
 
         match &self.window {
             WindowType::Window { window, .. } => window.set_title(&title),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().set_title(title.clone()),
             WindowType::Popup { .. } => (), // Popup does not have any title
         }
         self.title = title;
@@ -1364,42 +1548,42 @@ impl WindowState {
 
     /// Set the window's icon
     pub fn set_window_icon(&mut self, window_icon: Option<winit_core::icon::Icon>) {
-        if let WindowType::Window { window, .. } = &self.window {
-            let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
-                Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
-                None => {
-                    warn!("`xdg_toplevel_icon_manager_v1` is not supported");
-                    return;
-                },
-            };
+        let Some(xdg_toplevel) = self.xdg_toplevel() else { return };
 
-            let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
-                Some(icon) => {
-                    let mut image_pool = self.image_pool.lock().unwrap();
-                    let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
-                        Ok(toplevel_icon) => toplevel_icon,
-                        Err(error) => {
-                            warn!("Error setting window icon: {error}");
-                            return;
-                        },
-                    };
+        let xdg_toplevel_icon_manager = match self.xdg_toplevel_icon_manager.as_ref() {
+            Some(xdg_toplevel_icon_manager) => xdg_toplevel_icon_manager,
+            None => {
+                warn!("`xdg_toplevel_icon_manager_v1` is not supported");
+                return;
+            },
+        };
 
-                    let xdg_toplevel_icon =
-                        xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
+        let (toplevel_icon, xdg_toplevel_icon) = match window_icon {
+            Some(icon) => {
+                let mut image_pool = self.image_pool.lock().unwrap();
+                let toplevel_icon = match ToplevelIcon::new(icon, &mut image_pool) {
+                    Ok(toplevel_icon) => toplevel_icon,
+                    Err(error) => {
+                        warn!("Error setting window icon: {error}");
+                        return;
+                    },
+                };
 
-                    toplevel_icon.add_buffer(&xdg_toplevel_icon);
+                let xdg_toplevel_icon =
+                    xdg_toplevel_icon_manager.create_icon(&self.queue_handle, GlobalData);
 
-                    (Some(toplevel_icon), Some(xdg_toplevel_icon))
-                },
-                None => (None, None),
-            };
+                toplevel_icon.add_buffer(&xdg_toplevel_icon);
 
-            xdg_toplevel_icon_manager.set_icon(window.xdg_toplevel(), xdg_toplevel_icon.as_ref());
-            self.toplevel_icon = toplevel_icon;
+                (Some(toplevel_icon), Some(xdg_toplevel_icon))
+            },
+            None => (None, None),
+        };
 
-            if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
-                xdg_toplevel_icon.destroy();
-            }
+        xdg_toplevel_icon_manager.set_icon(xdg_toplevel, xdg_toplevel_icon.as_ref());
+        self.toplevel_icon = toplevel_icon;
+
+        if let Some(xdg_toplevel_icon) = xdg_toplevel_icon {
+            xdg_toplevel_icon.destroy();
         }
     }
 

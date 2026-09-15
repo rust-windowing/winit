@@ -38,6 +38,7 @@ macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
+mod dialog;
 mod dnd;
 mod event_loop;
 mod output;
