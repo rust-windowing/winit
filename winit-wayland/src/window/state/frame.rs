@@ -141,6 +141,18 @@ impl WindowState {
                     true
                 }
             },
+            WindowType::Dialog { last_configure, .. } => {
+                let csd = last_configure
+                    .as_ref()
+                    .map(|configure| configure.decoration_mode == DecorationMode::Client)
+                    .unwrap_or(false);
+                if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
+                    !frame.is_hidden()
+                } else {
+                    // Server side decorations.
+                    true
+                }
+            },
             WindowType::Popup { .. } => false, // Popup window does not have any decoration
         }
     }
@@ -166,6 +178,12 @@ impl WindowState {
     fn request_decoration_mode(&self, mode: Option<DecorationMode>) {
         match &self.window {
             WindowType::Window { window, .. } => window.request_decoration_mode(mode),
+            WindowType::Dialog { dialog: _dialog, .. } => {
+                // Enable once a new sctk release was created with the following
+                // PR included
+                // https://github.com/Smithay/client-toolkit/pull/540
+                // dialog.request_decoration_mode(mode)
+            },
             WindowType::Popup { .. } => {},
         }
     }
@@ -180,7 +198,8 @@ impl WindowState {
         self.decorate = decorate;
 
         let last_configure = match &self.window {
-            WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure,
             WindowType::Popup { .. } => return, // Popup does not have any decoration
         };
 

@@ -814,6 +814,12 @@ impl Window {
             )));
         }
 
+        if window_attrs.window_type() == window::WindowType::Dialog {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Dialogs are not implemented for Android",
+            )));
+        }
+
         // FIXME this ignores the rest of the requested window attributes
 
         Ok(Self {

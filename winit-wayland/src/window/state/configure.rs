@@ -13,6 +13,46 @@ use super::create_sctk_adwaita_config;
 use super::{WindowState, WindowType, WinitFrame};
 
 impl WindowState {
+    pub fn configure_dialog(
+        &mut self,
+        configure: WindowConfigure,
+        shm: &Shm,
+        subcompositor: &Option<Arc<SubcompositorState>>,
+    ) -> bool {
+        let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
+
+        let new_state = configure.state;
+        if let WindowType::Dialog { last_configure, .. } = &mut self.window {
+            let old_state = last_configure.as_ref().map(|configure| configure.state);
+
+            let state_change_requires_resize = old_state
+                .map(|old_state| {
+                    !old_state
+                        .symmetric_difference(new_state)
+                        .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
+                        .is_empty()
+                })
+                // NOTE: `None` is present for the initial configure, thus we must always resize.
+                .unwrap_or(true);
+
+            // NOTE: Set the configure before doing a resize, since we query it during it.
+            *last_configure = Some(configure);
+
+            if state_change_requires_resize || new_size != self.surface_size() {
+                self.resize(new_size);
+                true
+            } else {
+                false
+            }
+        } else {
+            tracing::error!(
+                "configure_dialog called for window type unequal of dialog. This should never \
+                 happen, because we start configuring with a dialog"
+            );
+            false
+        }
+    }
+
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to

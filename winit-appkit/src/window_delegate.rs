@@ -943,6 +943,11 @@ impl WindowDelegate {
             .unwrap_or_default();
 
         let window_type = attrs.window_type();
+        if window_type == WindowType::Dialog {
+            return Err(RequestError::NotSupported(NotSupportedError::new(
+                "Dialogs are not implemented for macOS",
+            )));
+        }
         let is_popup = matches!(window_type, WindowType::Popup);
         let anchored = is_popup || attrs.positioner.is_some();
         if is_popup {
