@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Windows, fix runaway window growth when dragging across monitors with
+  different DPI scale factors.
