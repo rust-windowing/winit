@@ -90,6 +90,14 @@ impl WindowType {
             Self::Dialog { last_configure, .. } => last_configure.is_some(),
         }
     }
+
+    pub fn xdg_toplevel(&self) -> Option<&xdg_toplevel::XdgToplevel> {
+        match self {
+            WindowType::Window { window, .. } => Some(window.xdg_toplevel()),
+            WindowType::Dialog { dialog, .. } => Some(dialog.xdg_toplevel()),
+            WindowType::Popup { .. } => None,
+        }
+    }
 }
 
 impl WaylandSurface for WindowType {
@@ -310,11 +318,7 @@ impl WindowState {
     }
 
     pub(crate) fn xdg_toplevel(&self) -> Option<&xdg_toplevel::XdgToplevel> {
-        match &self.window {
-            WindowType::Window { window, .. } => Some(window.xdg_toplevel()),
-            WindowType::Dialog { dialog, .. } => Some(dialog.xdg_toplevel()),
-            WindowType::Popup { .. } => None,
-        }
+        self.window.xdg_toplevel()
     }
 
     // HACK: Currently to get the data device to initiate a drag-and-drop, we iterate through all
@@ -691,11 +695,7 @@ impl WindowState {
         window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
-        let xdg_toplevel = match &self.window {
-            WindowType::Window { window, .. } => window.xdg_toplevel(),
-            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
-            WindowType::Popup { .. } => return None,
-        };
+        let xdg_toplevel = self.window.xdg_toplevel()?;
 
         match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
             FrameAction::Minimize => xdg_toplevel.set_minimized(),
@@ -740,44 +740,18 @@ impl WindowState {
         x: f64,
         y: f64,
     ) -> Option<CursorIcon> {
-        match &self.window {
-            WindowType::Window { window, .. } => {
-                // Take the serial if we had any, so it doesn't stick around.
-                let serial = self.has_pending_move.take();
+        // Take the serial if we had any, so it doesn't stick around.
+        let serial = self.has_pending_move.take();
 
-                if let Some(frame) = self.frame.as_mut() {
-                    let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
-                    // If we have a cursor change, that means that cursor is over the decorations,
-                    // so try to apply move.
-                    if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
-                        window.move_(seat, serial);
-                        None
-                    } else {
-                        cursor
-                    }
-                } else {
-                    None
-                }
-            },
-            WindowType::Dialog { dialog, .. } => {
-                // Take the serial if we had any, so it doesn't stick around.
-                let serial = self.has_pending_move.take();
-
-                if let Some(frame) = self.frame.as_mut() {
-                    let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
-                    // If we have a cursor change, that means that cursor is over the decorations,
-                    // so try to apply move.
-                    if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
-                        dialog.xdg_toplevel()._move(seat, serial);
-                        None
-                    } else {
-                        cursor
-                    }
-                } else {
-                    None
-                }
-            },
-            WindowType::Popup { .. } => None,
+        let frame = self.frame.as_mut()?;
+        let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
+        // If we have a cursor change, that means that cursor is over the decorations,
+        // so try to apply move.
+        if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
+            self.xdg_toplevel()?._move(seat, serial);
+            None
+        } else {
+            cursor
         }
     }
 
@@ -1029,11 +1003,7 @@ impl WindowState {
     }
 
     pub(crate) fn set_maximized(&self, maximized: bool) {
-        let xdg_toplevel = match &self.window {
-            WindowType::Window { window, .. } => window.xdg_toplevel(),
-            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
-            WindowType::Popup { .. } => return,
-        };
+        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
 
         if maximized { xdg_toplevel.set_maximized() } else { xdg_toplevel.unset_maximized() }
     }
@@ -1182,11 +1152,7 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let xdg_toplevel = match &self.window {
-            WindowType::Window { window, .. } => window.xdg_toplevel(),
-            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
-            WindowType::Popup { .. } => return,
-        };
+        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
 
         // Ensure that the window has the right minimum size.
         let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
@@ -1206,11 +1172,7 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let xdg_toplevel = match &self.window {
-            WindowType::Window { window, .. } => window.xdg_toplevel(),
-            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
-            WindowType::Popup { .. } => return,
-        };
+        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
 
         let size = size.map(|size| {
             self.frame
@@ -1541,6 +1503,8 @@ impl WindowState {
     ///
     /// This will automatically truncate the title to something meaningful.
     pub fn set_title(&mut self, mut title: String) {
+        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
+
         // Truncate the title to at most 1024 bytes, so that it does not blow up the protocol
         // messages
         if title.len() > 1024 {
@@ -1556,11 +1520,8 @@ impl WindowState {
             frame.set_title(&title);
         }
 
-        match &self.window {
-            WindowType::Window { window, .. } => window.set_title(&title),
-            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().set_title(title.clone()),
-            WindowType::Popup { .. } => (), // Popup does not have any title
-        }
+        xdg_toplevel.set_title(title.clone());
+
         self.title = title;
     }
 

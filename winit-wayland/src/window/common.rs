@@ -244,8 +244,7 @@ impl WindowCommon {
     }
 
     pub(crate) fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        let Some(s) = self.state.upgrade() else { return Err(RequestError::Ignored) };
-        s.lock().unwrap().set_cursor_grab(mode)
+        self.state.upgrade().ok_or(RequestError::Ignored)?.lock().unwrap().set_cursor_grab(mode)
     }
 
     pub(crate) fn set_cursor_visible(&self, visible: bool) {
@@ -254,16 +253,19 @@ impl WindowCommon {
     }
 
     pub(crate) fn drag_window(&self) -> Result<(), RequestError> {
-        let Some(s) = self.state.upgrade() else { return Err(RequestError::Ignored) };
-        s.lock().unwrap().drag_window()
+        self.state.upgrade().ok_or(RequestError::Ignored)?.lock().unwrap().drag_window()
     }
 
     pub(crate) fn drag_resize_window(
         &self,
         direction: ResizeDirection,
     ) -> Result<(), RequestError> {
-        let Some(s) = self.state.upgrade() else { return Err(RequestError::Ignored) };
-        s.lock().unwrap().drag_resize_window(direction)
+        self.state
+            .upgrade()
+            .ok_or(RequestError::Ignored)?
+            .lock()
+            .unwrap()
+            .drag_resize_window(direction)
     }
 
     pub(crate) fn set_maximized(&self, maximized: bool) {
@@ -296,10 +298,7 @@ impl WindowCommon {
     }
 
     pub(crate) fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let Some(state) = self.state.upgrade() else {
-            return Err(RequestError::Ignored);
-        };
-
+        let state = self.state.upgrade().ok_or(RequestError::Ignored)?;
         self.handles.set_cursor_hittest(state.lock().unwrap().window.wl_surface(), hittest)
     }
 

@@ -78,8 +78,8 @@ pub enum WindowType {
     /// ## Platform-specific
     ///
     /// - **Windows:** An owned window (see MSDN's [owned windows]) that is always on top of its
-    ///   parent. When modal, the parent is disabled via `EnableWindow` for as long as the dialog
-    ///   is open, and re-enabled and reactivated once the dialog is closed.
+    ///   parent. When modal, the parent is disabled via `EnableWindow` for as long as the dialog is
+    ///   open, and re-enabled and reactivated once the dialog is closed.
     /// - **macOS, X11, Web, Android, iOS, Orbital:** An error is returned because it is not
     ///   implemented.
     ///
@@ -562,8 +562,8 @@ impl WindowAttributes {
     /// - **Wayland:** Implemented via the `xdg_dialog` protocol's modal state.
     /// - **Windows:** Implemented by disabling the parent window (`EnableWindow`) for as long as
     ///   the dialog is open.
-    /// - **macOS, X11, Web, Android, iOS, Orbital:** No effect, since [`WindowType::Dialog`] is
-    ///   not implemented.
+    /// - **macOS, X11, Web, Android, iOS, Orbital:** No effect, since [`WindowType::Dialog`] is not
+    ///   implemented.
     #[inline]
     pub fn with_modal(mut self, modal: bool) -> Self {
         self.modal = Some(modal);
