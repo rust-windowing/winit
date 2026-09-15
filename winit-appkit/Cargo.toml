@@ -110,6 +110,7 @@ objc2-foundation = { workspace = true, features = [
     "NSRunLoop",
     "NSString",
     "NSThread",
+    "NSURL",
     "NSValue",
 ] }
 winit-common = { workspace = true, features = [

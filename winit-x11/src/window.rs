@@ -39,6 +39,7 @@ use crate::atoms::{
     _NET_WM_WINDOW_TYPE, _XEMBED, AtomName, CARD32, UTF8_STRING, WM_CHANGE_STATE,
     WM_CLIENT_MACHINE, WM_DELETE_WINDOW, WM_PROTOCOLS, WM_STATE, XdndAware,
 };
+use crate::data_transfer::ClipboardSelectionType;
 use crate::event_loop::{
     ALL_MASTER_DEVICES, ActivationItem, ActiveEventLoop, CookieResultExt, ICONIC_STATE, VoidCookie,
     WakeSender, X11Error, xinput_fp1616_to_float,
@@ -703,6 +704,12 @@ impl UnownedWindow {
                     version,
                 ))
                 .ignore_error();
+            }
+
+            // Request the initial copy paste targets
+            for (serial, clipboard) in ClipboardSelectionType::iter().enumerate() {
+                let mut data_transfer = event_loop.data_transfer_state.borrow_mut();
+                data_transfer.request_updated_targets(clipboard, window.xwindow, serial as _);
             }
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!

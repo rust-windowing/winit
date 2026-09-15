@@ -40,6 +40,12 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `ActiveEventLoop::clipboard` and `ActiveEventLoop::set_clipboard` for
+  interacting with the system clipboard through the data transfer API,
+  implemented on Wayland, X11, macOS and Windows.
+
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
