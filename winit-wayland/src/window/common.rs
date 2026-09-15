@@ -281,7 +281,7 @@ impl WindowCommon {
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        self.state.upgrade()?.lock().ok()?.fullscreen()
+        self.state.upgrade()?.lock().unwrap().fullscreen()
     }
 
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
@@ -303,7 +303,7 @@ impl WindowCommon {
     }
 
     pub(crate) fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.state.upgrade()?.lock().ok()?.current_monitor()
+        self.state.upgrade()?.lock().unwrap().current_monitor()
     }
 
     pub(crate) fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
