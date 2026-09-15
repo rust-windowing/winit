@@ -43,16 +43,16 @@ use windows_sys::Win32::UI::Input::Touch::{
 };
 use windows_sys::Win32::UI::Input::{RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetCursorPos,
-    GetMenu, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
-    RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos, TranslateMessage,
-    CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT,
-    MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
-    PT_TOUCH, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE,
-    SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
-    WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT,
-    WMSZ_TOPRIGHT, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
-    WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetMenu,
+    LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW, RegisterClassExW,
+    RegisterWindowMessageA, SetCursor, SetWindowPos, TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL,
+    GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG,
+    MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLINPUT,
+    RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT,
+    WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT,
+    WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
+    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN,
     WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
     WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE,
@@ -2306,7 +2306,12 @@ unsafe fn public_window_callback_inner(
             }
 
             let new_outer_rect: RECT;
-            {
+            if dragging_window {
+                // Windows 11 24H2 can repeatedly move a conservatively adjusted rectangle back
+                // to the old monitor while a window crosses a mixed-DPI boundary. Applying the
+                // system-provided rectangle during the live move avoids that feedback loop.
+                new_outer_rect = suggested_rect;
+            } else {
                 let suggested_ul =
                     (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
 
@@ -2320,29 +2325,6 @@ unsafe fn public_window_callback_inner(
                 conservative_rect = window_flags
                     .adjust_rect(window, conservative_rect)
                     .unwrap_or(conservative_rect);
-
-                // If we're dragging the window, offset the window so that the cursor's
-                // relative horizontal position in the title bar is preserved.
-                if dragging_window {
-                    let bias = {
-                        let cursor_pos = {
-                            let mut pos = unsafe { mem::zeroed() };
-                            unsafe { GetCursorPos(&mut pos) };
-                            pos
-                        };
-                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
-                            as f64
-                            / (suggested_rect.right - suggested_rect.left) as f64;
-
-                        (cursor_pos.x
-                            - (suggested_cursor_horizontal_ratio
-                                * (conservative_rect.right - conservative_rect.left) as f64)
-                                as i32)
-                            - conservative_rect.left
-                    };
-                    conservative_rect.left += bias;
-                    conservative_rect.right += bias;
-                }
 
                 // Check to see if the new window rect is on the monitor with the new DPI factor.
                 // If it isn't, offset the window so that it is.
