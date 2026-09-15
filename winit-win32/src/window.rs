@@ -103,6 +103,10 @@ pub struct Window {
 
     // The events loop proxy.
     thread_executor: event_loop::EventLoopThreadExecutor,
+
+    /// The owner window that was disabled to make this a modal [`WindowType::Dialog`], if any.
+    /// Re-enabled (and reactivated) when this window is dropped.
+    owner: Option<SyncWindowHandle>,
 }
 
 impl Window {
@@ -450,6 +454,15 @@ impl Drop for Window {
         // Restore fullscreen video mode on exit.
         if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
+        }
+
+        // Re-enable and reactivate the owner we disabled to make this a modal dialog, before
+        // destroying this window, matching the order Win32 modal dialogs are expected to close in.
+        if let Some(owner) = self.owner {
+            unsafe {
+                EnableWindow(owner.hwnd(), 1);
+                SetForegroundWindow(owner.hwnd());
+            }
         }
 
         unsafe {
@@ -1432,10 +1445,27 @@ impl InitData<'_> {
 
         unsafe { ImeContext::set_ime_allowed(window, false) };
 
+        // If this is a modal dialog, disable its owner window; it's re-enabled when this
+        // `Window` is dropped.
+        let is_modal = matches!(self.attributes.window_type, WindowType::Dialog)
+            && self.attributes.modal.unwrap_or(false);
+        let owner = is_modal
+            .then(|| self.attributes.parent_window())
+            .flatten()
+            .and_then(|handle| match handle {
+                rwh_06::RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as HWND),
+                _ => None,
+            })
+            .map(|owner_hwnd| {
+                unsafe { EnableWindow(owner_hwnd, 0) };
+                SyncWindowHandle(owner_hwnd)
+            });
+
         Window {
             window: SyncWindowHandle(window),
             window_state,
             thread_executor: self.runner.create_thread_executor(),
+            owner,
         }
     }
 
@@ -1595,6 +1625,7 @@ unsafe fn init(
     unsafe { register_window_class(&class_name) };
 
     let is_popup = matches!(attributes.window_type, WindowType::Popup);
+    let is_dialog = matches!(attributes.window_type, WindowType::Dialog);
     // Whether this window is positioned relative to its parent via the anchor/gravity/
     // positioner system -- either because it's a `WindowType::Popup`, or because anchor
     // attributes were explicitly set on a `WindowType::Window` (Windows supports both).
@@ -1633,7 +1664,7 @@ unsafe fn init(
 
     let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            if !is_popup {
+            if !is_popup && !is_dialog {
                 window_flags.set(WindowFlags::CHILD, true);
             }
             if win_attributes.menu.is_some() {
@@ -1646,6 +1677,11 @@ unsafe fn init(
             if is_popup {
                 return Err(RequestError::NotSupported(NotSupportedError::new(
                     "Popup without a parent is not supported!",
+                )));
+            }
+            if is_dialog {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Dialog without a parent is not supported!",
                 )));
             }
             fallback_parent()
