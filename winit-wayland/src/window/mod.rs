@@ -39,7 +39,15 @@ pub struct Window {
     /// Reference to the underlying SCTK window.
     window: SctkWindow,
 
-    /// The state of the window.
+    /// Keeps the window's state alive for as long as this handle exists, independently of
+    /// whatever the event loop's `windows` map does with its own reference.
+    ///
+    /// Unlike `Dialog`/`Popup`, which only ever hold a `Weak` (via `common.state`) so that a
+    /// compositor-initiated destroy can drop the state out from under a still-live handle, a
+    /// top-level `Window` has no equivalent unilateral server-side destruction to react to --
+    /// it can only be closed by the application dropping this handle. This field is never read;
+    /// it exists solely to uphold that guarantee.
+    #[expect(dead_code, reason = "kept alive for its Drop, not read")]
     window_state: Arc<Mutex<WindowState>>,
 
     common: WindowCommon,

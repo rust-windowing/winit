@@ -1503,8 +1503,6 @@ impl WindowState {
     ///
     /// This will automatically truncate the title to something meaningful.
     pub fn set_title(&mut self, mut title: String) {
-        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
-
         // Truncate the title to at most 1024 bytes, so that it does not blow up the protocol
         // messages
         if title.len() > 1024 {
@@ -1520,7 +1518,9 @@ impl WindowState {
             frame.set_title(&title);
         }
 
-        xdg_toplevel.set_title(title.clone());
+        if let Some(xdg_toplevel) = self.window.xdg_toplevel() {
+            xdg_toplevel.set_title(title.clone());
+        }
 
         self.title = title;
     }
