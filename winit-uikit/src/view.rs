@@ -1,5 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
+use std::time::Duration;
 
 use dpi::PhysicalPosition;
 use objc2::rc::Retained;
@@ -18,6 +19,7 @@ use winit_core::event::{
     ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource,
     TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TouchPhase, WindowEvent,
 };
+use winit_core::event_loop::HistoricalMoveEvent;
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 
 use super::app_state::{self, EventWrapper};
@@ -134,27 +136,27 @@ define_class!(
         }
 
         #[unsafe(method(touchesBegan:withEvent:))]
-        fn touches_began(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_began(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesBegan:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(touchesMoved:withEvent:))]
-        fn touches_moved(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_moved(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesMoved:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(touchesEnded:withEvent:))]
-        fn touches_ended(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_ended(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesEnded:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(touchesCancelled:withEvent:))]
-        fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_cancelled(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesCancelled:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(pinchGesture:))]
@@ -477,44 +479,53 @@ impl WinitView {
         }
     }
 
-    fn handle_touches(&self, touches: &NSSet<UITouch>) {
+    fn determine_force(&self, touch: &Retained<UITouch>) -> Option<Force> {
+        let touch_type = touch.r#type();
+        if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
+            let use_force = match touch_type {
+                UITouchType::Pencil => true,
+                _ => {
+                    let trait_collection = self.traitCollection();
+                    trait_collection.forceTouchCapability() == UIForceTouchCapability::Available
+                },
+            };
+
+            if use_force {
+                let force = touch.force();
+                let max_possible_force = touch.maximumPossibleForce();
+                Some(Force::Calibrated {
+                    force: force as _,
+                    max_possible_force: max_possible_force as _,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn determine_position(&self, touch: &Retained<UITouch>) -> PhysicalPosition<f64> {
+        let logical_location = touch.locationInView(None);
+
+        let scale_factor = self.contentScaleFactor();
+        PhysicalPosition::from_logical::<(f64, f64), f64>(
+            (logical_location.x as _, logical_location.y as _),
+            scale_factor as f64,
+        )
+    }
+
+    fn handle_touches(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
         let window = self.window().unwrap();
         let mut touch_events = Vec::new();
         for touch in touches {
-            let logical_location = touch.locationInView(None);
             let touch_type = touch.r#type();
-            let force = if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
-                let use_force = match touch_type {
-                    UITouchType::Pencil => true,
-                    _ => {
-                        let trait_collection = self.traitCollection();
-                        trait_collection.forceTouchCapability() == UIForceTouchCapability::Available
-                    },
-                };
-
-                if use_force {
-                    let force = touch.force();
-                    let max_possible_force = touch.maximumPossibleForce();
-                    Some(Force::Calibrated {
-                        force: force as _,
-                        max_possible_force: max_possible_force as _,
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            let touch_id = Retained::as_ptr(&touch) as usize;
+            let force = self.determine_force(&touch);
             let phase = touch.phase();
-            let position = {
-                let scale_factor = self.contentScaleFactor();
-                PhysicalPosition::from_logical::<(f64, f64), f64>(
-                    (logical_location.x as _, logical_location.y as _),
-                    scale_factor as f64,
-                )
-            };
+
+            let position = self.determine_position(&touch);
             let window_id = window.id();
+            let touch_id = Retained::as_ptr(&touch) as usize;
             let finger_id = FingerId::from_raw(touch_id);
 
             let ivars = self.ivars();
@@ -576,18 +587,48 @@ impl WinitView {
                     });
                 },
                 UITouchPhase::Moved => {
-                    let (primary, source) = if let UITouchType::Pencil = touch_type {
-                        let tool_data = self.tablet_tool_data_for_pencil(&touch);
-                        (true, PointerSource::TabletTool {
-                            kind: TabletToolKind::Pencil,
-                            data: tool_data,
-                        })
-                    } else {
-                        (ivars.primary_finger.get().unwrap() == finger_id, PointerSource::Touch {
-                            finger_id,
-                            force,
-                        })
+                    fn primary_source(
+                        _self: &WinitView,
+                        touch: &Retained<UITouch>,
+                        force: Option<Force>,
+                    ) -> (bool, PointerSource) {
+                        let touch_type = touch.r#type();
+                        let touch_id = Retained::as_ptr(&touch) as usize;
+                        let finger_id = FingerId::from_raw(touch_id);
+                        if let UITouchType::Pencil = touch_type {
+                            let tool_data = _self.tablet_tool_data_for_pencil(&touch);
+                            (true, PointerSource::TabletTool {
+                                kind: TabletToolKind::Pencil,
+                                data: tool_data,
+                            })
+                        } else {
+                            (
+                                _self.ivars().primary_finger.get().unwrap() == finger_id,
+                                PointerSource::Touch { finger_id, force },
+                            )
+                        }
                     };
+
+                    let (primary, source) = primary_source(self, &touch, force);
+
+                    let historical_events = event
+                        .and_then(|event| {
+                            event.coalescedTouchesForTouch(&touch).map(|touch_events| {
+                                let mut vec = Vec::with_capacity(touch_events.len());
+                                let primary_event_time = touch.timestamp();
+                                for touch in touch_events {
+                                    let time_diff = Duration::from_secs_f64(
+                                        primary_event_time - touch.timestamp(),
+                                    );
+                                    let force = self.determine_force(&touch);
+                                    let (_, source) = primary_source(self, &touch, force);
+                                    let position = self.determine_position(&touch);
+                                    vec.push(HistoricalMoveEvent::new(time_diff, position, source));
+                                }
+                                vec
+                            })
+                        })
+                        .unwrap_or_default();
 
                     touch_events.push(EventWrapper::Window {
                         window_id,
@@ -596,6 +637,7 @@ impl WinitView {
                             primary,
                             position,
                             source,
+                            history: historical_events,
                         },
                     });
                 },
