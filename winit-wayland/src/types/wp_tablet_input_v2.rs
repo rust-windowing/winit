@@ -172,6 +172,8 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                 data.pending.push(event);
             },
             ToolEvent::Frame { .. } => {
+                // TODO: instead of creating single events we should use also the history vector on
+                // move
                 let kind = data.ty;
                 for event in std::mem::take(&mut data.pending) {
                     if let TabletEvent::Enter { surface, serial } = &event {
@@ -218,6 +220,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                                 kind,
                                 data: data.tool_state.clone(),
                             },
+                            history: Vec::new(),
                         },
                         TabletEvent::Button { button, state, serial } => {
                             // Update serial if we have it.

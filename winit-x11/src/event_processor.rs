@@ -1202,6 +1202,7 @@ impl EventProcessor {
                 primary: true,
                 position,
                 source: PointerSource::Mouse,
+                history: Vec::new(),
             };
             app.window_event(&self.target, window_id, event);
         } else if cursor_moved.is_none() {
@@ -1362,6 +1363,7 @@ impl EventProcessor {
             primary: true,
             position,
             source: PointerSource::Mouse,
+            history: Vec::new(),
         };
         app.window_event(&self.target, window_id, event);
     }
@@ -1433,6 +1435,7 @@ impl EventProcessor {
                     primary: true,
                     position: position.cast(),
                     source: PointerSource::Mouse,
+                    history: Vec::new(),
                 };
                 app.window_event(&self.target, window_id, event);
             }
@@ -1465,6 +1468,7 @@ impl EventProcessor {
                         primary: is_first_touch,
                         position,
                         source: PointerSource::Touch { finger_id, force: None },
+                        history: Vec::new(),
                     };
                     app.window_event(&self.target, window_id, event);
                 },

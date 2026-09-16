@@ -620,10 +620,13 @@ impl WinitView {
                                     let time_diff = Duration::from_secs_f64(
                                         primary_event_time - touch.timestamp(),
                                     );
-                                    let force = self.determine_force(&touch);
-                                    let (_, source) = primary_source(self, &touch, force);
-                                    let position = self.determine_position(&touch);
-                                    vec.push(HistoricalMoveEvent::new(time_diff, position, source));
+                                    let (_, source) =
+                                        primary_source(self, &touch, self.determine_force(&touch));
+                                    vec.push(HistoricalMoveEvent::new(
+                                        time_diff,
+                                        self.determine_position(&touch),
+                                        source,
+                                    ));
                                 }
                                 vec
                             })

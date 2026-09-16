@@ -178,6 +178,7 @@ impl TouchHandler for WinitState {
                     finger_id: FingerId::from_raw(id as usize),
                     force: None,
                 },
+                history: Vec::new(),
             },
             window_id,
         );
