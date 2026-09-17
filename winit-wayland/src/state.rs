@@ -43,6 +43,9 @@ use crate::window::handles::WindowRequests;
 /// Winit's Wayland state.
 #[derive(Debug)]
 pub struct WinitState {
+    /// Global list.
+    pub globals: GlobalList,
+
     /// The state of the WlOutput handling.
     pub output_state: OutputState,
 
@@ -188,6 +191,7 @@ impl WinitState {
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
         Ok(Self {
+            globals: globals.clone(),
             compositor_state: Arc::new(compositor_state),
             subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,

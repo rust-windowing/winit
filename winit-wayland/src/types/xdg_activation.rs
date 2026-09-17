@@ -26,7 +26,7 @@ impl XdgActivationState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let xdg_activation = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
+        let xdg_activation = globals.bind_singleton(1..=1, queue_handle, GlobalData)?;
         Ok(Self { xdg_activation })
     }
 

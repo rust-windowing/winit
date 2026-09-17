@@ -147,6 +147,7 @@ impl SeatHandler for WinitState {
                         queue_handle,
                         &seat,
                         self.shm.wl_shm(),
+                        &self.globals,
                         surface,
                         ThemeSpec::System,
                         pointer_data,

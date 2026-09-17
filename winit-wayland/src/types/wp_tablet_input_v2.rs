@@ -45,7 +45,7 @@ impl TabletManager {
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
         // Ignore v2 since we are not interested in its events.
-        let manager = globals.bind_singleton(queue_handle, 1..=1, ())?;
+        let manager = globals.bind_singleton(1..=1, queue_handle, ())?;
         Ok(Self { manager })
     }
 

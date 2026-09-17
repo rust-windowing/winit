@@ -17,7 +17,7 @@ impl ExtBackgroundEffectManager {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
+        let manager = globals.bind_singleton(1..=1, queue_handle, GlobalData)?;
         Ok(Self { manager })
     }
 

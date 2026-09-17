@@ -69,7 +69,7 @@ impl XdgToplevelIconManagerState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let xdg_toplevel_icon_manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
+        let xdg_toplevel_icon_manager = globals.bind_singleton(1..=1, queue_handle, GlobalData)?;
         Ok(Self { xdg_toplevel_icon_manager })
     }
 

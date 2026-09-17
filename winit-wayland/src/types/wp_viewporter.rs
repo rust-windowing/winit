@@ -21,7 +21,7 @@ impl ViewporterState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let viewporter = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
+        let viewporter = globals.bind_singleton(1..=1, queue_handle, GlobalData)?;
         Ok(Self { viewporter })
     }
 

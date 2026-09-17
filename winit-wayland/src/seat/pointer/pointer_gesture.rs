@@ -30,7 +30,7 @@ impl PointerGesturesState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let pointer_gestures = globals.bind_singleton(queue_handle, 3..=3, GlobalData)?;
+        let pointer_gestures = globals.bind_singleton(3..=3, queue_handle, GlobalData)?;
         Ok(Self { pointer_gestures })
     }
 }

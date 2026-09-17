@@ -27,7 +27,7 @@ impl TextInputState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<WinitState>,
     ) -> Result<Self, BindError> {
-        let text_input_manager = globals.bind_singleton(queue_handle, 1..=1, GlobalData)?;
+        let text_input_manager = globals.bind_singleton(1..=1, queue_handle, GlobalData)?;
         Ok(Self { text_input_manager })
     }
 }
