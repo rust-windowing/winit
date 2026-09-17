@@ -43,3 +43,5 @@ changelog entry.
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
+- On Android, exit the event loop on `MainEvent::Destroy` to allow `run_app()` to
+  terminate and native resources to be cleaned up.
