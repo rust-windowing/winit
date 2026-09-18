@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use image::imageops::FilterType;
@@ -7,7 +6,7 @@ use image::{DynamicImage, GenericImageView, RgbImage};
 use softbuffer::{Context, Surface};
 use tracing::{error, info, warn};
 use winit::application::ApplicationHandler;
-use winit::data_transfer::{DataTransferId, DataTransferSendBuilder, SendData, TypeHint};
+use winit::data_transfer::{DataTransferId, DataTransferSendBuilder, TypeHint};
 use winit::event::{ButtonSource, MouseButton, WindowEvent};
 use winit::event_loop::{
     ActiveEventLoop, AsyncRequestSerial, DndAction, DragIcon, EventLoop, OwnedDisplayHandle,
@@ -19,25 +18,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 mod fill;
 #[path = "util/tracing.rs"]
 mod tracing;
-
-// `url`'s `from_file_path`/`to_file_path` only exist on targets with local filesystem paths.
-#[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
-fn file_path_to_uri(path: &std::path::Path) -> Option<String> {
-    Some(url::Url::from_file_path(path).ok()?.to_string())
-}
-#[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
-fn file_path_to_uri(_path: &std::path::Path) -> Option<String> {
-    None
-}
-
-#[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
-fn uri_to_file_path(uri: &str) -> Option<std::path::PathBuf> {
-    url::Url::parse(uri).ok()?.to_file_path().ok()
-}
-#[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
-fn uri_to_file_path(_uri: &str) -> Option<std::path::PathBuf> {
-    None
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
@@ -117,15 +97,6 @@ impl ApplicationHandler for Application {
                 let result = event_loop.start_drag(
                     window_id,
                     DataTransferSendBuilder::new(self.drag_image_data.clone())
-                        .with_type(TypeHint::UriList, |_, _| {
-                            let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                            let root = manifest_dir.parent().unwrap();
-                            let this_file = root.join(file!());
-                            let icon_file = this_file.parent().unwrap().join("data/icon.png");
-
-                            // `SendData::Uris` takes `file:` URI strings.
-                            Some(SendData::Uris(vec![file_path_to_uri(&icon_file)?]))
-                        })
                         .with_type(TypeHint::Plaintext, |_, _| Some("Winit example".to_string()))
                         .with_type(TypeHint::Html, |_, _| {
                             Some("<span><strong>Winit</strong> example</span>".to_string())
@@ -181,12 +152,6 @@ impl ApplicationHandler for Application {
                             return;
                         };
                         info!("URIs: {uris:#?}");
-
-                        // If you only want to support dropping files, rather than arbitrary URIs,
-                        // parse the `file:` URIs into paths yourself, e.g. with the `url` crate.
-                        let uris_as_paths: Vec<_> =
-                            uris.iter().filter_map(|u| uri_to_file_path(u)).collect();
-                        info!("URIs as file paths: {uris_as_paths:#?}");
                     },
                     Some(TypeHint::Image { extension_hint: ext }) => {
                         let Ok(bytes) = value.try_as_bytes() else {
