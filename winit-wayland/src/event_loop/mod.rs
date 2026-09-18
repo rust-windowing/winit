@@ -18,10 +18,11 @@ use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
 use sctk::data_device_manager::{ReadPipe, data_offer};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
-use sctk::reexports::client::{Connection, QueueHandle, globals};
+use sctk::reexports::client::{Connection, QueueHandle};
 use sctk::shell::WaylandSurface;
 use tracing::warn;
 use wayland_client::Proxy;
+use wayland_client::globals::GlobalList;
 use wayland_client::protocol::wl_data_device_manager::DndAction as WlDndAction;
 use wayland_client::protocol::wl_shm::Format;
 use winit_core::application::ApplicationHandler;
@@ -97,11 +98,11 @@ impl EventLoop {
             return Err(EventLoopError::RecreationAttempt);
         }
 
-        let connection = Connection::connect_to_env().map_err(|err| os_error!(err))?;
+        let connection = unsafe { Connection::connect_to_env().map_err(|err| os_error!(err))? };
 
-        let (globals, mut event_queue) =
-            globals::registry_queue_init(&connection).map_err(|err| os_error!(err))?;
+        let mut event_queue = connection.new_event_queue();
         let queue_handle = event_queue.handle();
+        let globals = GlobalList::init(&connection, &queue_handle).map_err(|err| os_error!(err))?;
 
         let event_loop =
             calloop::EventLoop::<WinitState>::try_new().map_err(|err| os_error!(err))?;
@@ -1046,8 +1047,7 @@ impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
         use sctk::reexports::client::Proxy;
 
         let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.connection.display().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
+            self.connection.display().id().as_ptr().expect("wl_display should never be null").cast()
         });
 
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw.into()) })

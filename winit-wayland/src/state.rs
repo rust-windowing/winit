@@ -8,11 +8,10 @@ use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::output::{OutputHandler, OutputState};
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
-use sctk::reexports::client::globals::GlobalList;
+use sctk::reexports::client::globals::{GlobalList, GlobalListHandler};
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
@@ -44,8 +43,8 @@ use crate::window::handles::WindowRequests;
 /// Winit's Wayland state.
 #[derive(Debug)]
 pub struct WinitState {
-    /// The WlRegistry.
-    pub registry_state: RegistryState,
+    /// Global list.
+    pub globals: GlobalList,
 
     /// The state of the WlOutput handling.
     pub output_state: OutputState,
@@ -146,7 +145,6 @@ impl WinitState {
         queue_handle: &QueueHandle<Self>,
         loop_handle: LoopHandle<'static, WinitState>,
     ) -> Result<Self, OsError> {
-        let registry_state = RegistryState::new(globals);
         let compositor_state =
             CompositorState::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
         let subcompositor_state = match SubcompositorState::bind(
@@ -193,7 +191,7 @@ impl WinitState {
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
         Ok(Self {
-            registry_state,
+            globals: globals.clone(),
             compositor_state: Arc::new(compositor_state),
             subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,
@@ -490,12 +488,8 @@ impl CompositorHandler for WinitState {
     }
 }
 
-impl ProvidesRegistryState for WinitState {
+impl GlobalListHandler for WinitState {
     sctk::registry_handlers![OutputState, SeatState];
-
-    fn registry(&mut self) -> &mut RegistryState {
-        &mut self.registry_state
-    }
 }
 
 // The window update coming from the compositor.
@@ -519,6 +513,3 @@ impl WindowCompositorUpdate {
         Self { window_id, resized: false, scale_changed: false, close_window: false }
     }
 }
-
-sctk::delegate_dispatch2!(WinitState);
-sctk::delegate_registry!(WinitState);
