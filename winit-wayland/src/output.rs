@@ -50,9 +50,11 @@ impl CoreMonitorHandle for MonitorHandle {
         }))
     }
 
-    fn scale_factor(&self) -> f64 {
-        let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.scale_factor() as f64
+    fn scale_factor(&self) -> Option<f64> {
+        // Although we can extract an integer scale factor via
+        // self.proxy.data::<OutputData>() this often differs from the real
+        // scale factor (due to usage of fractional scaling).
+        None
     }
 
     fn current_video_mode(&self) -> Option<winit_core::monitor::VideoMode> {

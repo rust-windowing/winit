@@ -127,7 +127,7 @@ impl MonitorHandleProvider for MonitorHandle {
         self.id.unwrap_or_default()
     }
 
-    fn scale_factor(&self) -> f64 {
+    fn scale_factor(&self) -> Option<f64> {
         self.inner.queue(|inner| inner.scale_factor())
     }
 
@@ -276,10 +276,10 @@ impl Inner {
         Self { window, engine, screen, orientation: OnceCell::new() }
     }
 
-    fn scale_factor(&self) -> f64 {
+    fn scale_factor(&self) -> Option<f64> {
         match &self.screen {
-            Screen::Screen(_) => 0.,
-            Screen::Detailed { screen, .. } => screen.device_pixel_ratio(),
+            Screen::Screen(_) => None,
+            Screen::Detailed { screen, .. } => Some(screen.device_pixel_ratio()),
         }
     }
 
