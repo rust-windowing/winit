@@ -888,7 +888,7 @@ impl CoreWindow for Window {
         None
     }
 
-    fn scale_factor(&self) -> f64 {
+    fn scale_factor(&self) -> Option<f64> {
         scale_factor(&self.app)
     }
 
@@ -1090,6 +1090,6 @@ fn screen_size(app: &AndroidApp) -> PhysicalSize<u32> {
     }
 }
 
-fn scale_factor(app: &AndroidApp) -> f64 {
-    app.config().density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
+fn scale_factor(app: &AndroidApp) -> Option<f64> {
+    app.config().density().map(|dpi| dpi as f64 / 160.0)
 }

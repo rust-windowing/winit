@@ -229,13 +229,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Some(position.to_physical(self.scale_factor()))
     }
 
-    fn scale_factor(&self) -> f64 {
-        run_on_main(|mtm| {
-            match self.ns_screen(mtm) {
-                Some(screen) => screen.backingScaleFactor() as f64,
-                None => 1.0, // default to 1.0 when we can't find the screen
-            }
-        })
+    fn scale_factor(&self) -> Option<f64> {
+        run_on_main(|mtm| self.ns_screen(mtm).map(|screen| screen.backingScaleFactor() as f64))
     }
 
     fn current_video_mode(&self) -> Option<VideoMode> {
