@@ -18,7 +18,7 @@ use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSize
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
-    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider, HistoricalMoveEvent,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -388,6 +388,24 @@ impl EventLoop {
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
                         MotionAction::Move => {
+                            let time = motion_event.event_time();
+                            let mut history = Vec::with_capacity(pointer.history().len());
+                            for h in pointer.history() {
+                                let time_diff =
+                                    Duration::from_nanos((time - h.event_time()) as u64);
+                                let position = PhysicalPosition { x: h.x() as _, y: h.y() as _ };
+                                let force = Some(Force::Normalized(h.pressure() as f64));
+                                let source = match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerSource::Touch { finger_id, force }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerSource::Unknown,
+                                };
+
+                                history.push(HistoricalMoveEvent::new(time_diff, position, source));
+                            }
                             let primary = self.primary_pointer == Some(finger_id);
                             let event = event::WindowEvent::PointerMoved {
                                 device_id,
@@ -401,6 +419,7 @@ impl EventLoop {
                                     android_activity::input::ToolType::Mouse => continue,
                                     _ => event::PointerSource::Unknown,
                                 },
+                                history,
                             };
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },

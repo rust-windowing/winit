@@ -1230,6 +1230,7 @@ impl WinitView {
             primary: true,
             position: view_point.to_physical(self.scale_factor()),
             source: PointerSource::Mouse,
+            history: Default::default(),
         });
     }
 

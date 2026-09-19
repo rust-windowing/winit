@@ -1813,6 +1813,7 @@ unsafe fn public_window_callback_inner(
                     primary: true,
                     position,
                     source: PointerSource::Mouse,
+                    history: Vec::new(),
                 });
             }
 
@@ -2118,6 +2119,7 @@ unsafe fn public_window_callback_inner(
                             primary,
                             position,
                             source: PointerSource::Touch { finger_id, force: None },
+                            history: Vec::new(),
                         });
                     } else {
                         continue;
@@ -2302,6 +2304,7 @@ unsafe fn public_window_callback_inner(
                             primary,
                             position,
                             source,
+                            history: Vec::new(),
                         });
                     } else {
                         continue;

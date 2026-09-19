@@ -159,6 +159,7 @@ impl PointerHandler for WinitState {
                             device_id: None,
                             position,
                             source: PointerSource::Mouse,
+                            history: Vec::new(),
                         },
                         window_id,
                     );

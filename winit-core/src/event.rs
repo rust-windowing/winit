@@ -12,7 +12,7 @@ use smol_str::SmolStr;
 use crate::Instant;
 use crate::data_transfer::{DataTransferId, TypedData};
 use crate::error::RequestError;
-use crate::event_loop::{AsyncRequestSerial, DndAction};
+use crate::event_loop::{AsyncRequestSerial, DndAction, HistoricalMoveEvent};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
@@ -247,6 +247,8 @@ pub enum WindowEvent {
         primary: bool,
 
         source: PointerSource,
+        /// Historical move events between this event and the previous event
+        history: Vec<HistoricalMoveEvent>,
     },
 
     /// The pointer has entered the window.
