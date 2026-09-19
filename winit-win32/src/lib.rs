@@ -8,8 +8,8 @@
 #[macro_use]
 mod util;
 mod dark_mode;
+mod data_transfer;
 mod definitions;
-mod dnd;
 mod dpi;
 mod event_loop;
 mod icon;

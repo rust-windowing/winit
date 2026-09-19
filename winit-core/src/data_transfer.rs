@@ -1,7 +1,7 @@
 //! Cross-platform abstractions related to data transfer (i.e. clipboard and drag-and-drop).
 //!
-//! > **NOTE**: Interacting with the clipboard is currently not implemented in Winit, and
-//! > this API is only used for drag-and-drop.
+//! > **NOTE**: Interacting with the clipboard is currently implemented on Wayland, X11, macOS
+//! > and Windows.
 //!
 //! # Quickstart
 //!

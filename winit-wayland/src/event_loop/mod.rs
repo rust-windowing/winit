@@ -1,8 +1,7 @@
 //! The event-loop routines.
 
 use std::cell::{Cell, RefCell};
-use std::io::{self, Read, Result as IOResult};
-use std::ops::BitOr;
+use std::io::Result as IOResult;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,19 +10,13 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use std::{fmt, mem};
 
-use calloop::PostAction;
 use calloop::ping::Ping;
 use dpi::LogicalSize;
 use rustix::event::{PollFd, PollFlags};
 use rustix::pipe::{self, PipeFlags};
-use sctk::data_device_manager::{ReadPipe, data_offer};
 use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::{Connection, QueueHandle, globals};
-use sctk::shell::WaylandSurface;
 use tracing::warn;
-use wayland_client::Proxy;
-use wayland_client::protocol::wl_data_device_manager::DndAction as WlDndAction;
-use wayland_client::protocol::wl_shm::Format;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
@@ -34,13 +27,10 @@ use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, DragIcon, EventLoopProvider, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
-use winit_core::icon::RgbaIcon;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
 use winit_core::window::{Theme, WindowType};
 
-use crate::dnd::{MimeData, dnd_action_winit_to_wl};
 use crate::types::cursor::WaylandCustomCursor;
-use crate::{DragSource, MimeType, image_to_buffer, make_data_transfer_id};
 
 mod proxy;
 pub mod sink;
@@ -478,6 +468,9 @@ impl EventLoop {
             }
         }
 
+        // Data transfer per iteration bookkeeping
+        self.with_state(|state| state.data_transfer_state.settle_drops());
+
         // Collect the window ids
         self.with_state(|state| {
             window_ids.extend(state.window_requests.get_mut().keys());
@@ -786,77 +779,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         type_: &dyn TransferType,
     ) -> Result<AsyncRequestSerial, RequestError> {
-        let state = self.state.borrow_mut();
-        let Some(current_drag) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
-        };
-
-        if current_drag.transfer_id() != id {
-            return Err(RequestError::Ignored);
-        }
-
-        let Some(mime_type) = current_drag.find_type_dyn(type_) else {
-            return Err(RequestError::Ignored);
-        };
-
-        let mime_type_str = mime_type.to_string();
-
-        // create a pipe
-        let (readfd, writefd) =
-            pipe::pipe_with(PipeFlags::CLOEXEC | PipeFlags::NONBLOCK).map_err(|e| os_error!(e))?;
-
-        let async_request_serial = AsyncRequestSerial::get();
-
-        let mut buffer = Vec::new();
-        let window_id = current_drag.window_id();
-        let mut mime_type = Some(mime_type.clone());
-
-        let _ = state.loop_handle.insert_source(ReadPipe::from(readfd), move |_, file, state| {
-            // SAFETY: We do not overwrite the referent of `file`
-            let file = unsafe { file.get_mut() };
-
-            let result = match file.read_to_end(&mut buffer) {
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    return PostAction::Continue;
-                },
-                Ok(0) => Ok(mem::take(&mut buffer)),
-                Ok(_) => {
-                    return PostAction::Continue;
-                },
-                Err(e) => Err(Arc::new(e)),
-            };
-
-            state.events_sink.push_window_event(
-                WindowEvent::DataTransferReceived {
-                    id,
-                    serial: async_request_serial,
-                    // `unwrap` is safe here, as we always return `PostAction::Remove` in this
-                    // branch.
-                    value: Arc::new(MimeData::new(mime_type.take().unwrap(), result)),
-                },
-                window_id,
-            );
-
-            PostAction::Remove
-        });
-
-        current_drag.accept(current_drag.serial(), Some(mime_type_str.clone()));
-        data_offer::receive_to_fd(current_drag, mime_type_str, writefd);
-
-        Ok(async_request_serial)
+        self.state.borrow_mut().fetch_data_transfer(id, type_)
     }
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
-        };
-
-        if state.transfer_id() != id {
-            return Err(RequestError::Ignored);
-        }
-
-        Ok(Box::new(state.clone()))
+        self.state.borrow_mut().data_transfer(id)
     }
 
     fn set_valid_dnd_actions(
@@ -864,26 +791,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         id: DataTransferId,
         actions: &[DndAction],
     ) -> Result<(), RequestError> {
-        let state = self.state.borrow();
-        let Some(state) = state.dnd_state.receive_drag() else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
-
-        if state.transfer_id() != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        }
-
-        let any_actions = state.set_actions(actions);
-        let accepted_type =
-            if any_actions { state.first_mime_type().map(|mime| mime.to_string()) } else { None };
-        // Some compositors won't even send the "dropped" event if no type
-        // has been accepted, so we need to accept _something_ here. The
-        // application can accept further types by fetching the data, but
-        // this will at least mean that waiting until the drop to start
-        // fetching data won't prevent the drop from working at all.
-        state.accept(state.serial(), accepted_type);
-
-        Ok(())
+        self.state.borrow_mut().set_valid_dnd_actions(id, actions)
     }
 
     fn start_drag(
@@ -893,105 +801,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         action_mask: &[DndAction],
         icon: Option<DragIcon>,
     ) -> Result<DataTransferId, RequestError> {
-        const NO_POINTER_CAP_ERROR_MSG: &str =
-            "Tried to initiate drag, but source window does not have the pointer capability";
+        self.state.borrow_mut().start_drag(&self.queue_handle, source, send_data, action_mask, icon)
+    }
 
-        let mut state = self.state.borrow_mut();
-        let dnd_actions = action_mask
-            .iter()
-            .copied()
-            .map(dnd_action_winit_to_wl)
-            .fold(WlDndAction::empty(), BitOr::bitor);
+    fn clipboard(&self) -> Result<Option<DataTransferId>, RequestError> {
+        self.state.borrow().clipboard()
+    }
 
-        let data_device_manager = state
-            .data_device_manager_state
-            .as_ref()
-            .ok_or(NotSupportedError::new("Tried to initiate drag, but data device not enabled"))?;
-
-        let mut mime_types = Vec::new();
-        send_data.for_each_available_type(&mut |ty_| {
-            for mime in MimeType::from_dyn(ty_) {
-                mime_types.push(mime);
-            }
-
-            std::ops::ControlFlow::Continue(())
-        });
-
-        let data_source = data_device_manager.create_drag_and_drop_source(
-            &self.queue_handle,
-            mime_types,
-            dnd_actions,
-        );
-
-        let icon_surface = {
-            let mut pool = state.image_pool.lock().unwrap();
-            icon.and_then(|icon| {
-                let rgba = icon.icon.cast_ref::<RgbaIcon>()?;
-
-                let width = rgba.width().try_into().ok()?;
-                let height = rgba.height().try_into().ok()?;
-
-                let buffer =
-                    image_to_buffer(width, height, rgba.buffer(), Format::Argb8888, &mut pool)
-                        .ok()?;
-
-                let surface = state.compositor_state.create_surface(&self.queue_handle);
-                if surface.version() >= 5 {
-                    buffer.attach_to(&surface).ok()?;
-                    surface.offset(icon.offset_x, icon.offset_y);
-                } else {
-                    surface.attach(Some(buffer.wl_buffer()), icon.offset_x, icon.offset_y);
-                }
-
-                Some(surface)
-            })
-        };
-
-        // New scope to ensure we drop the locks as soon as possible.
-        let transfer_id = {
-            let windows = state.windows.borrow();
-            let source_window_mutex = windows
-                .get(&source)
-                .ok_or(os_error!("Tried to initiate drag, but source window ID was invalid"))?;
-            let source_window_state = source_window_mutex.lock().unwrap();
-            let source_surface = source_window_state.window.wl_surface();
-
-            let seat = source_window_state
-                .focused_seats()
-                .find_map(|seat_id| {
-                    // HACK: How do we get the correct seat for pointers here?
-                    state.seats.get(seat_id).filter(|seat| seat.data_device().is_some())
-                })
-                .ok_or(NotSupportedError::new(NO_POINTER_CAP_ERROR_MSG))?;
-            let data_device =
-                seat.data_device().ok_or(NotSupportedError::new(NO_POINTER_CAP_ERROR_MSG))?;
-
-            let serial = seat
-                .pointer_data()
-                .ok_or(NotSupportedError::new(NO_POINTER_CAP_ERROR_MSG))?
-                .latest_button_serial()
-                .unwrap_or_default();
-
-            data_source.start_drag(data_device, source_surface, icon_surface.as_ref(), serial);
-
-            make_data_transfer_id(data_device.inner().id(), serial)
-        };
-
-        // For some reason, if we commit before starting the drag then the offset isn't applied.
-        // This doesn't seem to be documented anywhere, and it's possible that it's a bug in KDE.
-        if let Some(surface) = &icon_surface {
-            surface.commit();
-        }
-
-        state.dnd_state.set_send_drag(DragSource::new(
-            transfer_id,
-            data_source,
-            send_data,
-            icon_surface,
-            source,
-        ));
-
-        Ok(transfer_id)
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), RequestError> {
+        self.state.borrow_mut().set_clipboard(&self.queue_handle, send_data)
     }
 }
 
