@@ -1118,7 +1118,16 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
 /// has to be done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
 unsafe fn reposition_owned_windows(parent: HWND) {
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        use windows_sys::Win32::UI::WindowsAndMessaging::GWL_WNDPROC;
+
         if unsafe { GetWindow(hwnd, GW_OWNER) } != lparam as HWND {
+            return true.into(); // continue enumeration
+        }
+
+        // Only winit's own windows keep a `WindowData` pointer in `GWL_USERDATA`, so skip any
+        // owned window that runs a different window procedure (dialogs, tooltips, helpers)
+        let window_proc = unsafe { util::get_window_long(hwnd, GWL_WNDPROC) };
+        if window_proc != public_window_callback as *const () as isize {
             return true.into(); // continue enumeration
         }
 
