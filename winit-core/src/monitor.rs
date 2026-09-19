@@ -98,11 +98,12 @@ pub trait MonitorHandleProvider: Any + fmt::Debug + Send + Sync {
     ///
     /// See the [`dpi`] module for more information.
     ///
-    /// - **Wayland:** May differ from [`Window::scale_factor`].
-    /// - **Web:** Always returns `0.0` without `detailed_monitor_permissions`.
+    /// - **Wayland:** Returns `None` since the precise scale factor is not known before window
+    ///   creation.
+    /// - **Web:** Returns `None` without `detailed_monitor_permissions`.
     ///
     /// [`Window::scale_factor`]: crate::window::Window::scale_factor
-    fn scale_factor(&self) -> f64;
+    fn scale_factor(&self) -> Option<f64>;
 
     fn current_video_mode(&self) -> Option<VideoMode>;
 
