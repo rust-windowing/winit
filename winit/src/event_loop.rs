@@ -75,6 +75,8 @@ impl EventLoopBuilder {
     ///   `DISPLAY` respectively when building the event loop.
     /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
     ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
+    /// - **OpenHarmony:** must be configured with the `OpenHarmonyApp` supplied to `#[ability]` by
+    ///   calling [`.with_openharmony_app(app)`] before `.build()`, otherwise it'll panic.
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(
@@ -85,6 +87,15 @@ impl EventLoopBuilder {
     #[cfg_attr(
         not(android_platform),
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
+    )]
+    #[cfg_attr(
+        ohos_platform,
+        doc = "[`.with_openharmony_app(app)`]: \
+               crate::platform::ohos::EventLoopBuilderExtOpenHarmony::with_openharmony_app"
+    )]
+    #[cfg_attr(
+        not(ohos_platform),
+        doc = "[`.with_openharmony_app(app)`]: #only-available-on-openharmony"
     )]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
@@ -142,6 +153,9 @@ impl EventLoop {
     /// return to avoid blocking that and allow events to later be delivered asynchronously. See
     /// also [`register_app`].
     ///
+    /// On OpenHarmony, this registers callbacks with the Ability lifecycle and immediately
+    /// returns. OHOS owns the main loop and later invokes those callbacks on its main thread.
+    ///
     /// If you call this function inside `fn main`, you usually do not need to think about these
     /// details.
     ///
@@ -161,7 +175,7 @@ impl EventLoop {
     /// `event_loop.run_app(app)?` instead.
     ///
     /// If this requirement is prohibitive for you, consider using [`run_app_on_demand`] instead
-    /// (though note that this is not available on iOS and web).
+    /// (though note that this is not available on iOS, web, and OpenHarmony).
     #[inline]
     pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
         self.event_loop.run_app(app)
@@ -203,7 +217,7 @@ impl EventLoop {
     ///
     /// ## Platform-specific
     ///
-    /// **iOS / Android / Orbital:** Unsupported.
+    /// **iOS / Android / OpenHarmony / Orbital:** Unsupported.
     pub fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
@@ -310,10 +324,25 @@ impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoo
     }
 }
 
-#[cfg(any(web_platform, docsrs))]
+#[cfg(any(web_platform, ohos_platform, docsrs))]
 impl winit_core::event_loop::register::EventLoopExtRegister for EventLoop {
     fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
         self.event_loop.register_app(app)
+    }
+}
+
+#[cfg(ohos_platform)]
+impl winit_ohos::EventLoopExtOpenHarmony for EventLoop {
+    fn openharmony_app(&self) -> &winit_ohos::ability::OpenHarmonyApp {
+        &self.event_loop.openharmony_app
+    }
+}
+
+#[cfg(ohos_platform)]
+impl winit_ohos::EventLoopBuilderExtOpenHarmony for EventLoopBuilder {
+    fn with_openharmony_app(&mut self, app: winit_ohos::ability::OpenHarmonyApp) -> &mut Self {
+        self.platform_specific.openharmony_app = Some(app);
+        self
     }
 }
 
