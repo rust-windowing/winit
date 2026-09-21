@@ -28,6 +28,7 @@ dispatch2 = { workspace = true, features = ["std", "objc2"] }
 objc2.workspace = true
 objc2-app-kit = { workspace = true, features = [
     "std",
+    "block2",
     "objc2-core-foundation",
     "NSAppearance",
     "NSApplication",

@@ -17,6 +17,7 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::dialog::DialogHandler;
 use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
@@ -292,6 +293,40 @@ impl WinitState {
 
         updates[pos].close_window = true;
     }
+
+    /// Handle an `xdg_toplevel` configure event, shared by `Window` and `Dialog`
+    fn configure_xdg_toplevel(&mut self, window_id: WindowId, configure: WindowConfigure) {
+        let index = if let Some(index) =
+            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
+        {
+            index
+        } else {
+            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
+            self.window_compositor_updates.len() - 1
+        };
+
+        // Populate the configure to the window.
+        self.window_compositor_updates[index].resized |= self
+            .windows
+            .get_mut()
+            .get_mut(&window_id)
+            .expect("got configure for dead window.")
+            .lock()
+            .unwrap()
+            .configure_xdg_toplevel(configure, &self.shm, &self.subcompositor_state);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of
+        // the users, since it can break a lot of things, thus it'll ask users to redraw instead.
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
+    }
 }
 
 impl ShmHandler for WinitState {
@@ -315,37 +350,7 @@ impl WindowHandler for WinitState {
         _serial: u32,
     ) {
         let window_id = super::make_wid(window.wl_surface());
-
-        let index = if let Some(index) =
-            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
-        {
-            index
-        } else {
-            self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
-            self.window_compositor_updates.len() - 1
-        };
-
-        // Populate the configure to the window.
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure_window(configure, &self.shm, &self.subcompositor_state);
-
-        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
-        // users, since it can break a lot of things, thus it'll ask users to redraw instead.
-        self.window_requests
-            .get_mut()
-            .get(&window_id)
-            .unwrap()
-            .redraw_requested
-            .store(true, Ordering::Relaxed);
-
-        // Manually mark that we've got an event, since configure may not generate a resize.
-        self.dispatched_events = true;
+        self.configure_xdg_toplevel(window_id, configure);
     }
 }
 
@@ -396,6 +401,29 @@ impl PopupHandler for WinitState {
         if let Some(window_requests) = window_requests {
             window_requests.1.closed.store(true, Ordering::Relaxed);
         }
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
+    }
+}
+
+impl DialogHandler for WinitState {
+    fn configure(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        dialog: &sctk::shell::xdg::dialog::Dialog,
+        configure: sctk::shell::xdg::window::WindowConfigure,
+        _serial: u32,
+    ) {
+        let window_id = super::make_wid(dialog.wl_surface());
+        self.configure_xdg_toplevel(window_id, configure);
+    }
+    fn request_close(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        window: &sctk::shell::xdg::dialog::Dialog,
+    ) {
+        let window_id = super::make_wid(window.wl_surface());
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 }

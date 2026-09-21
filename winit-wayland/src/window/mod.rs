@@ -24,6 +24,7 @@ use winit_core::window::{
 
 use super::ActiveEventLoop;
 use super::types::xdg_activation::XdgActivationTokenData;
+use crate::state::WinitState;
 use crate::window::common::WindowCommon;
 use crate::{WindowAttributesWayland, output};
 pub(crate) mod state;
@@ -42,7 +43,7 @@ pub struct Window {
     /// Keeps the window's state alive for as long as this handle exists, independently of
     /// whatever the event loop's `windows` map does with its own reference.
     ///
-    /// Unlike `Popup`, which only ever holds a `Weak` (via `common.state`) so that a
+    /// Unlike `Dialog`/`Popup`, which only ever hold a `Weak` (via `common.state`) so that a
     /// compositor-initiated destroy can drop the state out from under a still-live handle, a
     /// top-level `Window` has no equivalent unilateral server-side destruction to react to --
     /// it can only be closed by the application dropping this handle. This field is never read;
@@ -51,6 +52,56 @@ pub struct Window {
     window_state: Arc<Mutex<WindowState>>,
 
     common: WindowCommon,
+}
+
+/// Registers `window_state` with the event loop, waits for its initial configure, and wakes the
+/// event loop for the first redraw.
+///
+/// If `dismissed_error` is set, the wait loop bails out early with that message when the
+/// compositor closes the surface before ever sending a configure
+pub(crate) fn finish_window_setup(
+    event_loop_window_target: &ActiveEventLoop,
+    state: &mut WinitState,
+    surface: &WlSurface,
+    window_state: &Arc<Mutex<WindowState>>,
+    dismissed_error: Option<&'static str>,
+) -> Result<(WindowId, Arc<WindowRequests>), RequestError> {
+    let window_id = super::make_wid(surface);
+    state.windows.get_mut().insert(window_id, window_state.clone());
+
+    let window_requests = Arc::new(WindowRequests {
+        redraw_requested: AtomicBool::new(true),
+        closed: AtomicBool::new(false),
+    });
+    state.window_requests.get_mut().insert(window_id, window_requests.clone());
+
+    let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
+    let event_queue = wayland_source.queue();
+
+    // Do a roundtrip.
+    event_queue.roundtrip(state).map_err(|err| os_error!(err))?;
+
+    // XXX Wait for the initial configure to arrive.
+    while !window_state.lock().unwrap().is_configured() {
+        event_queue.blocking_dispatch(state).map_err(|err| os_error!(err))?;
+
+        // The compositor may dismiss the surface before it ever sends a configure. Detect
+        // that and bail out instead of looping forever.
+        if let Some(message) = dismissed_error {
+            if state
+                .window_compositor_updates
+                .iter()
+                .any(|u| u.window_id == window_id && u.close_window)
+            {
+                return Err(RequestError::NotSupported(NotSupportedError::new(message)));
+            }
+        }
+    }
+
+    // Wake-up event loop, so it'll send initial redraw requested.
+    event_loop_window_target.event_loop_awakener.ping();
+
+    Ok((window_id, window_requests))
 }
 
 impl Window {
@@ -173,33 +224,19 @@ impl Window {
 
         // Add the window and window requests into the state.
         let window_state = Arc::new(Mutex::new(window_state));
-        let window_id = super::make_wid(&surface);
-        state.windows.get_mut().insert(window_id, window_state.clone());
-
-        let window_requests = WindowRequests {
-            redraw_requested: AtomicBool::new(true),
-            closed: AtomicBool::new(false),
-        };
-        let window_requests = Arc::new(window_requests);
-        state.window_requests.get_mut().insert(window_id, window_requests.clone());
 
         // Setup the event sync to insert `WindowEvents` right from the window.
         let window_events_sink = state.window_events_sink.clone();
 
-        let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
-        let event_queue = wayland_source.queue();
+        let (window_id, window_requests) = finish_window_setup(
+            event_loop_window_target,
+            &mut state,
+            &surface,
+            &window_state,
+            None,
+        )?;
 
-        // Do a roundtrip.
-        event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
-
-        // XXX Wait for the initial configure to arrive.
-        while !window_state.lock().unwrap().is_configured() {
-            event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
-        }
-
-        // Wake-up event loop, so it'll send initial redraw requested.
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
-        event_loop_awakener.ping();
 
         let state_weak = Arc::downgrade(&window_state);
 

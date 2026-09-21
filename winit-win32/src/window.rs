@@ -36,18 +36,18 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
-    FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
-    GetClientRect, GetCursorPos, GetForegroundWindow, GetParent, GetSystemMenu, GetSystemMetrics,
-    GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT,
-    HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible,
-    LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE,
-    PeekMessageW, PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE,
-    SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-    SWP_NOZORDER, SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
-    SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TPM_LEFTALIGN,
-    TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON,
-    WM_SYSCOMMAND, WNDCLASSEXW,
+    AdjustWindowRectEx, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem,
+    FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx,
+    GWLP_HINSTANCE, GetClientRect, GetCursorPos, GetForegroundWindow, GetParent, GetSystemMenu,
+    GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM,
+    HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,
+    IsWindowVisible, LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED,
+    NID_READY, PM_NOREMOVE, PeekMessageW, PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE,
+    SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
+    SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow,
+    SetMenuDefaultItem, SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW,
+    TPM_LEFTALIGN, TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+    WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
@@ -103,6 +103,10 @@ pub struct Window {
 
     // The events loop proxy.
     thread_executor: event_loop::EventLoopThreadExecutor,
+
+    /// The owner window that was disabled to make this a modal [`WindowType::Dialog`], if any.
+    /// Re-enabled (and reactivated) when this window is dropped.
+    owner: Option<SyncWindowHandle>,
 }
 
 impl Window {
@@ -450,6 +454,15 @@ impl Drop for Window {
         // Restore fullscreen video mode on exit.
         if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
+        }
+
+        // Re-enable and reactivate the owner we disabled to make this a modal dialog, before
+        // destroying this window, matching the order Win32 modal dialogs are expected to close in.
+        if let Some(owner) = self.owner {
+            unsafe {
+                EnableWindow(owner.hwnd(), 1);
+                SetForegroundWindow(owner.hwnd());
+            }
         }
 
         unsafe {
@@ -1241,6 +1254,22 @@ fn outer_size_of(hwnd: HWND) -> PhysicalSize<u32> {
         .unwrap()
 }
 
+/// Returns the screen position that centers a window with the given outer `size` over `parent`,
+/// clamped to the monitor's work area.
+fn centered_over_parent(parent: HWND, size: PhysicalSize<u32>) -> Option<(i32, i32)> {
+    let parent_rect = util::WindowArea::Outer.get_rect(parent).ok()?;
+
+    let mut x = parent_rect.left + ((parent_rect.right - parent_rect.left) - size.width as i32) / 2;
+    let mut y = parent_rect.top + ((parent_rect.bottom - parent_rect.top) - size.height as i32) / 2;
+
+    if let Some((work_pos, work_size)) = monitor::current_monitor(parent).work_area() {
+        x = x.min(work_pos.x + work_size.width as i32 - size.width as i32).max(work_pos.x);
+        y = y.min(work_pos.y + work_size.height as i32 - size.height as i32).max(work_pos.y);
+    }
+
+    Some((x, y))
+}
+
 fn surface_size_of(hwnd: HWND) -> PhysicalSize<u32> {
     util::WindowArea::Inner
         .get_rect(hwnd)
@@ -1432,10 +1461,28 @@ impl InitData<'_> {
 
         unsafe { ImeContext::set_ime_allowed(window, false) };
 
+        // If this is a modal dialog, disable its owner window; it's re-enabled when this
+        // `Window` is dropped.
+        let is_modal = matches!(self.attributes.window_type, WindowType::Dialog)
+            && self.attributes.modal.unwrap_or(false);
+        let owner = is_modal
+            .then(|| self.attributes.parent_window())
+            .flatten()
+            .and_then(|handle| match handle {
+                rwh_06::RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as HWND),
+                _ => None,
+            })
+            .map(|owner_hwnd| {
+                unsafe { EnableWindow(owner_hwnd, 0) };
+                window_state.lock().unwrap().modal_owner = Some(owner_hwnd as isize);
+                SyncWindowHandle(owner_hwnd)
+            });
+
         Window {
             window: SyncWindowHandle(window),
             window_state,
             thread_executor: self.runner.create_thread_executor(),
+            owner,
         }
     }
 
@@ -1559,7 +1606,9 @@ impl InitData<'_> {
         // };
         // dbg!(DwmExtendFrameIntoClientArea(win.hwnd(), &margins as *const _));
 
-        if let Some(position) = attributes.position {
+        // Dialogs are already positioned at creation, see `init`.
+        let is_dialog = attributes.window_type == WindowType::Dialog;
+        if let Some(position) = attributes.position.filter(|_| !is_dialog) {
             win.set_outer_position(position);
         }
 
@@ -1595,10 +1644,13 @@ unsafe fn init(
     unsafe { register_window_class(&class_name) };
 
     let is_popup = matches!(attributes.window_type, WindowType::Popup);
+    let is_dialog = matches!(attributes.window_type, WindowType::Dialog);
     // Whether this window is positioned relative to its parent via the anchor/gravity/
     // positioner system -- either because it's a `WindowType::Popup`, or because anchor
-    // attributes were explicitly set on a `WindowType::Window` (Windows supports both).
-    let anchored = is_popup || attributes.positioner.is_some();
+    // attributes were explicitly set on a `WindowType::Window` (Windows supports both). Dialogs
+    // only use the parent's coordinate frame; positioner auto-placement stays opt-in (see
+    // `WindowState::anchored`).
+    let anchored = is_popup || is_dialog || attributes.positioner.is_some();
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::POPUP, is_popup);
@@ -1633,7 +1685,7 @@ unsafe fn init(
 
     let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            if !is_popup {
+            if !is_popup && !is_dialog {
                 window_flags.set(WindowFlags::CHILD, true);
             }
             if win_attributes.menu.is_some() {
@@ -1648,6 +1700,11 @@ unsafe fn init(
                     "Popup without a parent is not supported!",
                 )));
             }
+            if is_dialog {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "Dialog without a parent is not supported!",
+                )));
+            }
             fallback_parent()
         },
     };
@@ -1655,17 +1712,42 @@ unsafe fn init(
     let menu = win_attributes.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
+    let (style, ex_style) = window_flags.to_window_styles();
+
+    // Dialogs are placed at creation, relative to their parent (an explicit position is relative to
+    // the parent's client area, otherwise the dialog is centered over the parent). This can't be
+    // done afterwards: the parent isn't yet queryable via `GetParent` during `WM_CREATE`, and a
+    // position set before the first show is overridden by the `CW_USEDEFAULT` cascade.
+    let initial_position = parent.filter(|_| is_dialog).and_then(|parent| {
+        let scale_factor = dpi_to_scale_factor(unsafe { hwnd_dpi(parent) });
+        if let Some(position) = attributes.position {
+            let position = position.to_physical::<i32>(scale_factor);
+            let mut point = POINT { x: position.x, y: position.y };
+            unsafe { ClientToScreen(parent, &mut point) };
+            return Some((point.x, point.y));
+        }
+
+        let size = attributes.surface_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        let size = size.to_physical::<u32>(scale_factor);
+        let mut rect =
+            RECT { left: 0, top: 0, right: size.width as i32, bottom: size.height as i32 };
+        unsafe { AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
+        let outer =
+            PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32);
+        centered_over_parent(parent, outer)
+    });
+    let (x, y) = initial_position.unwrap_or((CW_USEDEFAULT, CW_USEDEFAULT));
+
     let mut initdata = InitData { runner, attributes, win_attributes, window_flags, window: None };
 
-    let (style, ex_style) = window_flags.to_window_styles();
     let handle = unsafe {
         CreateWindowExW(
             ex_style,
             class_name.as_ptr(),
             title.as_ptr(),
             style,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
+            x,
+            y,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             parent.unwrap_or(ptr::null_mut()),
@@ -1687,6 +1769,12 @@ unsafe fn init(
     // If the handle is non-null, then window creation must have succeeded, which means
     // that we *must* have populated the `InitData.window` field.
     let win = initdata.window.unwrap();
+
+    if win.owner.is_some() {
+        if let Ok(rect) = util::WindowArea::Outer.get_rect(win.hwnd()) {
+            win.window_state_lock().last_outer_position = Some((rect.left, rect.top));
+        }
+    }
 
     // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
     // This is because if the size is changed in WM_CREATE, the restored size will be stored in that

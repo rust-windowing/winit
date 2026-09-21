@@ -135,7 +135,13 @@ pub(crate) struct State {
     /// attributes were set on a [`WindowType::Window`]. Gates the parent-relative coordinate
     /// frame used when applying anchor/gravity/positioner-offset changes.
     anchored: bool,
+    /// Whether this window is placed by the positioner system (and re-placed when its parent
+    /// moves). Unlike `anchored`, this is not the case for a [`WindowType::Dialog`], which only
+    /// uses the parent's coordinate frame.
+    auto_placed: bool,
     positioner: RefCell<WindowPositioner>,
+    /// For a modal [`WindowType::Dialog`]: the parent window it is presented on as a sheet.
+    modal_parent: Option<Retained<NSWindow>>,
 }
 
 define_class!(
@@ -944,7 +950,15 @@ impl WindowDelegate {
 
         let window_type = attrs.window_type();
         let is_popup = matches!(window_type, WindowType::Popup);
-        let anchored = is_popup || attrs.positioner.is_some();
+        let is_dialog = matches!(window_type, WindowType::Dialog);
+        // A modal dialog is presented as a sheet on its parent, which AppKit places itself.
+        let is_modal = is_dialog && attrs.modal.unwrap_or(false);
+        let auto_placed = is_popup || attrs.positioner.is_some();
+        let anchored = auto_placed || (is_dialog && !is_modal);
+        if is_dialog {
+            // A dialog can't be minimized independently of its parent.
+            attrs.enabled_buttons.remove(WindowButtons::MINIMIZE);
+        }
         if is_popup {
             // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
             // as such so it flows through the existing borderless + panel paths in `new_window`
@@ -961,6 +975,7 @@ impl WindowDelegate {
         let (window, view) = new_window(app_state, &attrs, &macos_attrs, anchored, mtm)
             .ok_or_else(|| os_error!("couldn't create `NSWindow`"))?;
 
+        let mut parent_window = None;
         match attrs.parent_window() {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
@@ -971,10 +986,14 @@ impl WindowDelegate {
                     .window()
                     .ok_or_else(|| os_error!("parent view should be installed in a window"))?;
 
-                // SAFETY: We know that there are no parent -> child -> parent cycles since the only
-                // place in `winit` where we allow making a window a child window is
-                // right here, just after it's been created.
-                unsafe { parent.addChildWindow_ordered(&window, NSWindowOrderingMode::Above) };
+                // A modal dialog is presented as a sheet instead, once it is shown.
+                if !is_modal {
+                    // SAFETY: We know that there are no parent -> child -> parent cycles since the
+                    // only place in `winit` where we allow making a window a child window is
+                    // right here, just after it's been created.
+                    unsafe { parent.addChildWindow_ordered(&window, NSWindowOrderingMode::Above) };
+                }
+                parent_window = Some(parent);
             },
             Some(raw) => panic!("invalid raw window handle {raw:?} on macOS"),
             None if is_popup => {
@@ -982,8 +1001,14 @@ impl WindowDelegate {
                     "a popup window requires a parent window",
                 )));
             },
+            None if is_dialog => {
+                return Err(RequestError::NotSupported(NotSupportedError::new(
+                    "a dialog requires a parent window",
+                )));
+            },
             None => (),
         }
+        let modal_parent = parent_window.clone().filter(|_| is_modal);
 
         let surface_resize_increments = match attrs
             .surface_resize_increments
@@ -1025,7 +1050,9 @@ impl WindowDelegate {
             is_borderless_game: Cell::new(macos_attrs.borderless_game),
             window_type,
             anchored,
+            auto_placed,
             positioner: RefCell::new(attrs.positioner.unwrap_or_default()),
+            modal_parent,
         });
         let delegate: Retained<WindowDelegate> = unsafe { msg_send![super(delegate), init] };
 
@@ -1074,9 +1101,20 @@ impl WindowDelegate {
 
         // An anchored window's position is relative to the parent window, and the parent is
         // only attached above, so apply the (translated) position now. Default to the parent's
-        // content top-left when no position was given.
+        // content top-left when no position was given, or center a dialog over its parent.
         if anchored {
-            let position = attrs.position.unwrap_or_else(|| LogicalPosition::new(0.0, 0.0).into());
+            let position = attrs.position.unwrap_or_else(|| match &parent_window {
+                Some(parent) if is_dialog => {
+                    let parent_size = parent.contentRectForFrameRect(parent.frame()).size;
+                    let size = window.frame().size;
+                    LogicalPosition::new(
+                        (parent_size.width - size.width) / 2.0,
+                        (parent_size.height - size.height) / 2.0,
+                    )
+                    .into()
+                },
+                _ => LogicalPosition::new(0.0, 0.0).into(),
+            });
             delegate.set_outer_position(position);
         }
 
@@ -1089,7 +1127,9 @@ impl WindowDelegate {
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if attrs.visible {
-            if attrs.active {
+            if delegate.ivars().modal_parent.is_some() {
+                delegate.begin_modal_sheet();
+            } else if attrs.active {
                 // Tightly linked with `app_state::window_activation_hack`
                 window.makeKeyAndOrderFront(None);
             } else {
@@ -1262,7 +1302,31 @@ impl WindowDelegate {
         }
     }
 
+    /// Presents this modal dialog as a sheet on its parent, unless it already is.
+    fn begin_modal_sheet(&self) {
+        let Some(parent) = &self.ivars().modal_parent else { return };
+        if self.window().sheetParent().is_none() {
+            parent.beginSheet_completionHandler(self.window(), None);
+        }
+    }
+
+    /// Dismisses this modal dialog's sheet, if it is presented. This must happen before the window
+    /// is closed, otherwise the parent is left believing it still has a sheet attached.
+    pub(crate) fn end_modal_sheet(&self) {
+        let Some(parent) = &self.ivars().modal_parent else { return };
+        if self.window().sheetParent().is_some() {
+            parent.endSheet(self.window());
+        }
+    }
+
     pub fn set_visible(&self, visible: bool) {
+        if self.ivars().modal_parent.is_some() {
+            match visible {
+                true => self.begin_modal_sheet(),
+                false => self.end_modal_sheet(),
+            }
+            return;
+        }
         match visible {
             true => self.window().makeKeyAndOrderFront(None),
             false => self.window().orderOut(None),
@@ -1380,7 +1444,7 @@ impl WindowDelegate {
     /// this window isn't anchored. If it has no parent, the positioner is resolved relative to
     /// the screen instead of the parent's content area.
     pub(crate) fn reposition(&self) {
-        if !self.ivars().anchored {
+        if !self.ivars().auto_placed {
             return;
         }
 
@@ -1434,7 +1498,7 @@ impl WindowDelegate {
         for child in children.iter() {
             let Some(child_delegate) = child.delegate() else { continue };
             let Ok(child_delegate) = child_delegate.downcast::<WindowDelegate>() else { continue };
-            if child_delegate.ivars().anchored {
+            if child_delegate.ivars().auto_placed {
                 child_delegate.reposition();
             }
         }

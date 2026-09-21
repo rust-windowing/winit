@@ -76,6 +76,9 @@ impl Window {
             WindowType::Popup => Err(RequestError::NotSupported(NotSupportedError::new(
                 "Popups are not implemented for X11",
             ))),
+            WindowType::Dialog => Err(RequestError::NotSupported(NotSupportedError::new(
+                "Dialogs are not implemented for X11",
+            ))),
             _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
         }
     }

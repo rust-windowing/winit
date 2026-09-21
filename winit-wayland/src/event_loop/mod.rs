@@ -753,6 +753,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },
+            WindowType::Dialog => {
+                let dialog = crate::dialog::Dialog::new(self, window_attributes)?;
+                Ok(Box::new(dialog))
+            },
             _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
         }
     }
