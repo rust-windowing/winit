@@ -10,7 +10,7 @@ use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::NSObject;
 use tracing::trace_span;
 use winit_core::cursor::Cursor;
-use winit_core::error::RequestError;
+use winit_core::error::{CreateWindowError, RequestError};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
@@ -32,7 +32,7 @@ impl Window {
     pub(crate) fn new(
         window_target: &ActiveEventLoop,
         attributes: WindowAttributes,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, CreateWindowError> {
         let mtm = window_target.mtm;
         let delegate =
             autoreleasepool(|_| WindowDelegate::new(&window_target.app_state, attributes, mtm))?;

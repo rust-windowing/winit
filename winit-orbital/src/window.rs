@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use redox_event::EventFlags;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{self, Window as CoreWindow, WindowId};
 
@@ -36,11 +36,11 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         attrs: window::WindowAttributes,
-    ) -> Result<Self, RequestError> {
-        if attrs.window_type() == window::WindowType::Popup {
-            return Err(RequestError::NotSupported(NotSupportedError::new(
-                "Popups are not implemented for Orbital",
-            )));
+    ) -> Result<Self, CreateWindowError> {
+        match attrs.window_type() {
+            window::WindowType::Window => (),
+            window::WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            _ => panic!("Unknown WindowType"),
         }
 
         let scale = 1.;
@@ -107,7 +107,7 @@ impl Window {
             h,
             title: &attrs.title,
         })
-        .expect("failed to open window");
+        .map_err(|e| os_error!(e))?;
 
         // Add to event socket.
         el.event_socket.subscribe(window.fd(), EventSource::Orbital, EventFlags::READ).unwrap();

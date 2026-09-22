@@ -67,7 +67,7 @@ use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
     TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
@@ -457,7 +457,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
