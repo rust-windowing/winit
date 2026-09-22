@@ -16,7 +16,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use crate::error::{
-    CreateWindowError, EventLoopError, NotSupportedError, RequestError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
@@ -108,7 +108,7 @@ pub trait EventLoopProvider: fmt::Debug {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError>;
+    ) -> Result<CustomCursor, CustomCursorError>;
 }
 
 pub trait ActiveEventLoop: Any + fmt::Debug {
@@ -137,7 +137,7 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError>;
+    ) -> Result<CustomCursor, CustomCursorError>;
 
     /// Returns the list of all the monitors available on the system.
     ///
