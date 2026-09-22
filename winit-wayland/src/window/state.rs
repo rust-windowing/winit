@@ -372,13 +372,7 @@ impl WindowState {
         }
 
         self.resizable = resizable;
-        if resizable {
-            // Restore min/max sizes of the window.
-            self.reload_min_max_hints();
-        } else {
-            self.set_min_surface_size(Some(self.size));
-            self.set_max_surface_size(Some(self.size));
-        }
+        self.reload_min_max_hints();
 
         // Reload the state on the frame as well.
         if let Some(frame) = self.frame.as_mut() {
@@ -571,40 +565,16 @@ impl WindowState {
         self.resize_increments
     }
 
-    /// Set maximum inner window size.
+    /// Set minimum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
-
-        // Ensure that the window has the right minimum size.
-        let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
-        size.width = size.width.max(MIN_WINDOW_SIZE.width);
-        size.height = size.height.max(MIN_WINDOW_SIZE.height);
-
-        // Add the borders.
-        let size = self
-            .frame
-            .as_ref()
-            .map(|frame| frame.add_borders(size.width, size.height).into())
-            .unwrap_or(size);
-
-        self.min_surface_size = size;
-        xdg_toplevel.set_min_size(size.width as _, size.height as _);
+        self.min_surface_size = size.unwrap_or(MIN_WINDOW_SIZE);
+        self.reload_min_max_hints();
     }
 
     /// Set maximum inner window size.
     pub fn set_max_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
-
-        let size = size.map(|size| {
-            self.frame
-                .as_ref()
-                .map(|frame| frame.add_borders(size.width, size.height).into())
-                .unwrap_or(size)
-        });
-
         self.max_surface_size = size;
-        let size = size.unwrap_or_default();
-        xdg_toplevel.set_max_size(size.width as _, size.height as _);
+        self.reload_min_max_hints();
     }
 
     /// Set the CSD theme.
@@ -624,8 +594,30 @@ impl WindowState {
 
     /// Reload the hints for minimum and maximum sizes.
     pub fn reload_min_max_hints(&mut self) {
-        self.set_min_surface_size(Some(self.min_surface_size));
-        self.set_max_surface_size(self.max_surface_size);
+        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
+
+        let (mut min, max) = if self.resizable {
+            (self.min_surface_size, self.max_surface_size)
+        } else {
+            (self.size, Some(self.size))
+        };
+
+        // Ensure that the window has the right minimum size.
+        min.width = min.width.max(MIN_WINDOW_SIZE.width);
+        min.height = min.height.max(MIN_WINDOW_SIZE.height);
+
+        // Add the borders.
+        let add_borders = |size: LogicalSize<u32>| {
+            self.frame
+                .as_ref()
+                .map(|frame| frame.add_borders(size.width, size.height).into())
+                .unwrap_or(size)
+        };
+
+        let min = add_borders(min);
+        xdg_toplevel.set_min_size(min.width as _, min.height as _);
+        let max = max.map(add_borders).unwrap_or_default();
+        xdg_toplevel.set_max_size(max.width as _, max.height as _);
     }
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {

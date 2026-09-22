@@ -10,7 +10,7 @@ use tracing::warn;
 
 #[cfg(feature = "sctk-adwaita")]
 use super::create_sctk_adwaita_config;
-use super::{WindowState, WindowType, WinitFrame};
+use super::{MIN_WINDOW_SIZE, WindowState, WindowType, WinitFrame};
 
 impl WindowState {
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
@@ -171,7 +171,8 @@ impl WindowState {
                 let height = self.min_surface_size.height
                     + (delta_height / increments.height) * increments.height;
 
-                new_size = (width, height).into();
+                new_size =
+                    (width.max(MIN_WINDOW_SIZE.width), height.max(MIN_WINDOW_SIZE.height)).into();
             }
         }
 
