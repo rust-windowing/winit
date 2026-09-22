@@ -1703,7 +1703,7 @@ impl WindowDelegate {
         let mtm = MainThreadMarker::from(self);
         let event = NSApplication::sharedApplication(mtm)
             .currentEvent()
-            .ok_or(RequestError::TransientFailed)?;
+            .expect("could not find current event");
         self.window().performWindowDragWithEvent(&event);
         Ok(())
     }

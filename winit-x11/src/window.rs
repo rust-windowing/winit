@@ -2013,7 +2013,12 @@ impl UnownedWindow {
                 0,
                 &rectangles,
             )
-            .map_err(|_e| RequestError::Ignored)?;
+            .map_err(|e| match e {
+                x11rb::errors::ConnectionError::UnsupportedExtension => RequestError::NotSupported(
+                    NotSupportedError::new("set_cursor_hittest is not supported"),
+                ),
+                e => os_error!(e).into(),
+            })?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
     }
