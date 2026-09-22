@@ -15,7 +15,7 @@ use crate::Instant;
 use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use crate::error::{EventLoopError, NotSupportedError, RequestError};
+use crate::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
@@ -125,7 +125,7 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn Window>, RequestError>;
+    ) -> Result<Box<dyn Window>, CreateWindowError>;
 
     /// Create custom cursor.
     ///
