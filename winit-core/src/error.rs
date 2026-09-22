@@ -110,6 +110,25 @@ impl fmt::Display for NotSupportedError {
 }
 impl Error for NotSupportedError {}
 
+/// An internal failure occurred
+#[derive(Debug)]
+pub struct InternalError {
+    source: &'static str,
+}
+
+impl InternalError {
+    pub const fn new(source: &'static str) -> Self {
+        Self { source }
+    }
+}
+
+impl fmt::Display for InternalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Internal error: {}", self.source)
+    }
+}
+impl Error for InternalError {}
+
 /// Unclassified error from the OS.
 #[derive(Debug)]
 pub struct OsError {
