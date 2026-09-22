@@ -1,3 +1,4 @@
+use core::fmt;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, Weak};
 
@@ -243,7 +244,7 @@ impl WindowCommon {
     pub(crate) fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         self.state
             .upgrade()
-            .ok_or(RequestError::Ignored)?
+            .ok_or(os_error!(ResolveStateError))?
             .lock()
             .unwrap()
             .set_cursor_position(position)
@@ -252,7 +253,12 @@ impl WindowCommon {
     }
 
     pub(crate) fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        self.state.upgrade().ok_or(RequestError::Ignored)?.lock().unwrap().set_cursor_grab(mode)
+        self.state
+            .upgrade()
+            .ok_or(os_error!(ResolveStateError))?
+            .lock()
+            .unwrap()
+            .set_cursor_grab(mode)
     }
 
     pub(crate) fn set_cursor_visible(&self, visible: bool) {
@@ -262,7 +268,7 @@ impl WindowCommon {
 
     /// Only meaningful for a top-level surface.
     pub(super) fn drag_window(&self) -> Result<(), RequestError> {
-        self.state.upgrade().ok_or(RequestError::Ignored)?.lock().unwrap().drag_window()
+        self.state.upgrade().ok_or(os_error!(ResolveStateError))?.lock().unwrap().drag_window()
     }
 
     /// Only meaningful for a top-level surface.
@@ -272,7 +278,7 @@ impl WindowCommon {
     ) -> Result<(), RequestError> {
         self.state
             .upgrade()
-            .ok_or(RequestError::Ignored)?
+            .ok_or(os_error!(ResolveStateError))?
             .lock()
             .unwrap()
             .drag_resize_window(direction)
@@ -313,7 +319,7 @@ impl WindowCommon {
     }
 
     pub(crate) fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let state = self.state.upgrade().ok_or(RequestError::Ignored)?;
+        let state = self.state.upgrade().ok_or(os_error!(ResolveStateError))?;
         self.handles.set_cursor_hittest(state.lock().unwrap().window.wl_surface(), hittest)
     }
 
@@ -363,3 +369,18 @@ impl rwh_06::HasDisplayHandle for WindowCommon {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }
     }
 }
+
+/// Resolving window state failed
+///
+/// This likely means that an operation was attempted on a popup window after
+/// its parent window was destroyed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct ResolveStateError;
+
+impl fmt::Display for ResolveStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the parent window has been destroyed")
+    }
+}
+
+impl std::error::Error for ResolveStateError {}
