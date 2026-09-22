@@ -57,6 +57,7 @@ impl From<NotSupportedError> for EventLoopError {
 pub enum RequestError {
     /// The request is not supported.
     NotSupported(NotSupportedError),
+    Failed(FailedError),
     /// The request was ignored by the operating system.
     Ignored,
     /// Got unspecified OS specific error during the request.
@@ -66,6 +67,7 @@ pub enum RequestError {
 impl Display for RequestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            RequestError::Failed(err) => err.fmt(f),
             Self::NotSupported(err) => err.fmt(f),
             Self::Ignored => write!(f, "The request was ignored"),
             Self::Os(err) => err.fmt(f),
@@ -81,6 +83,12 @@ impl Error for RequestError {
 impl From<NotSupportedError> for RequestError {
     fn from(value: NotSupportedError) -> Self {
         Self::NotSupported(value)
+    }
+}
+
+impl From<FailedError> for RequestError {
+    fn from(value: FailedError) -> Self {
+        Self::Failed(value)
     }
 }
 
@@ -109,6 +117,25 @@ impl fmt::Display for NotSupportedError {
     }
 }
 impl Error for NotSupportedError {}
+
+#[derive(Debug)]
+pub struct FailedError {
+    /// The reason why a certain operation failed.
+    reason: &'static str,
+}
+
+impl FailedError {
+    pub fn new(reason: &'static str) -> Self {
+        Self { reason }
+    }
+}
+
+impl fmt::Display for FailedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Operation failed: {}", self.reason)
+    }
+}
+impl Error for FailedError {}
 
 /// Unclassified error from the OS.
 #[derive(Debug)]

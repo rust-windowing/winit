@@ -10,7 +10,7 @@ use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{FailedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -36,7 +36,7 @@ impl Popup {
         mut attributes: WindowAttributes,
     ) -> Result<Self, RequestError> {
         fn error(message: &'static str) -> RequestError {
-            RequestError::NotSupported(NotSupportedError::new(message))
+            RequestError::Failed(FailedError::new(message))
         }
 
         let parent_window_handle =
@@ -264,9 +264,7 @@ impl Popup {
                 },
             })
         } else {
-            Err(RequestError::NotSupported(NotSupportedError::new(
-                "A Popup requires a parent wayland window handle",
-            )))
+            Err(error("A Popup requires a parent wayland window handle"))
         }
     }
 }
@@ -353,13 +351,13 @@ impl CoreWindow for Popup {
             .common
             .state
             .upgrade()
-            .ok_or_else(|| NotSupportedError::new("the popup has been destroyed"))?;
+            .ok_or_else(|| FailedError::new("the popup has been destroyed"))?;
         let state = s.lock().unwrap();
         if let WindowType::Popup { last_configure: Some(configure), .. } = &state.window {
             let (x, y) = configure.position;
             return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
         }
-        Err(NotSupportedError::new("the popup has not been configured yet").into())
+        Err(FailedError::new("the popup has not been configured yet").into())
     }
 
     fn set_outer_position(&self, position: Position) {
