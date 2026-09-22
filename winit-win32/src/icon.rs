@@ -14,7 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 use windows_sys::core::PCWSTR;
 use winit_core::cursor::{CursorImage, CustomCursorProvider};
-use winit_core::error::RequestError;
+use winit_core::error::CustomCursorError;
 use winit_core::icon::*;
 
 use super::util;
@@ -174,7 +174,7 @@ impl CustomCursorProvider for WinCursor {
 }
 
 impl WinCursor {
-    pub(crate) fn new(image: &CursorImage) -> Result<Self, RequestError> {
+    pub(crate) fn new(image: &CursorImage) -> Result<Self, CustomCursorError> {
         let mut bgra = Vec::from(image.buffer());
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 

@@ -13,7 +13,7 @@ use objc2_foundation::{
     NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString, ns_string,
 };
 use winit_core::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CustomCursorError, NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -31,11 +31,11 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn new(cursor: CustomCursorSource) -> Result<CustomCursor, RequestError> {
+    pub(crate) fn new(cursor: CustomCursorSource) -> Result<CustomCursor, CustomCursorError> {
         let cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
+                return Err(CustomCursorError::UnsupportedSource);
             },
         };
 
@@ -77,7 +77,9 @@ pub(crate) fn image_from_icon(icon: &Icon) -> Result<Retained<NSImage>, RequestE
     Ok(image)
 }
 
-pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {
+pub(crate) fn cursor_from_image(
+    cursor: &CursorImage,
+) -> Result<Retained<NSCursor>, CustomCursorError> {
     let width = cursor.width();
     let height = cursor.height();
 

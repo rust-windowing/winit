@@ -22,7 +22,7 @@ use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint,
 };
-use winit_core::error::{CreateWindowError, EventLoopError, RequestError, TransferError};
+use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError, TransferError};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -82,7 +82,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         Ok(CoreCustomCursor(Arc::new(CustomCursor::new(source)?)))
     }
 
@@ -568,7 +568,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }

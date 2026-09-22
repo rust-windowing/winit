@@ -68,7 +68,7 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
 use winit_core::error::{
-    CreateWindowError, EventLoopError, NotSupportedError, RequestError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
@@ -425,7 +425,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -466,12 +466,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
-            _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
-            },
+            _ => return Err(CustomCursorError::UnsupportedSource),
         };
 
         Ok(CustomCursor(Arc::new(WinCursor::new(&cursor)?)))
