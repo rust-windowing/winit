@@ -17,7 +17,7 @@ use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_ob
 use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -43,7 +43,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 

@@ -16,7 +16,7 @@ use redox_event::{EventFlags, EventQueue, UserData};
 use smol_str::SmolStr;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
 use winit_core::event::{self, Modifiers, StartCause};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -825,7 +825,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
