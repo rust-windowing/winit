@@ -11,7 +11,7 @@ use smol_str::SmolStr;
 
 use crate::Instant;
 use crate::data_transfer::{DataTransferId, TypedData};
-use crate::error::RequestError;
+use crate::error::InternalError;
 use crate::event_loop::{AsyncRequestSerial, DndAction};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
@@ -1626,21 +1626,21 @@ impl SurfaceSizeWriter {
     pub fn request_surface_size(
         &mut self,
         new_surface_size: PhysicalSize<u32>,
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), InternalError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
             *inner.lock().unwrap() = new_surface_size;
             Ok(())
         } else {
-            Err(RequestError::Ignored)
+            Err(InternalError::new("SurfaceSizeWriter connection failed"))
         }
     }
 
     /// Get the currently stashed surface size.
-    pub fn surface_size(&self) -> Result<PhysicalSize<u32>, RequestError> {
+    pub fn surface_size(&self) -> Result<PhysicalSize<u32>, InternalError> {
         if let Some(inner) = self.new_surface_size.upgrade() {
             Ok(*inner.lock().unwrap())
         } else {
-            Err(RequestError::Ignored)
+            Err(InternalError::new("SurfaceSizeWriter connection failed"))
         }
     }
 }
