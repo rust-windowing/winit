@@ -311,7 +311,7 @@ impl WindowState {
             WindowType::Window { window, .. } => window.xdg_toplevel(),
             WindowType::Popup { .. } => {
                 return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Drag resize for popup not supported",
+                    "drag_resize_window is not supported for WindowType::Popup",
                 )));
             },
         };
@@ -336,7 +336,7 @@ impl WindowState {
             WindowType::Window { window, .. } => window.xdg_toplevel(),
             WindowType::Popup { .. } => {
                 return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Drag for popup not supported",
+                    "drag_window is not supported for WindowType::Popup",
                 )));
             },
         };

@@ -342,13 +342,13 @@ impl CoreWindow for Popup {
             .common
             .state
             .upgrade()
-            .ok_or_else(|| NotSupportedError::new("the popup has been destroyed"))?;
+            .ok_or_else(|| os_error!(PopupError("the popup has been destroyed")))?;
         let state = s.lock().unwrap();
         if let WindowType::Popup { last_configure: Some(configure), .. } = &state.window {
             let (x, y) = configure.position;
             return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
         }
-        Err(NotSupportedError::new("the popup has not been configured yet").into())
+        Err(os_error!(PopupError("the popup has not been configured yet")).into())
     }
 
     fn set_outer_position(&self, position: Position) {
@@ -552,12 +552,13 @@ impl CoreWindow for Popup {
 
     fn drag_window(&self) -> Result<(), RequestError> {
         // Popup does not support dragging
-        Err(RequestError::Ignored)
+        Err(NotSupportedError::new("drag_window is not supported for WindowType::Popup").into())
     }
 
     fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
         // Popup does not support dragging
-        Err(RequestError::Ignored)
+        Err(NotSupportedError::new("drag_resize_window is not supported for WindowType::Popup")
+            .into())
     }
 
     fn show_window_menu(&self, _position: Position) {
