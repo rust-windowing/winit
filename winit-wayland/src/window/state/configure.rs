@@ -151,7 +151,11 @@ impl WindowState {
         // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would
         // shrink the window below the allocated area, creating visible gaps between valid
         // windows or screen edges.
-        if (constrain || configure.is_resizing())
+        let was_resizing = matches!(
+            &self.window,
+            WindowType::Window { last_configure: Some(last), .. } if last.is_resizing()
+        );
+        if (constrain || configure.is_resizing() || was_resizing)
             && !configure.is_maximized()
             && !configure.is_fullscreen()
             && !configure.is_tiled()

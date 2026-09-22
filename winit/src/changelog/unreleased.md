@@ -46,7 +46,7 @@ changelog entry.
 - On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 - On Wayland, fix minimum and maximum size hints being off by the client-side decoration borders, and being lost when toggling `Window::set_resizable`.
-- On Wayland, with resize increments: align from the requested minimum size instead of an internal `2x1`, and round a surface smaller than one increment up to one.
+- On Wayland, with resize increments: align from the requested minimum size instead of an internal `2x1`, round a surface smaller than one increment up to one, and keep the alignment when an interactive resize ends.
 
 ### Changed
 
