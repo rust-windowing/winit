@@ -15,7 +15,9 @@ use crate::Instant;
 use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use crate::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
+use crate::error::{
+    CreateWindowError, EventLoopError, NotSupportedError, RequestError, TransferError,
+};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
@@ -222,23 +224,19 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let _ = id;
         let _ = type_;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
     }
 
     /// Get a [data transfer](DataTransfer) by its ID.
     ///
     /// If the ID is invalid (e.g. if the lifetime of the data transfer has expired), this will
     /// return an error.
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let _ = id;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
     }
 
     /// Set a given set of `DndAction`s as the valid actions for the given [`DataTransferId`],
@@ -264,12 +262,10 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let _ = id;
         let _ = actions;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
     }
 
     /// Initiate a new drag-and-drop operation.
@@ -320,21 +316,20 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         send_data: Box<dyn DataTransferSend>,
         actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         let _ = source;
         let _ = send_data;
         let _ = actions;
         let _ = icon;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
     }
 }
 
-const DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE: &str = {
-    "Cross-application data transfer (e.g. drag-and-drop, clipboard) is unsupported on this \
-     platform"
-};
+const DATA_TRANSFER_NOT_SUPPORTED: TransferError =
+    TransferError::NotSupported(NotSupportedError::new(
+        "Cross-application data transfer (e.g. drag-and-drop, clipboard) is unsupported on this \
+         platform",
+    ));
 
 impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {

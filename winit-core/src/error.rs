@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt::{self, Display};
 
+use crate::data_transfer::DataTransferId;
+
 /// A general error that may occur while running or creating
 /// the event loop.
 #[derive(Debug)]
@@ -92,6 +94,49 @@ impl From<OsError> for CreateWindowError {
     }
 }
 
+/// A data transfer / drag-and-drop error.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum TransferError {
+    /// The request is not supported.
+    NotSupported(NotSupportedError),
+    /// Unknown [`DataTransferId`]
+    UnknownTransfer(DataTransferId),
+    /// The transfer (request) failed.
+    Failed,
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for TransferError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotSupported(err) => err.fmt(f),
+            Self::UnknownTransfer(id) => {
+                write!(f, "Unknown data transfer with ID {}", id.into_raw())
+            },
+            Self::Failed => write!(f, "Transfer request failed"),
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for TransferError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+impl From<NotSupportedError> for TransferError {
+    fn from(value: NotSupportedError) -> Self {
+        Self::NotSupported(value)
+    }
+}
+
+impl From<OsError> for TransferError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
 /// A general error that may occur during a request to the windowing system.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -159,7 +204,7 @@ pub struct NotSupportedError {
 }
 
 impl NotSupportedError {
-    pub fn new(reason: &'static str) -> Self {
+    pub const fn new(reason: &'static str) -> Self {
         Self { reason }
     }
 }
