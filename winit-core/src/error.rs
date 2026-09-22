@@ -57,6 +57,7 @@ impl From<NotSupportedError> for EventLoopError {
 pub enum RequestError {
     /// The request is not supported.
     NotSupported(NotSupportedError),
+    /// The request is supported but failed.
     Failed(FailedError),
     /// The request was ignored by the operating system.
     Ignored,
@@ -118,6 +119,7 @@ impl fmt::Display for NotSupportedError {
 }
 impl Error for NotSupportedError {}
 
+/// A request is supported but failed.
 #[derive(Debug)]
 pub struct FailedError {
     /// The reason why a certain operation failed.
