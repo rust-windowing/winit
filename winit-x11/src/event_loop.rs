@@ -20,7 +20,9 @@ use winit_common::xkb::Context;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType};
-use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, EventLoopError, NotSupportedError, RequestError, TransferError,
+};
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -814,15 +816,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let dnd = self.dnd.borrow();
 
         if dnd.state().is_none_or(|state| state.transfer_id != id) {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         let Some(state) = dnd.state() else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         Ok(Box::new(Selection::new(state.types.clone())))
@@ -832,7 +834,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let mut dnd = self.dnd.borrow_mut();
 
         let serial = AsyncRequestSerial::get();
@@ -841,17 +843,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
             .cast_ref::<SelectionType>()
             .or_else(|| dnd.find_type_by_hint(type_.hint()?))
             .cloned()
-            .ok_or(RequestError::NotSupported(NotSupportedError::new("Unknown type hint")))?;
+            .ok_or(TransferError::Failed)?;
 
         let new_convert_selection = {
             let Some(state) = dnd.state_mut() else {
-                return Err(RequestError::Ignored);
+                return Err(TransferError::Failed);
             };
 
             if state.transfer_id != id {
-                return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Unknown data transfer",
-                )));
+                return Err(TransferError::UnknownTransfer(id));
             }
 
             // If it's non-empty, assume that we're still waiting on some other fetch operation.
@@ -882,15 +882,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let mut dnd = self.dnd.borrow_mut();
 
         let Some(state) = dnd.state_mut() else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         if state.transfer_id != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         state.accepted = !actions.is_empty();
@@ -904,19 +904,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         self.xconn.display_handle()
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 pub(crate) struct DeviceInfo<'a> {
     xconn: &'a XConnection,
