@@ -161,18 +161,18 @@ impl WindowState {
                 //
                 // This ensures that we can always reach the min size and the increments are
                 // calculated from it.
-                let (delta_width, delta_height) = (
-                    new_size.width.saturating_sub(self.min_surface_size.width),
-                    new_size.height.saturating_sub(self.min_surface_size.height),
+                let snap = |size: u32, min: u32, increment: u32, floor: u32| {
+                    let steps = size.saturating_sub(min) / increment;
+                    let floor_steps = floor.saturating_sub(min).div_ceil(increment);
+                    min + steps.max(floor_steps) * increment
+                };
+                let min = self.min_surface_size;
+                let (width, height) = (
+                    snap(new_size.width, min.width, increments.width, MIN_WINDOW_SIZE.width),
+                    snap(new_size.height, min.height, increments.height, MIN_WINDOW_SIZE.height),
                 );
 
-                let width = self.min_surface_size.width
-                    + (delta_width / increments.width) * increments.width;
-                let height = self.min_surface_size.height
-                    + (delta_height / increments.height) * increments.height;
-
-                new_size =
-                    (width.max(MIN_WINDOW_SIZE.width), height.max(MIN_WINDOW_SIZE.height)).into();
+                new_size = (width, height).into();
             }
         }
 

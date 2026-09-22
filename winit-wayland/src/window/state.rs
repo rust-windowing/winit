@@ -232,7 +232,7 @@ impl WindowState {
             has_pending_move: None,
             text_input_state: None,
             max_surface_size: None,
-            min_surface_size: MIN_WINDOW_SIZE,
+            min_surface_size: LogicalSize::new(0, 0),
             resize_increments: None,
             pointer_constraints,
             pointers: Default::default(),
@@ -569,7 +569,7 @@ impl WindowState {
 
     /// Set minimum inner window size.
     pub fn set_min_surface_size(&mut self, size: Option<LogicalSize<u32>>) {
-        self.min_surface_size = size.unwrap_or(MIN_WINDOW_SIZE);
+        self.min_surface_size = size.unwrap_or_default();
         self.reload_min_max_hints();
     }
 
