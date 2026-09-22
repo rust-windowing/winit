@@ -492,6 +492,8 @@ impl WindowState {
             // the redraw scheduling is done on the caller side.
             let _ = self.set_blur(true);
         }
+
+        self.reload_min_max_hints();
     }
 
     pub(crate) fn set_maximized(&self, maximized: bool) {
@@ -599,7 +601,7 @@ impl WindowState {
         let (mut min, max) = if self.resizable {
             (self.min_surface_size, self.max_surface_size)
         } else {
-            (self.size, Some(self.size))
+            (self.stateless_size, Some(self.stateless_size))
         };
 
         // Ensure that the window has the right minimum size.

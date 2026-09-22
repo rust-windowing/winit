@@ -190,6 +190,9 @@ impl WindowState {
         let new_state = configure.state;
         if let WindowType::Window { last_configure, .. } = &mut self.window {
             let old_state = last_configure.as_ref().map(|configure| configure.state);
+            let decoration_mode_changed = last_configure
+                .as_ref()
+                .is_some_and(|last| last.decoration_mode != configure.decoration_mode);
 
             let state_change_requires_resize = old_state
                 .map(|old_state| {
@@ -204,7 +207,10 @@ impl WindowState {
             // NOTE: Set the configure before doing a resize, since we query it during it.
             *last_configure = Some(configure);
 
-            if state_change_requires_resize || new_size != self.surface_size() {
+            if state_change_requires_resize
+                || new_size != self.surface_size()
+                || decoration_mode_changed
+            {
                 self.resize(new_size);
                 true
             } else {
