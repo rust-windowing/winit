@@ -67,7 +67,9 @@ use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
-use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, EventLoopError, NotSupportedError, RequestError, TransferError,
+};
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
     TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
@@ -523,14 +525,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
-        let hint = type_.hint().ok_or(RequestError::Ignored)?;
+        let hint = type_.hint().ok_or(TransferError::Failed)?;
         let typed_data = WinTypedData::new(state.data.clone(), hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
-            .ok_or(RequestError::Ignored)?;
+            .ok_or(TransferError::Failed)?;
 
         let serial = AsyncRequestSerial::get();
 
@@ -542,9 +544,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         Ok(Box::new(WinDataTransfer::new(state.data.clone())))
@@ -554,10 +556,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let mut state = self.0.drag_state.borrow_mut();
         let Some(state) = state.as_mut().filter(|s| s.id == id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
         state.actions = actions.to_vec();
         Ok(())
@@ -569,7 +571,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         allowed_actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         let allowed_effects = crate::dnd::dnd_actions_to_dropeffect_mask(allowed_actions);
         // Win32 would happily run a modal `DoDragDrop` with `allowed_effects == 0`, but every
         // target would see "no action allowed" and the drag would end in a guaranteed cancel
@@ -625,19 +627,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 #[derive(Clone)]
 pub(crate) struct OwnedDisplayHandle;
