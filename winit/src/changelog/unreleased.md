@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add OpenHarmony platform support.
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
