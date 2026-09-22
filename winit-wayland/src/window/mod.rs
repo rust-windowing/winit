@@ -13,7 +13,7 @@ use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use tracing::warn;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
@@ -57,7 +57,7 @@ impl Window {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, CreateWindowError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
 

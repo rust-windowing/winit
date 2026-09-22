@@ -51,6 +51,47 @@ impl From<NotSupportedError> for EventLoopError {
     }
 }
 
+/// Window creation failure
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum CreateWindowError {
+    /// [`WindowType::Popup`] is not supported.
+    PopupNotSupported,
+    /// Invalid input attribute
+    InvalidAttribute(InvalidInput),
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for CreateWindowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PopupNotSupported => write!(f, "WindowType::Popup is not supported"),
+            Self::InvalidAttribute(InvalidInput { reason }) => {
+                write!(f, "Invalid WindowAttributes: {reason}")
+            },
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for CreateWindowError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+
+impl From<InvalidInput> for CreateWindowError {
+    fn from(value: InvalidInput) -> Self {
+        Self::InvalidAttribute(value)
+    }
+}
+
+impl From<OsError> for CreateWindowError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
 /// A general error that may occur during a request to the windowing system.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -89,6 +130,26 @@ impl From<OsError> for RequestError {
         Self::Os(value)
     }
 }
+
+/// An input attribute or parameter was not valid
+#[derive(Debug)]
+pub struct InvalidInput {
+    /// The reason why a certain operation is not supported.
+    reason: &'static str,
+}
+
+impl InvalidInput {
+    pub const fn new(reason: &'static str) -> Self {
+        Self { reason }
+    }
+}
+
+impl fmt::Display for InvalidInput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Invalid input: {}", self.reason)
+    }
+}
+impl Error for InvalidInput {}
 
 /// The requested operation is not supported.
 #[derive(Debug)]

@@ -27,7 +27,9 @@ use wayland_client::protocol::wl_shm::Format;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use winit_core::error::{EventLoopError, NotSupportedError, OsError, RequestError};
+use winit_core::error::{
+    CreateWindowError, EventLoopError, NotSupportedError, OsError, RequestError,
+};
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -743,7 +745,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
+    ) -> Result<Box<dyn winit_core::window::Window>, CreateWindowError> {
         match window_attributes.window_type() {
             WindowType::Window => {
                 let window = crate::Window::new(self, window_attributes)?;
@@ -753,7 +755,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },
-            _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
+            _ => panic!("Unknown WindowType"),
         }
     }
 
