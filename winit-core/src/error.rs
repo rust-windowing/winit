@@ -137,6 +137,41 @@ impl From<OsError> for TransferError {
     }
 }
 
+/// An error from `create_custom_cursor`.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum CustomCursorError {
+    /// Custom cursors are not supported.
+    NotSupported,
+    /// The [`CustomCursorSource`] variant is not supported.
+    UnsupportedSource,
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for CustomCursorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotSupported => write!(f, "create_custom_cursor is not supported"),
+            Self::UnsupportedSource => {
+                write!(f, "the provided CustomCursorSource is not supported")
+            },
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for CustomCursorError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+
+impl From<OsError> for CustomCursorError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
 /// A general error that may occur during a request to the windowing system.
 #[derive(Debug)]
 #[non_exhaustive]

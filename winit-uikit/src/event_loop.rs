@@ -17,7 +17,7 @@ use winit_common::core_foundation::{MainRunLoop, MainRunLoopObserver, tracing_ob
 use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
-use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -50,8 +50,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
-        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
+    ) -> Result<CustomCursor, CustomCursorError> {
+        Err(CustomCursorError::NotSupported)
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
@@ -358,7 +358,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
