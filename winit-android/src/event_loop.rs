@@ -13,7 +13,9 @@ use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, trace, warn};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
-use winit_core::error::{CreateWindowError, EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, RequestError,
+};
 use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -674,7 +676,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -733,8 +735,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
-        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
+    ) -> Result<CustomCursor, CustomCursorError> {
+        Err(CustomCursorError::NotSupported)
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {

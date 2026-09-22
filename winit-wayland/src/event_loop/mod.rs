@@ -28,7 +28,7 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use winit_core::error::{
-    CreateWindowError, EventLoopError, NotSupportedError, OsError, RequestError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, OsError, TransferError,
 };
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
@@ -654,7 +654,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.active_event_loop.create_custom_cursor(custom_cursor)
     }
 }
@@ -726,11 +726,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         let cursor_image = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
+                return Err(CustomCursorError::UnsupportedSource);
             },
         };
 
