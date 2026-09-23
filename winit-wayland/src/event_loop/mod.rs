@@ -445,6 +445,14 @@ impl EventLoop {
                 app.window_event(&self.active_event_loop, window_id, event);
             }
 
+            if let Some(occluded) = compositor_update.occluded {
+                app.window_event(
+                    &self.active_event_loop,
+                    window_id,
+                    WindowEvent::Occluded(occluded),
+                );
+            }
+
             if compositor_update.close_window {
                 app.window_event(&self.active_event_loop, window_id, WindowEvent::CloseRequested);
             }

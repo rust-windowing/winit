@@ -326,14 +326,22 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure_window(configure, &self.shm, &self.subcompositor_state);
+        let (resized, was_suspended, suspended) = {
+            let mut window = self
+                .windows
+                .get_mut()
+                .get_mut(&window_id)
+                .expect("got configure for dead window.")
+                .lock()
+                .unwrap();
+            let was_suspended = window.is_suspended();
+            let resized = window.configure_window(configure, &self.shm, &self.subcompositor_state);
+            (resized, was_suspended, window.is_suspended())
+        };
+        self.window_compositor_updates[index].resized |= resized;
+        if suspended != was_suspended {
+            self.window_compositor_updates[index].occluded = Some(suspended);
+        }
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.
@@ -512,11 +520,20 @@ pub struct WindowCompositorUpdate {
 
     /// Close the window.
     pub close_window: bool,
+
+    /// The window became suspended (`Some(true)`) or stopped being suspended (`Some(false)`).
+    pub occluded: Option<bool>,
 }
 
 impl WindowCompositorUpdate {
     fn new(window_id: WindowId) -> Self {
-        Self { window_id, resized: false, scale_changed: false, close_window: false }
+        Self {
+            window_id,
+            resized: false,
+            scale_changed: false,
+            close_window: false,
+            occluded: None,
+        }
     }
 }
 

@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Wayland, emit `WindowEvent::Occluded` when the compositor suspends or resumes the window (xdg-shell v6 `suspended` state).
+
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
