@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On Wayland, emit `WindowEvent::Occluded` when the compositor suspends or resumes the window
+  (xdg-shell v6 `suspended` state).

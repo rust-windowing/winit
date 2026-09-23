@@ -437,6 +437,16 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
+            if let Some(occluded) = compositor_update.occluded {
+                callback(
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::Occluded(occluded),
+                    },
+                    &self.window_target,
+                );
+            }
+
             if compositor_update.close_window {
                 callback(
                     Event::WindowEvent {
