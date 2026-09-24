@@ -166,7 +166,7 @@ impl WinitState {
 
         let mut seats = HashMap::default();
         for seat in seat_state.seats() {
-            seats.insert(seat.id(), WinitSeatState::new());
+            seats.insert(seat.id().clone(), WinitSeatState::new());
         }
 
         let (viewporter_state, fractional_scaling_manager) =

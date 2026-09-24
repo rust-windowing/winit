@@ -139,7 +139,7 @@ impl SeatHandler for WinitState {
                     .viewporter_state
                     .as_ref()
                     .map(|state| state.get_viewport(&surface, queue_handle));
-                let surface_id = surface.id();
+                let surface_id = surface.id().clone();
                 let pointer_data = WinitPointerData::new(viewport);
                 let themed_pointer = self
                     .seat_state
@@ -287,7 +287,7 @@ impl SeatHandler for WinitState {
         _queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
-        self.seats.insert(seat.id(), WinitSeatState::new());
+        self.seats.insert(seat.id().clone(), WinitSeatState::new());
     }
 
     fn remove_seat(

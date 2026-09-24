@@ -62,7 +62,7 @@ impl Dispatch<WlKeyboard, WinitState> for KeyboardData {
                     Some(window) => {
                         let mut window = window.lock().unwrap();
                         let was_unfocused = !window.has_focus();
-                        window.add_seat_focus(self.seat.id());
+                        window.add_seat_focus(self.seat.id().clone());
                         was_unfocused
                     },
                     None => return,

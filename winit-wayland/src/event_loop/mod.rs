@@ -977,7 +977,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
             data_source.start_drag(data_device, source_surface, icon_surface.as_ref(), serial);
 
-            make_data_transfer_id(data_device.inner().id(), serial)
+            make_data_transfer_id(data_device.inner().id().clone(), serial)
         };
 
         // For some reason, if we commit before starting the drag then the offset isn't applied.

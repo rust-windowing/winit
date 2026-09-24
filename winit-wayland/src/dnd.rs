@@ -652,7 +652,7 @@ impl DataDeviceHandler for WinitState {
                 .into(),
             available_actions: drag.source_actions,
             serial: drag.serial,
-            data_device_id: data_device.id(),
+            data_device_id: data_device.id().clone(),
             data: drag.inner().clone(),
             window_id,
         });
