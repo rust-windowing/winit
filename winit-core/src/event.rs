@@ -3,6 +3,7 @@ use std::cell::LazyCell;
 use std::cmp::Ordering;
 use std::f64;
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
@@ -12,7 +13,7 @@ use smol_str::SmolStr;
 use crate::Instant;
 use crate::data_transfer::{DataTransferId, TypedData};
 use crate::error::RequestError;
-use crate::event_loop::{AsyncRequestSerial, DndAction};
+use crate::event_loop::{AsyncRequestSerial, DndAction, HistoricalMoveEvent};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
@@ -224,6 +225,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerMoved {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
 
         /// (x,y) coordinates in pixels relative to the top-left corner of the window. Because the
         /// range of this data is limited by the display area and it may have been
@@ -247,6 +249,8 @@ pub enum WindowEvent {
         primary: bool,
 
         source: PointerSource,
+        /// Historical move events between this event and the previous event
+        history: Vec<HistoricalMoveEvent>,
     },
 
     /// The pointer has entered the window.
@@ -254,6 +258,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerEntered {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
 
         /// The position of the pointer when it entered the window.
         ///
@@ -281,6 +286,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerLeft {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
 
         /// The position of the pointer when it left the window. The position reported can be
         /// outside the bounds of the window.
@@ -305,12 +311,18 @@ pub enum WindowEvent {
     },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: Option<DeviceId>, delta: MouseScrollDelta, phase: TouchPhase },
+    MouseWheel {
+        device_id: Option<DeviceId>,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+        event_time: Option<Duration>,
+    },
 
     /// An mouse button press has been received.
     PointerButton {
         device_id: Option<DeviceId>,
         state: ElementState,
+        event_time: Option<Duration>,
 
         /// The position of the pointer when the button was pressed.
         ///
@@ -364,7 +376,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **Wayland**.
-    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase },
+    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase, event_time: Duration },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -374,6 +386,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
         /// Positive values indicate magnification (zooming in) and  negative
         /// values indicate shrinking (zooming out).
         ///
@@ -390,6 +403,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PanGesture {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
         /// Change in pixels of pan gesture from last update.
         delta: PhysicalPosition<f32>,
         phase: TouchPhase,
@@ -413,7 +427,7 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    DoubleTapGesture { device_id: Option<DeviceId> },
+    DoubleTapGesture { device_id: Option<DeviceId>, event_time: Option<Duration> },
 
     /// Two-finger rotation gesture.
     ///
@@ -426,6 +440,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
         /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
@@ -439,6 +454,7 @@ pub enum WindowEvent {
     /// - **Android / iOS / Wayland / X11 / Windows / Orbital / Web:** Unsupported.
     TouchpadPressure {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
         /// Value between 0 and 1 representing how hard the touchpad is being
         /// pressed.
         pressure: f32,
@@ -1694,6 +1710,7 @@ mod tests {
                 primary: true,
                 position: (0, 0).into(),
                 source: PointerSource::Mouse,
+                history: Default::default(),
             });
             with_window_event(ModifiersChanged(event::Modifiers::default()));
             with_window_event(PointerEntered {

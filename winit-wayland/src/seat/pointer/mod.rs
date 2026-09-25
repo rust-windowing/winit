@@ -125,6 +125,8 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerEntered {
                             primary: true,
                             device_id: None,
+                            // wl_pointer's enter event carries no timestamp.
+                            event_time: None,
                             position,
                             kind: PointerKind::Mouse,
                         },
@@ -146,25 +148,29 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerLeft {
                             primary: true,
                             device_id: None,
+                            // wl_pointer's leave event carries no timestamp.
+                            event_time: None,
                             position: Some(position),
                             kind: PointerKind::Mouse,
                         },
                         window_id,
                     );
                 },
-                PointerEventKind::Motion { .. } => {
+                PointerEventKind::Motion { time } => {
                     self.events_sink.push_window_event(
                         WindowEvent::PointerMoved {
                             primary: true,
                             device_id: None,
+                            event_time: Some(Duration::from_millis(time as u64)),
                             position,
                             source: PointerSource::Mouse,
+                            history: Vec::new(),
                         },
                         window_id,
                     );
                 },
-                ref kind @ PointerEventKind::Press { button, serial, .. }
-                | ref kind @ PointerEventKind::Release { button, serial, .. } => {
+                ref kind @ PointerEventKind::Press { button, serial, time }
+                | ref kind @ PointerEventKind::Release { button, serial, time } => {
                     // Update the last button serial.
 
                     pointer.winit_data().data().inner.lock().unwrap().latest_button_serial = serial;
@@ -184,6 +190,7 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerButton {
                             primary: true,
                             device_id: None,
+                            event_time: Some(Duration::from_millis(time as u64)),
                             state,
                             position,
                             button,
@@ -192,7 +199,7 @@ impl PointerHandler for WinitState {
                         window_id,
                     );
                 },
-                PointerEventKind::Axis { horizontal, vertical, .. } => {
+                PointerEventKind::Axis { horizontal, vertical, time, .. } => {
                     // Get the current phase.
                     let mut pointer_data = pointer.winit_data().data().inner.lock().unwrap();
 
@@ -240,7 +247,12 @@ impl PointerHandler for WinitState {
                     };
 
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id: None, delta, phase },
+                        WindowEvent::MouseWheel {
+                            device_id: None,
+                            event_time: Some(Duration::from_millis(time as u64)),
+                            delta,
+                            phase,
+                        },
                         window_id,
                     )
                 },

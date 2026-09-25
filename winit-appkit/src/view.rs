@@ -2,6 +2,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
+use std::time::Duration;
 
 use dpi::{LogicalPosition, PhysicalSize};
 use objc2::rc::Retained;
@@ -667,6 +668,7 @@ define_class!(
 
             self.queue_event(WindowEvent::PointerEntered {
                 device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
                 primary: true,
                 position,
                 kind: PointerKind::Mouse,
@@ -681,6 +683,7 @@ define_class!(
 
             self.queue_event(WindowEvent::PointerLeft {
                 device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
                 primary: true,
                 position: Some(position),
                 kind: PointerKind::Mouse,
@@ -723,7 +726,12 @@ define_class!(
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
             });
-            self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase });
+            self.queue_event(WindowEvent::MouseWheel {
+                device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
+                delta,
+                phase,
+            });
         }
 
         #[unsafe(method(magnifyWithEvent:))]
@@ -743,6 +751,7 @@ define_class!(
 
             self.queue_event(WindowEvent::PinchGesture {
                 device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
                 delta: event.magnification(),
                 phase,
             });
@@ -754,7 +763,10 @@ define_class!(
 
             self.mouse_motion(event);
 
-            self.queue_event(WindowEvent::DoubleTapGesture { device_id: None });
+            self.queue_event(WindowEvent::DoubleTapGesture {
+                device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
+            });
         }
 
         #[unsafe(method(rotateWithEvent:))]
@@ -774,6 +786,7 @@ define_class!(
 
             self.queue_event(WindowEvent::RotationGesture {
                 device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
                 delta: event.rotation(),
                 phase,
             });
@@ -785,6 +798,7 @@ define_class!(
 
             self.queue_event(WindowEvent::TouchpadPressure {
                 device_id: None,
+                event_time: Some(Duration::from_secs_f64(event.timestamp())),
                 pressure: event.pressure(),
                 stage: event.stage() as i64,
             });
@@ -1230,6 +1244,7 @@ impl WinitView {
             primary: true,
             position: view_point.to_physical(self.scale_factor()),
             source: PointerSource::Mouse,
+            history: Default::default(),
         });
     }
 
