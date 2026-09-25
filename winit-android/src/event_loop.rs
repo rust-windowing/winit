@@ -13,7 +13,9 @@ use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, trace, warn};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, RequestError,
+};
 use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSizeWriter};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -698,7 +700,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -750,15 +752,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         _source: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
-        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
+    ) -> Result<CustomCursor, CustomCursorError> {
+        Err(CustomCursorError::NotSupported)
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
@@ -831,11 +833,11 @@ impl Window {
     pub(crate) fn new(
         el: &ActiveEventLoop,
         window_attrs: window::WindowAttributes,
-    ) -> Result<Self, RequestError> {
-        if window_attrs.window_type() == window::WindowType::Popup {
-            return Err(RequestError::NotSupported(NotSupportedError::new(
-                "Popups are not implemented for Android",
-            )));
+    ) -> Result<Self, CreateWindowError> {
+        match window_attrs.window_type() {
+            window::WindowType::Window => (),
+            window::WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            _ => panic!("Unknown WindowType"),
         }
 
         // FIXME this ignores the rest of the requested window attributes
@@ -1069,7 +1071,7 @@ impl CoreWindow for Window {
     }
 
     fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
-        Err(NotSupportedError::new("drag_resize_window").into())
+        Err(NotSupportedError::new("drag_resize_window is not supported").into())
     }
 
     #[inline]

@@ -52,7 +52,7 @@ use winit_common::core_foundation::MainRunLoop;
 use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
 use winit_core::data_transfer::DataTransferId;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
@@ -935,7 +935,7 @@ impl WindowDelegate {
         app_state: &Rc<AppState>,
         mut attrs: WindowAttributes,
         mtm: MainThreadMarker,
-    ) -> Result<Retained<Self>, RequestError> {
+    ) -> Result<Retained<Self>, CreateWindowError> {
         let mut macos_attrs = attrs
             .platform
             .take()
@@ -943,7 +943,11 @@ impl WindowDelegate {
             .unwrap_or_default();
 
         let window_type = attrs.window_type();
-        let is_popup = matches!(window_type, WindowType::Popup);
+        let is_popup = match window_type {
+            WindowType::Window => false,
+            WindowType::Popup => true,
+            _ => panic!("Unknown WindowType"),
+        };
         let anchored = is_popup || attrs.positioner.is_some();
         if is_popup {
             // A popup is an undecorated, non-activating panel with no titlebar buttons. Model it
@@ -978,9 +982,7 @@ impl WindowDelegate {
             },
             Some(raw) => panic!("invalid raw window handle {raw:?} on macOS"),
             None if is_popup => {
-                return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "a popup window requires a parent window",
-                )));
+                return Err(InvalidInput::new("a popup window requires a parent window").into());
             },
             None => (),
         }
@@ -1699,8 +1701,9 @@ impl WindowDelegate {
     #[inline]
     pub fn drag_window(&self) -> Result<(), RequestError> {
         let mtm = MainThreadMarker::from(self);
-        let event =
-            NSApplication::sharedApplication(mtm).currentEvent().ok_or(RequestError::Ignored)?;
+        let event = NSApplication::sharedApplication(mtm)
+            .currentEvent()
+            .expect("could not find current event");
         self.window().performWindowDragWithEvent(&event);
         Ok(())
     }

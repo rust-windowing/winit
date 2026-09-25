@@ -8,7 +8,7 @@ use dpi::{
 };
 use web_sys::HtmlCanvasElement;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
@@ -45,11 +45,11 @@ impl Window {
     pub(crate) fn new(
         target: &ActiveEventLoop,
         attr: WindowAttributes,
-    ) -> Result<Self, RequestError> {
-        if attr.window_type() == WindowType::Popup {
-            return Err(RequestError::NotSupported(NotSupportedError::new(
-                "Popups are not implemented for Web",
-            )));
+    ) -> Result<Self, CreateWindowError> {
+        match attr.window_type() {
+            WindowType::Window => (),
+            WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            _ => panic!("Unknown WindowType"),
         }
 
         let id = target.generate_id();
