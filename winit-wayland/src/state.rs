@@ -326,23 +326,36 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure_window(configure, &self.shm, &self.subcompositor_state);
+        let (resized, was_suspended, suspended, committed) = {
+            let mut window = self
+                .windows
+                .get_mut()
+                .get_mut(&window_id)
+                .expect("got configure for dead window.")
+                .lock()
+                .unwrap();
+            let was_suspended = window.is_suspended();
+            let resized = window.configure_window(configure, &self.shm, &self.subcompositor_state);
+            let committed = window.commit_paused_configure();
+            (resized, was_suspended, window.is_suspended(), committed)
+        };
+        self.window_compositor_updates[index].resized |= resized;
+        if suspended != was_suspended {
+            self.window_compositor_updates[index].occluded = Some(suspended);
+        }
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
-        // users, since it can break a lot of things, thus it'll ask users to redraw instead.
-        self.window_requests
-            .get_mut()
-            .get(&window_id)
-            .unwrap()
-            .redraw_requested
-            .store(true, Ordering::Relaxed);
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead. The
+        // exception is a suspended window whose application said it stopped presenting, see
+        // `WindowExtWayland::notify_presentation_paused`.
+        if !committed {
+            self.window_requests
+                .get_mut()
+                .get(&window_id)
+                .unwrap()
+                .redraw_requested
+                .store(true, Ordering::Relaxed);
+        }
 
         // Manually mark that we've got an event, since configure may not generate a resize.
         self.dispatched_events = true;
@@ -512,11 +525,20 @@ pub struct WindowCompositorUpdate {
 
     /// Close the window.
     pub close_window: bool,
+
+    /// The window became suspended (`Some(true)`) or stopped being suspended (`Some(false)`).
+    pub occluded: Option<bool>,
 }
 
 impl WindowCompositorUpdate {
     fn new(window_id: WindowId) -> Self {
-        Self { window_id, resized: false, scale_changed: false, close_window: false }
+        Self {
+            window_id,
+            resized: false,
+            scale_changed: false,
+            close_window: false,
+            occluded: None,
+        }
     }
 }
 
