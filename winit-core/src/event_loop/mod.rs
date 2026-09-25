@@ -16,7 +16,10 @@ use crate::Instant;
 use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use crate::error::{CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, RequestError, TransferError};
+use crate::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, RequestError,
+    TransferError,
+};
 use crate::event::PointerSource;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
