@@ -163,6 +163,7 @@ define_class!(
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let _entered = debug_span!("pinchGesture:").entered();
             let window = self.window().unwrap();
+            let event_time = recognizer.event_time();
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -187,7 +188,12 @@ define_class!(
 
             let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
-                event: WindowEvent::PinchGesture { device_id: None, delta: delta as f64, phase },
+                event: WindowEvent::PinchGesture {
+                    device_id: None,
+                    delta: delta as f64,
+                    phase,
+                    event_time,
+                },
             };
 
             let mtm = MainThreadMarker::new().unwrap();
@@ -261,6 +267,7 @@ define_class!(
         fn pan_gesture(&self, recognizer: &UIPanGestureRecognizer) {
             let _entered = debug_span!("panGesture:").entered();
             let window = self.window().unwrap();
+            let event_time = recognizer.event_time();
 
             let translation = recognizer.translationInView(Some(self));
 
