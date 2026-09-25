@@ -59,6 +59,8 @@ impl From<NotSupportedError> for EventLoopError {
 pub enum CreateWindowError {
     /// [`WindowType::Popup`] is not supported.
     PopupNotSupported,
+    /// [`WindowType::Dialog`] is not supported.
+    DialogNotSupported,
     /// Invalid input attribute
     InvalidAttribute(InvalidInput),
     /// Got unspecified OS specific error during the request.
@@ -69,6 +71,7 @@ impl Display for CreateWindowError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::PopupNotSupported => write!(f, "WindowType::Popup is not supported"),
+            Self::DialogNotSupported => write!(f, "WindowType::Dialog is not supported"),
             Self::InvalidAttribute(InvalidInput { reason }) => {
                 write!(f, "Invalid WindowAttributes: {reason}")
             },
