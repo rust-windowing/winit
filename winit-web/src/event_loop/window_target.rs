@@ -267,6 +267,7 @@ impl ActiveEventLoop {
                                     primary,
                                     position,
                                     source,
+                                    history: Vec::new(),
                                 },
                             }))
                         },

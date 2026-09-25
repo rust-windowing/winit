@@ -20,7 +20,7 @@ use winit_core::event::{self, DeviceId, FingerId, Force, StartCause, SurfaceSize
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
-    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider, HistoricalMoveEvent,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -325,6 +325,7 @@ impl EventLoop {
             InputEvent::MotionEvent(motion_event) => {
                 let device_id = Some(DeviceId::from_raw(motion_event.device_id() as i64));
                 let action = motion_event.action();
+                let event_time = Some(Duration::from_nanos(motion_event.event_time() as u64));
 
                 let pointers: Option<
                     Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>>,
@@ -360,6 +361,7 @@ impl EventLoop {
                             }
                             let event = event::WindowEvent::PointerEntered {
                                 device_id,
+                                event_time,
                                 primary,
                                 position,
                                 kind: match tool_type {
@@ -374,6 +376,7 @@ impl EventLoop {
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                             let event = event::WindowEvent::PointerButton {
                                 device_id,
+                                event_time,
                                 primary,
                                 state: event::ElementState::Pressed,
                                 position,
@@ -390,9 +393,27 @@ impl EventLoop {
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
                         MotionAction::Move => {
+                            let mut history = Vec::with_capacity(pointer.history().len());
+                            for h in pointer.history() {
+                                let event_time = Duration::from_nanos(h.event_time() as u64);
+                                let position = PhysicalPosition { x: h.x() as _, y: h.y() as _ };
+                                let force = Some(Force::Normalized(h.pressure() as f64));
+                                let source = match tool_type {
+                                    android_activity::input::ToolType::Finger => {
+                                        event::PointerSource::Touch { finger_id, force }
+                                    },
+                                    // TODO mouse events
+                                    android_activity::input::ToolType::Mouse => continue,
+                                    _ => event::PointerSource::Unknown,
+                                };
+
+                                history
+                                    .push(HistoricalMoveEvent::new(event_time, position, source));
+                            }
                             let primary = self.primary_pointer == Some(finger_id);
                             let event = event::WindowEvent::PointerMoved {
                                 device_id,
+                                event_time,
                                 primary,
                                 position,
                                 source: match tool_type {
@@ -403,6 +424,7 @@ impl EventLoop {
                                     android_activity::input::ToolType::Mouse => continue,
                                     _ => event::PointerSource::Unknown,
                                 },
+                                history,
                             };
                             app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                         },
@@ -418,6 +440,7 @@ impl EventLoop {
                             if let MotionAction::Up | MotionAction::PointerUp = action {
                                 let event = event::WindowEvent::PointerButton {
                                     device_id,
+                                    event_time,
                                     primary,
                                     state: event::ElementState::Released,
                                     position,
@@ -436,6 +459,7 @@ impl EventLoop {
 
                             let event = event::WindowEvent::PointerLeft {
                                 device_id,
+                                event_time,
                                 primary,
                                 position: Some(position),
                                 kind: match tool_type {

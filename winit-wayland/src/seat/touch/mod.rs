@@ -1,5 +1,7 @@
 //! Touch handling.
 
+use std::time::Duration;
+
 use dpi::LogicalPosition;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -20,7 +22,7 @@ impl TouchHandler for WinitState {
         _: &QueueHandle<Self>,
         touch: &WlTouch,
         serial: u32,
-        _: u32,
+        time: u32,
         surface: WlSurface,
         id: i32,
         position: (f64, f64),
@@ -55,10 +57,12 @@ impl TouchHandler for WinitState {
 
         let position = location.to_physical(scale_factor);
         let finger_id = FingerId::from_raw(id as usize);
+        let event_time = Some(Duration::from_millis(time as u64));
 
         self.events_sink.push_window_event(
             WindowEvent::PointerEntered {
                 device_id: None,
+                event_time,
                 primary,
                 position,
                 kind: PointerKind::Touch(finger_id),
@@ -68,6 +72,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
                 device_id: None,
+                event_time,
                 primary,
                 state: ElementState::Pressed,
                 position,
@@ -84,7 +89,7 @@ impl TouchHandler for WinitState {
         _: &QueueHandle<Self>,
         touch: &WlTouch,
         _: u32,
-        _: u32,
+        time: u32,
         id: i32,
     ) {
         let seat_state = match self.seats.get_mut(&touch.seat().id()) {
@@ -125,10 +130,12 @@ impl TouchHandler for WinitState {
 
         let position = touch_point.location.to_physical(scale_factor);
         let finger_id = FingerId::from_raw(id as usize);
+        let event_time = Some(Duration::from_millis(time as u64));
 
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
                 device_id: None,
+                event_time,
                 primary,
                 state: ElementState::Released,
                 position,
@@ -140,6 +147,7 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerLeft {
                 device_id: None,
+                event_time,
                 primary,
                 position: Some(position),
                 kind: PointerKind::Touch(finger_id),
@@ -153,7 +161,7 @@ impl TouchHandler for WinitState {
         _: &Connection,
         _: &QueueHandle<Self>,
         touch: &WlTouch,
-        _: u32,
+        time: u32,
         id: i32,
         position: (f64, f64),
     ) {
@@ -184,12 +192,14 @@ impl TouchHandler for WinitState {
         self.events_sink.push_window_event(
             WindowEvent::PointerMoved {
                 device_id: None,
+                event_time: Some(Duration::from_millis(time as u64)),
                 primary,
                 position: touch_point.location.to_physical(scale_factor),
                 source: PointerSource::Touch {
                     finger_id: FingerId::from_raw(id as usize),
                     force: None,
                 },
+                history: Vec::new(),
             },
             window_id,
         );
@@ -221,6 +231,8 @@ impl TouchHandler for WinitState {
             self.events_sink.push_window_event(
                 WindowEvent::PointerLeft {
                     device_id: None,
+                    // wl_touch's cancel event carries no timestamp.
+                    event_time: None,
                     primary,
                     position: Some(position),
                     kind: PointerKind::Touch(FingerId::from_raw(id as usize)),

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+use dpi::PhysicalPosition;
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 
 use crate::Instant;
@@ -18,6 +19,7 @@ use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, Trans
 use crate::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
+use crate::event::PointerSource;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
@@ -405,6 +407,26 @@ pub enum DndAction {
     ///
     /// - macOS
     Private,
+}
+
+/// Historical Move event
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct HistoricalMoveEvent {
+    /// Event time
+    event_time: Duration,
+    source: PointerSource,
+    position: PhysicalPosition<f64>,
+}
+
+impl HistoricalMoveEvent {
+    pub fn new(
+        event_time: Duration,
+        position: PhysicalPosition<f64>,
+        source: PointerSource,
+    ) -> Self {
+        Self { event_time, position, source }
+    }
 }
 
 /// Control the [`ActiveEventLoop`], possibly from a different thread, without referencing it

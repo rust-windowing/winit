@@ -445,6 +445,7 @@ impl EventLoop {
                     primary: true,
                     position: event_state.mouse_pos.into(),
                     source: event::PointerSource::Mouse,
+                    history: Vec::new(),
                 });
             },
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
