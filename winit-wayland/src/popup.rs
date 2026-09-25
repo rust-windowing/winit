@@ -285,7 +285,12 @@ impl CoreWindow for Popup {
         if let WindowType::Popup { popup, xdg_positioner, parent_origin, positioner, .. } =
             &mut state.window
         {
+            let (position, size) = new_positioner.anchor_rect;
+            let mut size: LogicalSize<i32> = size.to_logical(scale_factor);
+            size.width = size.width.max(1);
+            size.height = size.height.max(1);
             *positioner = new_positioner;
+            positioner.anchor_rect.1 = size.into(); // Set new clamped size
 
             xdg_positioner.set_anchor(from_anchor(new_positioner.anchor));
             xdg_positioner.set_gravity(from_gravity(new_positioner.gravity));
@@ -293,8 +298,6 @@ impl CoreWindow for Popup {
                 new_positioner.constraint_adjustment,
             ));
 
-            let (position, size) = new_positioner.anchor_rect;
-            let size: LogicalSize<i32> = size.to_logical(scale_factor);
             let position: LogicalPosition<i32> = position.to_logical(scale_factor);
             xdg_positioner.set_anchor_rect(
                 position.x - parent_origin.x,
