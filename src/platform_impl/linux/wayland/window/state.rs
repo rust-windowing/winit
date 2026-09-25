@@ -141,6 +141,10 @@ pub struct WindowState {
     /// The state of the frame callback.
     frame_callback_state: FrameCallbackState,
 
+    /// The scale factor at the time the application said it stopped presenting while the window
+    /// is suspended, or `None` if it didn't. Cleared when the window stops being suspended.
+    presentation_paused: Option<f64>,
+
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
     blur: Option<OrgKdeKwinBlur>,
@@ -196,6 +200,7 @@ impl WindowState {
             fractional_scale,
             frame: None,
             frame_callback_state: FrameCallbackState::None,
+            presentation_paused: None,
             seat_focus: Default::default(),
             has_pending_move: None,
             ime_allowed: false,
@@ -259,6 +264,44 @@ impl WindowState {
             },
             FrameCallbackState::Requested => (),
         }
+    }
+
+    /// Whether the compositor has suspended the window, as of the last configure.
+    pub fn is_suspended(&self) -> bool {
+        self.last_configure
+            .as_ref()
+            .is_some_and(|configure| configure.state.contains(XdgWindowState::SUSPENDED))
+    }
+
+    /// The application stopped presenting after the window was suspended, so commit the
+    /// configures it acknowledges on its behalf until the window stops being suspended.
+    pub fn pause_presentation(&mut self) {
+        if !self.is_suspended() {
+            return;
+        }
+
+        self.presentation_paused = Some(self.scale_factor);
+        self.commit_paused_configure();
+    }
+
+    /// Called after a configure was acknowledged. Returns `true` if the configure was committed
+    /// on behalf of the application, which then doesn't need to redraw for it.
+    pub fn commit_paused_configure(&mut self) -> bool {
+        if !self.is_suspended() {
+            self.presentation_paused = None;
+            return false;
+        }
+
+        let Some(scale_factor) = self.presentation_paused else { return false };
+
+        // A new integer buffer scale would apply to the last buffer the application presented,
+        // whose size need not be a multiple of it, so leave that commit to the application.
+        if self.fractional_scale.is_none() && scale_factor as i32 != self.scale_factor as i32 {
+            return false;
+        }
+
+        self.window.wl_surface().commit();
+        true
     }
 
     pub fn configure(

@@ -235,6 +235,10 @@ impl Window {
     pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
         NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
     }
+
+    pub(crate) fn notify_presentation_paused(&self) {
+        self.window_state.lock().unwrap().pause_presentation();
+    }
 }
 
 impl Window {
