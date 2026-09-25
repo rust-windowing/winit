@@ -130,7 +130,6 @@ impl Popup {
             &state.xdg_shell,
         )
         .map_err(|e| os_error!(e))?;
-        parent_window_state.add_child(super::make_wid(popup.wl_surface()));
         drop(parent_window_state);
         drop(window_states);
 
@@ -210,6 +209,13 @@ impl Popup {
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
+
+        let windows = state.windows.borrow();
+        if let Some(parent_window_state) = windows.get(&parent_window_id) {
+            let mut parent_window_state = parent_window_state.lock().unwrap();
+            parent_window_state.add_child(super::make_wid(popup.wl_surface()));
+            drop(parent_window_state);
+        };
 
         Ok(Self {
             common: WindowCommon {

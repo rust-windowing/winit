@@ -46,14 +46,15 @@ impl Dialog {
             );
         };
 
+        let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
+
         let (dialog, dialog_state) = {
             let windows = state.windows.borrow();
-            let parent_window_id =
-                WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
             let Some(parent_window_state) = windows.get(&parent_window_id) else {
                 return Err(InvalidInput::new("Unknown parent window id").into());
             };
-            let mut parent_window_state = parent_window_state.lock().unwrap();
+            let parent_window_state = parent_window_state.lock().unwrap();
+            let scale_factor = parent_window_state.scale_factor();
             let parent_xdg_toplevel = {
                 match &parent_window_state.window {
                     WindowType::Window { window, .. } => window.xdg_toplevel().clone(),
@@ -85,9 +86,6 @@ impl Dialog {
                     &parent_xdg_toplevel,
                 )
                 .map_err(|e| os_error!(e))?;
-            parent_window_state.add_child(super::make_wid(dialog.wl_surface()));
-            let scale_factor = parent_window_state.scale_factor();
-            drop(parent_window_state);
 
             let WindowAttributesWayland { activation_token, prefer_csd, .. } = *attributes
                 .platform
@@ -159,6 +157,13 @@ impl Dialog {
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
+
+        let windows = state.windows.borrow();
+        if let Some(parent_window_state) = windows.get(&parent_window_id) {
+            let mut parent_window_state = parent_window_state.lock().unwrap();
+            parent_window_state.add_child(super::make_wid(dialog.wl_surface()));
+            drop(parent_window_state);
+        };
 
         Ok(Self {
             common: WindowCommon {
