@@ -2,6 +2,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::io::{self, Read, Result as IOResult};
+use std::mem;
 use std::ops::BitOr;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
@@ -9,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
-use std::{fmt, mem};
 
 use calloop::PostAction;
 use calloop::ping::Ping;
@@ -27,7 +27,9 @@ use wayland_client::protocol::wl_shm::Format;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use winit_core::error::{EventLoopError, NotSupportedError, OsError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, OsError, TransferError,
+};
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -652,7 +654,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.active_event_loop.create_custom_cursor(custom_cursor)
     }
 }
@@ -724,11 +726,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         let cursor_image = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
+                return Err(CustomCursorError::UnsupportedSource);
             },
         };
 
@@ -743,7 +745,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
+    ) -> Result<Box<dyn winit_core::window::Window>, CreateWindowError> {
         match window_attributes.window_type() {
             WindowType::Window => {
                 let window = crate::Window::new(self, window_attributes)?;
@@ -757,7 +759,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let dialog = crate::dialog::Dialog::new(self, window_attributes)?;
                 Ok(Box::new(dialog))
             },
-            _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
+            _ => panic!("Unknown WindowType"),
         }
     }
 
@@ -789,18 +791,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let state = self.state.borrow_mut();
         let Some(current_drag) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         if current_drag.transfer_id() != id {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         let Some(mime_type) = current_drag.find_type_dyn(type_) else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         let mime_type_str = mime_type.to_string();
@@ -850,14 +852,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(async_request_serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let state = self.state.borrow();
         let Some(state) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         if state.transfer_id() != id {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         Ok(Box::new(state.clone()))
@@ -867,14 +869,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let state = self.state.borrow();
         let Some(state) = state.dnd_state.receive_drag() else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         if state.transfer_id() != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         let any_actions = state.set_actions(actions);
@@ -896,7 +898,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         action_mask: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         const NO_POINTER_CAP_ERROR_MSG: &str =
             "Tried to initiate drag, but source window does not have the pointer capability";
 
@@ -998,19 +1000,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(transfer_id)
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 impl ActiveEventLoop {
     fn clear_exit(&self) {

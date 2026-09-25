@@ -6,7 +6,7 @@ use rwh_06::RawWindowHandle;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::window::WindowDecorations;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
@@ -29,22 +29,21 @@ impl Dialog {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
-    ) -> Result<Self, RequestError> {
-        fn error(message: &'static str) -> RequestError {
-            RequestError::NotSupported(NotSupportedError::new(message))
-        }
-
+    ) -> Result<Self, CreateWindowError> {
         let modal = attributes.modal.unwrap_or(false);
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
         let monitors = state.monitors.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
-        let parent_window_handle =
-            attributes.parent_window().ok_or(error("Dialog without a parent is not supported!"))?;
+        let parent_window_handle = attributes
+            .parent_window()
+            .ok_or(InvalidInput::new("Dialog without a parent is not supported"))?;
 
         let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
-            return Err(error("A Dialog requires a parent wayland window handle"));
+            return Err(
+                InvalidInput::new("A Dialog requires a parent wayland window handle").into()
+            );
         };
 
         let (dialog, dialog_state) = {
@@ -52,7 +51,7 @@ impl Dialog {
             let parent_window_id =
                 WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
             let Some(parent_window_state) = windows.get(&parent_window_id) else {
-                return Err(error("Invalid parent id"));
+                return Err(InvalidInput::new("Unknown parent window id").into());
             };
             let mut parent_window_state = parent_window_state.lock().unwrap();
             let parent_xdg_toplevel = {
@@ -60,7 +59,10 @@ impl Dialog {
                     WindowType::Window { window, .. } => window.xdg_toplevel().clone(),
                     WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().clone(),
                     WindowType::Popup { .. } => {
-                        return Err(error("Parent of a dialog must be a window or a dialog"));
+                        return Err(InvalidInput::new(
+                            "Parent of a dialog must be a window or a dialog",
+                        )
+                        .into());
                     },
                 }
             };
@@ -82,7 +84,7 @@ impl Dialog {
                     &queue_handle,
                     &parent_xdg_toplevel,
                 )
-                .map_err(|_| error("Failed to create dialog"))?;
+                .map_err(|e| os_error!(e))?;
             parent_window_state.add_child(super::make_wid(dialog.wl_surface()));
             let scale_factor = parent_window_state.scale_factor();
             drop(parent_window_state);
@@ -96,7 +98,9 @@ impl Dialog {
             let mut dialog_state = WindowState::new(
                 event_loop_window_target,
                 &state,
-                attributes.surface_size.ok_or(error("Invalid size for dialog"))?,
+                attributes
+                    .surface_size
+                    .ok_or(InvalidInput::new("Missing surface size for Dialog window"))?,
                 WindowType::Dialog { dialog: dialog.clone(), last_configure: None },
                 attributes.preferred_theme,
                 prefer_csd,

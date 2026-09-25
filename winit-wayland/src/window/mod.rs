@@ -1,5 +1,6 @@
 //! The Wayland window.
 
+use core::fmt;
 use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicBool;
@@ -13,7 +14,7 @@ use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use tracing::warn;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
@@ -65,7 +66,7 @@ pub(crate) fn finish_window_setup(
     surface: &WlSurface,
     window_state: &Arc<Mutex<WindowState>>,
     dismissed_error: Option<&'static str>,
-) -> Result<(WindowId, Arc<WindowRequests>), RequestError> {
+) -> Result<(WindowId, Arc<WindowRequests>), CreateWindowError> {
     let window_id = super::make_wid(surface);
     state.windows.get_mut().insert(window_id, window_state.clone());
 
@@ -93,7 +94,7 @@ pub(crate) fn finish_window_setup(
                 .iter()
                 .any(|u| u.window_id == window_id && u.close_window)
             {
-                return Err(RequestError::NotSupported(NotSupportedError::new(message)));
+                return Err(os_error!(DismissedError(message)).into());
             }
         }
     }
@@ -104,11 +105,24 @@ pub(crate) fn finish_window_setup(
     Ok((window_id, window_requests))
 }
 
+/// Constructing a window/popup/dialog failed: the compositor dismissed the surface before it
+/// ever sent an initial configure.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct DismissedError(&'static str);
+
+impl fmt::Display for DismissedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for DismissedError {}
+
 impl Window {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, CreateWindowError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
 

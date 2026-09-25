@@ -7,7 +7,7 @@ use std::sync::Arc;
 use web_sys::Element;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, CustomCursorError, NotSupportedError};
 use winit_core::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
@@ -493,7 +493,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
+    ) -> Result<Box<dyn winit_core::window::Window>, CreateWindowError> {
         let window = Window::new(self, window_attributes)?;
         Ok(Box::new(window))
     }
@@ -501,7 +501,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         Ok(CoreCustomCursor(Arc::new(CustomCursor::new(self, source))))
     }
 

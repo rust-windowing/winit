@@ -51,7 +51,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
@@ -113,7 +113,7 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         w_attr: WindowAttributes,
-    ) -> Result<Window, RequestError> {
+    ) -> Result<Window, CreateWindowError> {
         // We dispatch an `init` function because of code style.
         // First person to remove the need for cloning here gets a cookie!
         //
@@ -1631,7 +1631,7 @@ impl InitData<'_> {
 unsafe fn init(
     mut attributes: WindowAttributes,
     runner: &Rc<EventLoopRunner>,
-) -> Result<Window, RequestError> {
+) -> Result<Window, CreateWindowError> {
     let title = util::encode_wide(&attributes.title);
 
     let win_attributes = attributes
@@ -1696,14 +1696,10 @@ unsafe fn init(
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
         None => {
             if is_popup {
-                return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Popup without a parent is not supported!",
-                )));
+                return Err(InvalidInput::new("Popup without a parent is not supported!").into());
             }
             if is_dialog {
-                return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Dialog without a parent is not supported!",
-                )));
+                return Err(InvalidInput::new("Dialog without a parent is not supported!").into());
             }
             fallback_parent()
         },

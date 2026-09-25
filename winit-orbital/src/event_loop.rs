@@ -16,7 +16,7 @@ use redox_event::{EventFlags, EventQueue, UserData};
 use smol_str::SmolStr;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError};
 use winit_core::event::{self, Modifiers, StartCause};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -776,7 +776,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -825,12 +825,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
-    fn create_custom_cursor(&self, _: CustomCursorSource) -> Result<CustomCursor, RequestError> {
-        Err(NotSupportedError::new("create_custom_cursor is not supported").into())
+    fn create_custom_cursor(
+        &self,
+        _: CustomCursorSource,
+    ) -> Result<CustomCursor, CustomCursorError> {
+        Err(CustomCursorError::NotSupported)
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = winit_core::monitor::MonitorHandle>> {
