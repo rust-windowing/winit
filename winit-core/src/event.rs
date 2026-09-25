@@ -1707,6 +1707,7 @@ mod tests {
             with_window_event(Ime(Enabled));
             with_window_event(PointerMoved {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 position: (0, 0).into(),
                 source: PointerSource::Mouse,
@@ -1715,6 +1716,7 @@ mod tests {
             with_window_event(ModifiersChanged(event::Modifiers::default()));
             with_window_event(PointerEntered {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 position: (0, 0).into(),
                 kind: PointerKind::Mouse,
@@ -1722,16 +1724,19 @@ mod tests {
             with_window_event(PointerLeft {
                 primary: true,
                 device_id: None,
+                event_time: None,
                 position: Some((0, 0).into()),
                 kind: PointerKind::Mouse,
             });
             with_window_event(MouseWheel {
                 device_id: None,
+                event_time: None,
                 delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 phase: event::TouchPhase::Started,
             });
             with_window_event(PointerButton {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
@@ -1740,6 +1745,7 @@ mod tests {
             });
             with_window_event(PointerButton {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 state: event::ElementState::Released,
                 position: (0, 0).into(),
@@ -1751,21 +1757,24 @@ mod tests {
             });
             with_window_event(PinchGesture {
                 device_id: None,
+                event_time: None,
                 delta: 0.0,
                 phase: event::TouchPhase::Started,
             });
-            with_window_event(DoubleTapGesture { device_id: None });
+            with_window_event(DoubleTapGesture { device_id: None, event_time: None, });
             with_window_event(RotationGesture {
                 device_id: None,
+                event_time: None,
                 delta: 0.0,
                 phase: event::TouchPhase::Started,
             });
             with_window_event(PanGesture {
                 device_id: None,
+                event_time: None,
                 delta: PhysicalPosition::<f32>::new(0.0, 0.0),
                 phase: event::TouchPhase::Started,
             });
-            with_window_event(TouchpadPressure { device_id: None, pressure: 0.0, stage: 0 });
+            with_window_event(TouchpadPressure { event_time: None, device_id: None, pressure: 0.0, stage: 0 });
             with_window_event(ThemeChanged(crate::window::Theme::Light));
             with_window_event(Occluded(true));
         }};
