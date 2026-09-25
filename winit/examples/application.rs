@@ -342,7 +342,9 @@ impl Application {
                 info!("  Position: {x},{y}");
             }
 
-            info!("  Scale factor: {}", monitor.scale_factor());
+            if let Some(factor) = monitor.scale_factor() {
+                info!("  Scale factor: {factor}");
+            }
 
             info!("  Available modes (width x height x bit-depth):");
             for mode in monitor.video_modes() {
