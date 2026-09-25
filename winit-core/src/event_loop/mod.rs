@@ -17,7 +17,7 @@ use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use crate::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
 use crate::event::PointerSource;
 use crate::icon::Icon;

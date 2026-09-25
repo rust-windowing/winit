@@ -1101,7 +1101,7 @@ impl EventProcessor {
         }
 
         let position = PhysicalPosition::new(event.event_x, event.event_y);
-        let event_time = Some(Duration::from_millis(event.time as u64));
+        let event_time = Some(Duration::from_millis(event.time));
 
         let event = match event.detail as u32 {
             xlib::Button1 => WindowEvent::PointerButton {
@@ -1196,7 +1196,7 @@ impl EventProcessor {
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
-        let event_time = Some(Duration::from_millis(event.time as u64));
+        let event_time = Some(Duration::from_millis(event.time));
 
         let cursor_moved = self.with_window(window, |window| {
             let mut shared_state_lock = window.shared_state_lock();
@@ -1299,7 +1299,7 @@ impl EventProcessor {
 
             let event = WindowEvent::PointerEntered {
                 device_id,
-                event_time: Some(Duration::from_millis(event.time as u64)),
+                event_time: Some(Duration::from_millis(event.time)),
                 primary: true,
                 position,
                 kind: PointerKind::Mouse,
@@ -1320,7 +1320,7 @@ impl EventProcessor {
             let window_id = mkwid(window);
             let event = WindowEvent::PointerLeft {
                 device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
-                event_time: Some(Duration::from_millis(event.time as u64)),
+                event_time: Some(Duration::from_millis(event.time)),
                 primary: true,
                 position: Some(PhysicalPosition::new(event.event_x, event.event_y)),
                 kind: PointerKind::Mouse,
@@ -1377,7 +1377,7 @@ impl EventProcessor {
 
         let event = WindowEvent::PointerMoved {
             device_id,
-            event_time: Some(Duration::from_millis(xev.time as u64)),
+            event_time: Some(Duration::from_millis(xev.time)),
             primary: true,
             position,
             source: PointerSource::Mouse,
@@ -1442,7 +1442,7 @@ impl EventProcessor {
             let window_id = mkwid(window);
             let id = xev.detail as u32;
             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
-            let event_time = Some(Duration::from_millis(xev.time as u64));
+            let event_time = Some(Duration::from_millis(xev.time));
 
             // Mouse cursor position changes when touch events are received.
             // Only the first concurrently active touch ID moves the mouse cursor.
