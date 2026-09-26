@@ -276,7 +276,7 @@ jobs:
 
     - name: Check docs.rs documentation
       if: matrix.toolchain == 'nightly'
-      run: cargo doc --no-deps $OPTIONS --features=serde,mint,android-native-activity
+      run: cargo doc --no-deps $OPTIONS --features=serde,mint,android-native-activity --workspace
       env:
         RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }} --cfg=docsrs --cfg=unreleased_changelogs'
 

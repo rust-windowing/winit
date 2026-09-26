@@ -2,6 +2,8 @@ use std::error::Error;
 use std::fmt::{self, Display};
 
 use crate::data_transfer::DataTransferId;
+#[allow(unused, reason = "used in docs only")]
+use crate::{cursor::CustomCursorSource, window::WindowType};
 
 /// A general error that may occur while running or creating
 /// the event loop.
