@@ -10,7 +10,7 @@ use tracing::warn;
 
 #[cfg(feature = "sctk-adwaita")]
 use super::create_sctk_adwaita_config;
-use super::{WindowState, WindowType, WinitFrame};
+use super::{MIN_WINDOW_SIZE, WindowState, WindowType, WinitFrame};
 
 impl WindowState {
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
@@ -151,7 +151,11 @@ impl WindowState {
         // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would
         // shrink the window below the allocated area, creating visible gaps between valid
         // windows or screen edges.
-        if (constrain || configure.is_resizing())
+        let was_resizing = matches!(
+            &self.window,
+            WindowType::Window { last_configure: Some(last), .. } if last.is_resizing()
+        );
+        if (constrain || configure.is_resizing() || was_resizing)
             && !configure.is_maximized()
             && !configure.is_fullscreen()
             && !configure.is_tiled()
@@ -161,15 +165,18 @@ impl WindowState {
                 //
                 // This ensures that we can always reach the min size and the increments are
                 // calculated from it.
-                let (delta_width, delta_height) = (
-                    new_size.width.saturating_sub(self.min_surface_size.width),
-                    new_size.height.saturating_sub(self.min_surface_size.height),
+                let increments =
+                    LogicalSize::new(increments.width.max(1), increments.height.max(1));
+                let snap = |size: u32, min: u32, increment: u32, floor: u32| {
+                    let steps = size.saturating_sub(min) / increment;
+                    let floor_steps = floor.saturating_sub(min).div_ceil(increment);
+                    min + steps.max(floor_steps) * increment
+                };
+                let min = self.min_surface_size;
+                let (width, height) = (
+                    snap(new_size.width, min.width, increments.width, MIN_WINDOW_SIZE.width),
+                    snap(new_size.height, min.height, increments.height, MIN_WINDOW_SIZE.height),
                 );
-
-                let width = self.min_surface_size.width
-                    + (delta_width / increments.width) * increments.width;
-                let height = self.min_surface_size.height
-                    + (delta_height / increments.height) * increments.height;
 
                 new_size = (width, height).into();
             }
@@ -189,6 +196,9 @@ impl WindowState {
         let new_state = configure.state;
         if let WindowType::Window { last_configure, .. } = &mut self.window {
             let old_state = last_configure.as_ref().map(|configure| configure.state);
+            let decoration_mode_changed = last_configure
+                .as_ref()
+                .is_some_and(|last| last.decoration_mode != configure.decoration_mode);
 
             let state_change_requires_resize = old_state
                 .map(|old_state| {
@@ -203,7 +213,10 @@ impl WindowState {
             // NOTE: Set the configure before doing a resize, since we query it during it.
             *last_configure = Some(configure);
 
-            if state_change_requires_resize || new_size != self.surface_size() {
+            if state_change_requires_resize
+                || new_size != self.surface_size()
+                || decoration_mode_changed
+            {
                 self.resize(new_size);
                 true
             } else {
