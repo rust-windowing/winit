@@ -16,8 +16,8 @@ use windows_sys::Win32::Foundation::{
     FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
 };
 use windows_sys::Win32::Graphics::Gdi::{
-    GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, MonitorFromWindow,
-    RDW_INTERNALPAINT, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
+    GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, RDW_INTERNALPAINT,
+    RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
 };
 use windows_sys::Win32::System::Ole::RevokeDragDrop;
 use windows_sys::Win32::System::Threading::{
@@ -2765,7 +2765,7 @@ fn apply_win10_dpi_adjustment(
 
     // Check to see if the new window rect is on the monitor with the new DPI factor.
     // If it isn't, offset the window so that it is.
-    let new_dpi_monitor = unsafe { MonitorFromWindow(window, MONITOR_DEFAULTTONULL) };
+    let new_dpi_monitor = unsafe { MonitorFromRect(&suggested_rect, MONITOR_DEFAULTTONULL) };
     let conservative_rect_monitor =
         unsafe { MonitorFromRect(&conservative_rect, MONITOR_DEFAULTTONULL) };
 
