@@ -33,13 +33,13 @@
 //!   [`WindowEvent::PointerLeft`].
 //! - [`Window::set_outer_position()`]
 //!
-//! [`WindowEvent::SurfaceResized`]: crate::event::WindowEvent::SurfaceResized
-//! [`Window::(set_)surface_size()`]: crate::window::Window::surface_size
-//! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
-//! [`WindowEvent::PointerMoved`]: crate::event::WindowEvent::PointerMoved
-//! [`WindowEvent::PointerEntered`]: crate::event::WindowEvent::PointerEntered
-//! [`WindowEvent::PointerLeft`]: crate::event::WindowEvent::PointerLeft
-//! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
+//! [`WindowEvent::SurfaceResized`]: winit_core::event::WindowEvent::SurfaceResized
+//! [`Window::(set_)surface_size()`]: winit_core::window::Window::surface_size
+//! [`WindowEvent::Occluded`]: winit_core::event::WindowEvent::Occluded
+//! [`WindowEvent::PointerMoved`]: winit_core::event::WindowEvent::PointerMoved
+//! [`WindowEvent::PointerEntered`]: winit_core::event::WindowEvent::PointerEntered
+//! [`WindowEvent::PointerLeft`]: winit_core::event::WindowEvent::PointerLeft
+//! [`Window::set_outer_position()`]: winit_core::window::Window::set_outer_position
 
 #![warn(clippy::exhaustive_enums)]
 
@@ -130,7 +130,7 @@ pub trait WindowExtWeb {
     /// This is the same as [`ActiveEventLoopExtWeb::is_cursor_lock_raw()`], and is provided for
     /// convenience.
     ///
-    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
+    /// [`CursorGrabMode::Locked`]: winit_core::window::CursorGrabMode::Locked
     fn is_cursor_lock_raw(&self) -> bool;
 }
 
@@ -242,28 +242,28 @@ pub trait EventLoopExtWeb {
     ///
     /// See [`PollStrategy`].
     ///
-    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    /// [`ControlFlow::Poll`]: winit_core::event_loop::ControlFlow::Poll
     fn set_poll_strategy(&self, strategy: PollStrategy);
 
     /// Gets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
     ///
-    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    /// [`ControlFlow::Poll`]: winit_core::event_loop::ControlFlow::Poll
     fn poll_strategy(&self) -> PollStrategy;
 
     /// Sets the strategy for [`ControlFlow::WaitUntil`].
     ///
     /// See [`WaitUntilStrategy`].
     ///
-    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    /// [`ControlFlow::WaitUntil`]: winit_core::event_loop::ControlFlow::WaitUntil
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy);
 
     /// Gets the strategy for [`ControlFlow::WaitUntil`].
     ///
     /// See [`WaitUntilStrategy`].
     ///
-    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    /// [`ControlFlow::WaitUntil`]: winit_core::event_loop::ControlFlow::WaitUntil
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
 
     /// Returns if the users device has multiple screens. Useful to check before prompting the user
@@ -281,7 +281,7 @@ pub trait EventLoopExtWeb {
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
     ///
-    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    /// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
@@ -289,9 +289,9 @@ pub trait EventLoopExtWeb {
     /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
     /// permission is granted. New [`MonitorHandle`]s have to be created instead.
     ///
-    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    /// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
     ///
-    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    /// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
     fn has_detailed_monitor_permission(&self) -> HasMonitorPermissionFuture;
 }
 
@@ -300,28 +300,28 @@ pub trait ActiveEventLoopExtWeb {
     ///
     /// See [`PollStrategy`].
     ///
-    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    /// [`ControlFlow::Poll`]: winit_core::event_loop::ControlFlow::Poll
     fn set_poll_strategy(&self, strategy: PollStrategy);
 
     /// Gets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
     ///
-    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    /// [`ControlFlow::Poll`]: winit_core::event_loop::ControlFlow::Poll
     fn poll_strategy(&self) -> PollStrategy;
 
     /// Sets the strategy for [`ControlFlow::WaitUntil`].
     ///
     /// See [`WaitUntilStrategy`].
     ///
-    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    /// [`ControlFlow::WaitUntil`]: winit_core::event_loop::ControlFlow::WaitUntil
     fn set_wait_until_strategy(&self, strategy: WaitUntilStrategy);
 
     /// Gets the strategy for [`ControlFlow::WaitUntil`].
     ///
     /// See [`WaitUntilStrategy`].
     ///
-    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    /// [`ControlFlow::WaitUntil`]: winit_core::event_loop::ControlFlow::WaitUntil
     fn wait_until_strategy(&self) -> WaitUntilStrategy;
 
     /// Async version of [`ActiveEventLoop::create_custom_cursor()`] which waits until the
@@ -330,7 +330,7 @@ pub trait ActiveEventLoopExtWeb {
 
     /// Returns whether using [`CursorGrabMode::Locked`] returns raw, un-accelerated mouse input.
     ///
-    /// [`CursorGrabMode::Locked`]: crate::window::CursorGrabMode::Locked
+    /// [`CursorGrabMode::Locked`]: winit_core::window::CursorGrabMode::Locked
     fn is_cursor_lock_raw(&self) -> bool;
 
     /// Returns if the users device has multiple screens. Useful to check before prompting the user
@@ -348,7 +348,7 @@ pub trait ActiveEventLoopExtWeb {
     /// [`MonitorHandle`]s don't automatically make use of this after permission is granted. New
     /// [`MonitorHandle`]s have to be created instead.
     ///
-    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    /// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
     fn request_detailed_monitor_permission(&self) -> MonitorPermissionFuture;
 
     /// Returns whether the user has given permission to access detailed monitor information.
@@ -356,7 +356,7 @@ pub trait ActiveEventLoopExtWeb {
     /// [`MonitorHandle`]s don't automatically make use of detailed monitor information after
     /// permission is granted. New [`MonitorHandle`]s have to be created instead.
     ///
-    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    /// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
     fn has_detailed_monitor_permission(&self) -> bool;
 }
 
@@ -416,7 +416,7 @@ impl ActiveEventLoopExtWeb for dyn ActiveEventLoop + '_ {
     }
 }
 
-/// Strategy used for [`ControlFlow::Poll`][crate::event_loop::ControlFlow::Poll].
+/// Strategy used for [`ControlFlow::Poll`][winit_core::event_loop::ControlFlow::Poll].
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
@@ -444,7 +444,7 @@ pub enum PollStrategy {
     Scheduler,
 }
 
-/// Strategy used for [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil].
+/// Strategy used for [`ControlFlow::WaitUntil`][winit_core::event_loop::ControlFlow::WaitUntil].
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
@@ -555,7 +555,7 @@ impl Future for HasMonitorPermissionFuture {
 
 /// Additional methods on [`MonitorHandle`] that are specific to the Web.
 ///
-/// [`MonitorHandle`]: crate::monitor::MonitorHandle
+/// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
 pub trait MonitorHandleExtWeb {
     /// Returns whether the screen is internal to the device or external.
     ///
@@ -584,7 +584,7 @@ pub trait MonitorHandleExtWeb {
     ///
     /// See [`ActiveEventLoopExtWeb::request_detailed_monitor_permission()`].
     ///
-    /// [`MonitorHandle`]: crate::monitor::MonitorHandle
+    /// [`MonitorHandle`]: winit_core::monitor::MonitorHandle
     fn is_detailed(&self) -> bool;
 }
 
