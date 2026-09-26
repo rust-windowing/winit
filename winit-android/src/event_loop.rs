@@ -248,9 +248,9 @@ impl EventLoop {
                     app.suspended(self.window_target());
                 },
                 MainEvent::Destroy => {
-                    // XXX: maybe exit mainloop to drop things before being
-                    // killed by the OS?
-                    warn!("TODO: forward onDestroy notification to application");
+                    debug!("App Destroyed - exiting event loop");
+                    self.running = false;
+                    self.window_target.exit();
                 },
                 MainEvent::InsetsChanged { .. } => {
                     // XXX: how to forward this state to applications?
