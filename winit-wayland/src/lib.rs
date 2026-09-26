@@ -129,8 +129,7 @@ impl WindowAttributesWayland {
     /// Sets an activation token to use when creating the window.
     ///
     /// The activation token allows the compositor to grant focus to the new window,
-    /// overriding focus-stealing prevention. Obtain a token via
-    /// [`ActiveEventLoop::request_activation_token`].
+    /// overriding focus-stealing prevention.
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);
