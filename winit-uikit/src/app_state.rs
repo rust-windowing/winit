@@ -69,8 +69,8 @@ impl EventWrapper {
 #[must_use = "dropping `AppStateImpl` without inspecting it is probably a bug"]
 enum AppStateImpl {
     Initial,
-    ProcessingEvents { active_control_flow: ControlFlow },
-    ProcessingRedraws { active_control_flow: ControlFlow },
+    ProcessingEvents,
+    ProcessingRedraws,
     Waiting { start: Instant },
     PollFinished,
     Terminated,
@@ -137,8 +137,7 @@ impl AppState {
             AppStateImpl::Initial => {},
             s => bug!("unexpected state {:?}", s),
         }
-        self.state
-            .set(AppStateImpl::ProcessingEvents { active_control_flow: self.control_flow.get() });
+        self.state.set(AppStateImpl::ProcessingEvents);
     }
 
     fn wakeup_transition(&self) -> Option<StartCause> {
@@ -163,53 +162,41 @@ impl AppState {
             s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
         };
 
-        self.state
-            .set(AppStateImpl::ProcessingEvents { active_control_flow: self.control_flow.get() });
+        self.state.set(AppStateImpl::ProcessingEvents);
         Some(start_cause)
     }
 
     fn main_events_cleared_transition(&self) {
-        let active_control_flow = match self.state.get() {
-            AppStateImpl::ProcessingEvents { active_control_flow } => active_control_flow,
+        match self.state.get() {
+            AppStateImpl::ProcessingEvents => {},
             s => bug!("unexpected state {:?}", s),
         };
-        self.state.set(AppStateImpl::ProcessingRedraws { active_control_flow });
+        self.state.set(AppStateImpl::ProcessingRedraws);
     }
 
     fn events_cleared_transition(&self) {
         if !self.has_launched() || self.has_terminated() {
             return;
         }
-        let old = match self.state.get() {
-            AppStateImpl::ProcessingRedraws { active_control_flow } => active_control_flow,
+        match self.state.get() {
+            AppStateImpl::ProcessingRedraws => {},
             s => bug!("unexpected state {:?}", s),
         };
 
-        let new = self.control_flow.get();
-        match (old, new) {
-            (ControlFlow::Wait, ControlFlow::Wait) => {
+        // The waker does not repeat on its own, so it is (re-)armed here on every iteration,
+        // including when the control flow did not change.
+        match self.control_flow.get() {
+            ControlFlow::Wait => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
                 self.waker.stop()
             },
-            (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
-                if old_instant == new_instant =>
-            {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-            },
-            (_, ControlFlow::Wait) => {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                self.waker.stop()
-            },
-            (_, ControlFlow::WaitUntil(new_instant)) => {
+            ControlFlow::WaitUntil(new_instant) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
                 self.waker.start_at(new_instant)
             },
-            // Unlike on macOS, handle Poll to Poll transition here to call the waker
-            (_, ControlFlow::Poll) => {
+            ControlFlow::Poll => {
                 self.state.set(AppStateImpl::PollFinished);
                 self.waker.start()
             },
@@ -218,7 +205,7 @@ impl AppState {
 
     fn terminated_transition(&self) {
         match self.state.replace(AppStateImpl::Terminated) {
-            AppStateImpl::ProcessingEvents { .. } => {},
+            AppStateImpl::ProcessingEvents => {},
             s => bug!("terminated while not processing events {:?}", s),
         }
     }
@@ -239,12 +226,12 @@ impl AppState {
 pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<WinitUIWindow>) {
     let this = AppState::get(mtm);
     match this.state.get() {
-        AppStateImpl::Initial | AppStateImpl::ProcessingEvents { .. } => {
+        AppStateImpl::Initial | AppStateImpl::ProcessingEvents => {
             let mut queued_gpu_redraws = this.queued_gpu_redraws.take();
             let _ = queued_gpu_redraws.insert(window);
             this.queued_gpu_redraws.set(queued_gpu_redraws);
         },
-        s @ AppStateImpl::ProcessingRedraws { .. }
+        s @ AppStateImpl::ProcessingRedraws
         | s @ AppStateImpl::Waiting { .. }
         | s @ AppStateImpl::PollFinished => bug!("unexpected state {:?}", s),
         AppStateImpl::Terminated => {
@@ -305,7 +292,7 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
         return;
     }
 
-    let processing_redraws = matches!(this.state.get(), AppStateImpl::ProcessingRedraws { .. });
+    let processing_redraws = matches!(this.state.get(), AppStateImpl::ProcessingRedraws);
 
     for event in events {
         if !processing_redraws && event.is_redraw() {
@@ -341,7 +328,7 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
 
 fn handle_user_events(mtm: MainThreadMarker) {
     let this = AppState::get(mtm);
-    if matches!(this.state.get(), AppStateImpl::ProcessingRedraws { .. }) {
+    if matches!(this.state.get(), AppStateImpl::ProcessingRedraws) {
         bug!("user events attempted to be sent out while `ProcessingRedraws`");
     }
 
@@ -379,7 +366,7 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
         return;
     }
     match this.state.get() {
-        AppStateImpl::ProcessingEvents { .. } => {},
+        AppStateImpl::ProcessingEvents => {},
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
 
@@ -490,13 +477,22 @@ impl EventLoopWaker {
     fn new(rl: CFRetained<CFRunLoop>) -> EventLoopWaker {
         extern "C-unwind" fn wakeup_main_loop(_timer: *mut CFRunLoopTimer, _info: *mut c_void) {}
         unsafe {
-            // Create a timer with a 0.1µs interval (1ns does not work) to mimic polling.
+            // The timer is a manually re-armed one-shot: `events_cleared_transition` sets the
+            // next fire date on every iteration, so automatic repetition is never relied upon.
+            //
+            // It still has to be created as repeating, since CoreFoundation invalidates
+            // non-repeating timers once they fire. The interval must be huge rather than tiny:
+            // when a repeating timer fires late, CoreFoundation reschedules it by adding the
+            // interval to the old fire date until it passes "now", so a tiny interval makes that
+            // loop take time proportional to how overdue the timer is. iOS freezes backgrounded
+            // apps, so this used to stall the main thread on resume (and trip the watchdog).
+            //
             // It is initially setup with a first fire time really far into the
             // future, but that gets changed to fire immediately in did_finish_launching
             let timer = CFRunLoopTimer::new(
                 None,
                 f64::MAX,
-                0.000_000_1,
+                f64::MAX,
                 0,
                 0,
                 Some(wakeup_main_loop),
