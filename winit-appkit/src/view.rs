@@ -1213,6 +1213,7 @@ impl WinitView {
 
         self.queue_event(WindowEvent::PointerButton {
             device_id: None,
+            event_time: Some(Duration::from_secs_f64(event.timestamp())),
             primary: true,
             state: button_state,
             position,
@@ -1241,6 +1242,7 @@ impl WinitView {
 
         self.queue_event(WindowEvent::PointerMoved {
             device_id: None,
+            event_time: Some(Duration::from_secs_f64(event.timestamp())),
             primary: true,
             position: view_point.to_physical(self.scale_factor()),
             source: PointerSource::Mouse,

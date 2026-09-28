@@ -7,7 +7,7 @@ use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
-use objc2_foundation::{NSObject, NSSet, NSString};
+use objc2_foundation::{NSObject, NSProcessInfo, NSSet, NSString};
 use objc2_ui_kit::{
     UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
     UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
@@ -163,7 +163,8 @@ define_class!(
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let _entered = debug_span!("pinchGesture:").entered();
             let window = self.window().unwrap();
-            let event_time = recognizer.event_time();
+            let event_time =
+                Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -206,9 +207,11 @@ define_class!(
             let window = self.window().unwrap();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
+                let event_time =
+                    Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
                 let gesture_event = EventWrapper::Window {
                     window_id: window.id(),
-                    event: WindowEvent::DoubleTapGesture { device_id: None },
+                    event: WindowEvent::DoubleTapGesture { device_id: None, event_time },
                 };
 
                 let mtm = MainThreadMarker::new().unwrap();
@@ -220,7 +223,8 @@ define_class!(
         fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
             let _entered = debug_span!("rotationGesture:").entered();
             let window = self.window().unwrap();
-            let event_time = recognizer.event_time();
+            let event_time =
+                Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -267,7 +271,8 @@ define_class!(
         fn pan_gesture(&self, recognizer: &UIPanGestureRecognizer) {
             let _entered = debug_span!("panGesture:").entered();
             let window = self.window().unwrap();
-            let event_time = recognizer.event_time();
+            let event_time =
+                Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
 
             let translation = recognizer.translationInView(Some(self));
 

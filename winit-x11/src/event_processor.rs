@@ -1101,7 +1101,12 @@ impl EventProcessor {
         }
 
         let position = PhysicalPosition::new(event.event_x, event.event_y);
-        let event_time = Some(Duration::from_millis(event.time));
+        #[expect(
+            clippy::unnecessary_cast,
+            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                      64-bit on others"
+        )]
+        let event_time = Some(Duration::from_millis(event.time as u64));
 
         let event = match event.detail as u32 {
             xlib::Button1 => WindowEvent::PointerButton {
@@ -1196,7 +1201,12 @@ impl EventProcessor {
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
-        let event_time = Some(Duration::from_millis(event.time));
+        #[expect(
+            clippy::unnecessary_cast,
+            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                      64-bit on others."
+        )]
+        let event_time = Some(Duration::from_millis(event.time as u64));
 
         let cursor_moved = self.with_window(window, |window| {
             let mut shared_state_lock = window.shared_state_lock();
@@ -1296,10 +1306,16 @@ impl EventProcessor {
         if self.window_exists(window) {
             let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
+            #[expect(
+                clippy::unnecessary_cast,
+                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                          64-bit on others."
+            )]
+            let event_time = Some(Duration::from_millis(event.time as u64));
 
             let event = WindowEvent::PointerEntered {
                 device_id,
-                event_time: Some(Duration::from_millis(event.time)),
+                event_time,
                 primary: true,
                 position,
                 kind: PointerKind::Mouse,
@@ -1318,9 +1334,15 @@ impl EventProcessor {
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
             let window_id = mkwid(window);
+            #[expect(
+                clippy::unnecessary_cast,
+                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                          64-bit on others."
+            )]
+            let event_time = Some(Duration::from_millis(event.time as u64));
             let event = WindowEvent::PointerLeft {
                 device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
-                event_time: Some(Duration::from_millis(event.time)),
+                event_time,
                 primary: true,
                 position: Some(PhysicalPosition::new(event.event_x, event.event_y)),
                 kind: PointerKind::Mouse,
@@ -1375,9 +1397,16 @@ impl EventProcessor {
             .get(&mkdid(xev.deviceid as xinput::DeviceId))
             .map(|device| mkdid(device.attachment as xinput::DeviceId));
 
+        #[expect(
+            clippy::unnecessary_cast,
+            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                      64-bit on others."
+        )]
+        let event_time = Some(Duration::from_millis(xev.time as u64));
+
         let event = WindowEvent::PointerMoved {
             device_id,
-            event_time: Some(Duration::from_millis(xev.time)),
+            event_time,
             primary: true,
             position,
             source: PointerSource::Mouse,
@@ -1442,7 +1471,12 @@ impl EventProcessor {
             let window_id = mkwid(window);
             let id = xev.detail as u32;
             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
-            let event_time = Some(Duration::from_millis(xev.time));
+            #[expect(
+                clippy::unnecessary_cast,
+                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                          64-bit on others."
+            )]
+            let event_time = Some(Duration::from_millis(xev.time as u64));
 
             // Mouse cursor position changes when touch events are received.
             // Only the first concurrently active touch ID moves the mouse cursor.

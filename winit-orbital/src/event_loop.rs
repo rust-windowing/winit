@@ -442,6 +442,7 @@ impl EventLoop {
                 event_state.mouse_pos = (x, y);
                 app.window_event(window_target, window_id, event::WindowEvent::PointerMoved {
                     device_id: None,
+                    event_time: None,
                     primary: true,
                     position: event_state.mouse_pos.into(),
                     source: event::PointerSource::Mouse,
@@ -457,6 +458,7 @@ impl EventLoop {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
                     app.window_event(window_target, window_id, event::WindowEvent::PointerButton {
                         device_id: None,
+                        event_time: None,
                         primary: true,
                         state,
                         position: event_state.mouse_pos.into(),
@@ -468,6 +470,7 @@ impl EventLoop {
             EventOption::Scroll(ScrollEvent { x, y }) => {
                 app.window_event(window_target, window_id, event::WindowEvent::MouseWheel {
                     device_id: None,
+                    event_time: None,
                     delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                     phase: event::TouchPhase::Moved,
                 });
@@ -500,6 +503,7 @@ impl EventLoop {
                 let event = if entered {
                     event::WindowEvent::PointerEntered {
                         device_id: None,
+                        event_time: None,
                         primary: true,
                         position: dpi::PhysicalPosition::default(),
                         kind: event::PointerKind::Mouse,
@@ -507,6 +511,7 @@ impl EventLoop {
                 } else {
                     event::WindowEvent::PointerLeft {
                         device_id: None,
+                        event_time: None,
                         primary: true,
                         position: None,
                         kind: event::PointerKind::Mouse,
