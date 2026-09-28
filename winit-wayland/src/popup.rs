@@ -64,7 +64,7 @@ impl Popup {
         } = attributes.positioner.unwrap_or_default();
         let grab_keyboard = attributes.active;
 
-        let mut parent_window_state = parent_window_state.lock().unwrap();
+        let parent_window_state = parent_window_state.lock().unwrap();
 
         // Use the scale factor and xdg geometry of the parent.
         let scale_factor = parent_window_state.scale_factor();
