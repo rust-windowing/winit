@@ -1101,7 +1101,7 @@ impl EventProcessor {
         }
 
         let position = PhysicalPosition::new(event.event_x, event.event_y);
-        #[expect(
+        #[allow(
             clippy::unnecessary_cast,
             reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
                       64-bit on others"
@@ -1201,7 +1201,7 @@ impl EventProcessor {
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
-        #[expect(
+        #[allow(
             clippy::unnecessary_cast,
             reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
                       64-bit on others."
@@ -1306,7 +1306,7 @@ impl EventProcessor {
         if self.window_exists(window) {
             let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
-            #[expect(
+            #[allow(
                 clippy::unnecessary_cast,
                 reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
                           64-bit on others."
@@ -1334,7 +1334,7 @@ impl EventProcessor {
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
             let window_id = mkwid(window);
-            #[expect(
+            #[allow(
                 clippy::unnecessary_cast,
                 reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
                           64-bit on others."
@@ -1397,7 +1397,7 @@ impl EventProcessor {
             .get(&mkdid(xev.deviceid as xinput::DeviceId))
             .map(|device| mkdid(device.attachment as xinput::DeviceId));
 
-        #[expect(
+        #[allow(
             clippy::unnecessary_cast,
             reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
                       64-bit on others."
@@ -1471,7 +1471,7 @@ impl EventProcessor {
             let window_id = mkwid(window);
             let id = xev.detail as u32;
             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
-            #[expect(
+            #[allow(
                 clippy::unnecessary_cast,
                 reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
                           64-bit on others."
