@@ -168,8 +168,6 @@ pub struct WindowAttributes {
     /// The initial position of the window in screen coordinates.
     ///
     /// For popups, this position is relative to the parent window.
-    ///
-    /// **Wayland:** See `WindowAttributesWayland` for more options to position a popup.
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
@@ -198,7 +196,7 @@ pub struct WindowAttributes {
     pub window_type: WindowType,
     /// See [`WindowAttributes::with_positioner`].
     pub positioner: Option<WindowPositioner>,
-    pub modal: Option<bool>,
+    pub modal: bool,
 }
 
 impl WindowAttributes {
@@ -572,7 +570,7 @@ impl WindowAttributes {
     ///   implemented.
     #[inline]
     pub fn with_modal(mut self, modal: bool) -> Self {
-        self.modal = Some(modal);
+        self.modal = modal;
         self
     }
 }

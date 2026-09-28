@@ -1463,8 +1463,8 @@ impl InitData<'_> {
 
         // If this is a modal dialog, disable its owner window; it's re-enabled when this
         // `Window` is dropped.
-        let is_modal = matches!(self.attributes.window_type, WindowType::Dialog)
-            && self.attributes.modal.unwrap_or(false);
+        let is_modal =
+            matches!(self.attributes.window_type, WindowType::Dialog) && self.attributes.modal;
         let owner = is_modal
             .then(|| self.attributes.parent_window())
             .flatten()

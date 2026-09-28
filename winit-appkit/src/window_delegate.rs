@@ -952,7 +952,7 @@ impl WindowDelegate {
         let is_popup = matches!(window_type, WindowType::Popup);
         let is_dialog = matches!(window_type, WindowType::Dialog);
         // A modal dialog is presented as a sheet on its parent, which AppKit places itself.
-        let is_modal = is_dialog && attrs.modal.unwrap_or(false);
+        let is_modal = is_dialog && attrs.modal;
         let auto_placed = is_popup || attrs.positioner.is_some();
         let anchored = auto_placed || (is_dialog && !is_modal);
         if is_dialog {

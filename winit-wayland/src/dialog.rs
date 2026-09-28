@@ -30,7 +30,7 @@ impl Dialog {
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
     ) -> Result<Self, CreateWindowError> {
-        let modal = attributes.modal.unwrap_or(false);
+        let modal = attributes.modal;
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
         let monitors = state.monitors.clone();
