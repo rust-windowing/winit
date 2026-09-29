@@ -60,6 +60,7 @@ objc2-ui-kit = { workspace = true, features = [
     "UIPinchGestureRecognizer",
     "UIResponder",
     "UIRotationGestureRecognizer",
+    "UIScene",
     "UIScreen",
     "UIScreenMode",
     "UITapGestureRecognizer",
