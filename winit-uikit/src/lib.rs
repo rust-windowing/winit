@@ -89,6 +89,33 @@
 //!
 //! Note that an app may not receive the `Drop` event if suspended; it might be SIGKILL'ed.
 //!
+//! ## Scenes
+//!
+//! Apps built with the iOS 27 SDK must adopt [the UIScene lifecycle][scenes] by declaring a scene
+//! configuration in `Info.plist`. No scene delegate is needed:
+//!
+//! ```xml
+//! <key>UIApplicationSceneManifest</key>
+//! <dict>
+//!     <key>UIApplicationSupportsMultipleScenes</key>
+//!     <false/>
+//!     <key>UISceneConfigurations</key>
+//!     <dict>
+//!         <key>UIWindowSceneSessionRoleApplication</key>
+//!         <array>
+//!             <dict>
+//!                 <key>UISceneConfigurationName</key>
+//!                 <string>Default Configuration</string>
+//!             </dict>
+//!         </array>
+//!     </dict>
+//! </dict>
+//! ```
+//!
+//! Winit shows its windows in the first scene that connects; multiple scenes are not supported.
+//!
+//! [scenes]: https://developer.apple.com/documentation/uikit/specifying-the-scenes-your-app-supports
+//!
 //! ## Custom `UIApplicationDelegate`
 //!
 //! Winit usually handles everything related to the lifecycle events of the application. Sometimes,
