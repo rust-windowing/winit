@@ -82,7 +82,7 @@ impl Window {
         let window =
             state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
 
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
+        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, csd_fallback } =
             *attributes
                 .platform
                 .take()
@@ -106,6 +106,7 @@ impl Window {
             state::WindowType::Window { window: window.clone(), last_configure: None },
             attributes.preferred_theme,
             prefer_csd,
+            csd_fallback,
             scale_factor,
             None,
         );

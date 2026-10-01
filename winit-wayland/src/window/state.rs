@@ -137,6 +137,10 @@ pub struct WindowState {
     /// Whether we should tell the compositor that we prefer drawing decorations ourself.
     prefer_csd: bool,
 
+    /// Whether to draw a client-side decoration frame when the compositor
+    /// declines server-side decoration.
+    csd_fallback: bool,
+
     /// Min size.
     min_surface_size: LogicalSize<u32>,
     max_surface_size: Option<LogicalSize<u32>>,
@@ -191,6 +195,7 @@ impl WindowState {
         window: WindowType,
         theme: Option<Theme>,
         prefer_csd: bool,
+        csd_fallback: bool,
         scale_factor: f64,
         parent: Option<WindowId>,
     ) -> Self {
@@ -225,6 +230,7 @@ impl WindowState {
             cursor_visible: true,
             decorate: true,
             prefer_csd,
+            csd_fallback,
             fractional_scale,
             frame: None,
             frame_callback_state: FrameCallbackState::None,
