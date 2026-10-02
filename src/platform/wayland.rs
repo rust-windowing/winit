@@ -16,6 +16,8 @@
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
+use std::sync::{Arc, Weak};
+use std::{fmt, io};
 
 use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
@@ -27,12 +29,75 @@ pub use crate::window::Theme;
 pub trait ActiveEventLoopExtWayland {
     /// True if the [`ActiveEventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
+
+    /// The clipboard of this event loop, or [`None`] if it doesn't use Wayland.
+    fn clipboard(&self) -> Option<Clipboard>;
 }
 
 impl ActiveEventLoopExtWayland for ActiveEventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()
+    }
+
+    fn clipboard(&self) -> Option<Clipboard> {
+        #[allow(clippy::single_match)]
+        match &self.p {
+            crate::platform_impl::ActiveEventLoop::Wayland(event_loop) => {
+                Some(Clipboard { state: Arc::downgrade(&event_loop.state.borrow().clipboard) })
+            },
+            #[cfg(x11_platform)]
+            _ => None,
+        }
+    }
+}
+
+/// The clipboard of a Wayland event loop.
+///
+/// It goes through the `wl_data_device` winit binds for each seat to receive file drops, so a
+/// toolkit should use it instead of binding a data device of its own: some compositors, such as
+/// Hyprland, send the selection and drags to only one data device of a client.
+///
+/// It can be used from any thread. Reading another client's selection waits for that client to
+/// send it, without dispatching the event loop, and gives up after two seconds of silence.
+/// Reading our own selection returns it directly. A clipboard outliving its event loop reports
+/// errors.
+#[derive(Clone)]
+pub struct Clipboard {
+    state: Weak<crate::platform_impl::wayland::ClipboardState>,
+}
+
+impl Clipboard {
+    /// The clipboard of the winit event loop connected through `display`, a `wl_display`
+    /// pointer such as the one in its `WaylandDisplayHandle`, if that event loop still exists.
+    pub fn for_display(display: NonNull<c_void>) -> Option<Self> {
+        crate::platform_impl::wayland::ClipboardState::for_display(display.as_ptr())
+            .map(|state| Self { state: Arc::downgrade(&state) })
+    }
+
+    /// The text on the clipboard of the seat the application last received input from.
+    pub fn load_text(&self) -> io::Result<String> {
+        self.state()?.load_text()
+    }
+
+    /// Puts `text` on the clipboard of the seat the application last received input from.
+    ///
+    /// The compositor accepts it only in response to input, so call this while handling the
+    /// keyboard or pointer event that asked for the copy.
+    pub fn store_text(&self, text: impl Into<String>) -> io::Result<()> {
+        self.state()?.store_text(text.into())
+    }
+
+    fn state(&self) -> io::Result<Arc<crate::platform_impl::wayland::ClipboardState>> {
+        self.state
+            .upgrade()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotConnected, "the event loop has ended"))
+    }
+}
+
+impl fmt::Debug for Clipboard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Clipboard").finish_non_exhaustive()
     }
 }
 

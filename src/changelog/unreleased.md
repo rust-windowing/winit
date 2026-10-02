@@ -44,3 +44,6 @@ changelog entry.
 
 - On Wayland, report `HoveredFile`, `HoveredFileCancelled` and `DroppedFile` for files dragged
   onto a window, through a `wl_data_device` bound for each seat.
+- On Wayland, add `ActiveEventLoopExtWayland::clipboard` and `platform::wayland::Clipboard`, which
+  read and write text on the clipboard through winit's data device, so toolkits don't need to bind
+  a second one.

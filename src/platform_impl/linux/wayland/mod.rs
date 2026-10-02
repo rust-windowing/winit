@@ -10,10 +10,12 @@ use sctk::reexports::client::{self, ConnectError, DispatchError, Proxy};
 pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
 pub use crate::platform_impl::platform::{OsError, WindowId};
+pub use clipboard::ClipboardState;
 pub use event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
 pub use output::{MonitorHandle, VideoModeHandle};
 pub use window::Window;
 
+mod clipboard;
 mod event_loop;
 mod output;
 mod seat;
