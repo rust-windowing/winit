@@ -5,7 +5,8 @@ use std::sync::Arc;
 use dispatch2::MainThreadBound;
 use dpi::{Position, Size};
 use objc2::rc::{Retained, autoreleasepool};
-use objc2::{MainThreadMarker, Message, define_class};
+use objc2::runtime::AnyClass;
+use objc2::{MainThreadMarker, Message, define_class, msg_send};
 use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
 use objc2_foundation::NSObject;
 use tracing::trace_span;
@@ -85,7 +86,27 @@ impl Drop for Window {
             self.set_fullscreen(None);
         }
 
-        self.window.get_on_main(|window| autoreleasepool(|_| window.close()))
+        self.window.get_on_main(|window| {
+            autoreleasepool(|_| {
+                // Take the view out of the responder chain while it still exists. AppKit's
+                // Touch Bar machinery observes the window's responder chain, and on Touch Bar
+                // Macs it otherwise tries to stop observing the view during the next display
+                // cycle, after closing has already unregistered it, and throws an
+                // NSRangeException from that flush.
+                let _ = window.makeFirstResponder(None);
+
+                // Order the window out and commit that to the screen now, so that the window
+                // disappears even if something later in the display cycle throws and cuts the
+                // Core Animation transaction short (which left the closed window on screen).
+                window.orderOut(None);
+                if let Some(transaction) = AnyClass::get(c"CATransaction") {
+                    // SAFETY: `+[CATransaction flush]` takes no arguments and returns void.
+                    let _: () = unsafe { msg_send![transaction, flush] };
+                }
+
+                window.close()
+            })
+        })
     }
 }
 
