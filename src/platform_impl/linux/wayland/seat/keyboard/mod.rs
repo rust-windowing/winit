@@ -61,8 +61,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     warn!("unknown keymap format 0x{:x}", value)
                 },
             },
-            WlKeyboardEvent::Enter { surface, .. } => {
+            WlKeyboardEvent::Enter { surface, serial, .. } => {
                 let window_id = wayland::make_wid(&surface);
+                state.clipboard.note_input(&data.seat.id(), serial);
 
                 // Mark the window as focused.
                 let was_unfocused = match state.windows.get_mut().get(&window_id) {
@@ -131,7 +132,10 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { key, state: WEnum::Value(WlKeyState::Pressed), .. } => {
+            WlKeyboardEvent::Key {
+                key, serial, state: WEnum::Value(WlKeyState::Pressed), ..
+            } => {
+                state.clipboard.note_input(&data.seat.id(), serial);
                 let key = key + 8;
 
                 key_input(

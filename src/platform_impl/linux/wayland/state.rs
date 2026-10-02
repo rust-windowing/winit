@@ -24,6 +24,7 @@ use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
+use crate::platform_impl::wayland::clipboard::ClipboardState;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::output::MonitorHandle;
 use crate::platform_impl::wayland::seat::{
@@ -55,8 +56,12 @@ pub struct WinitState {
     /// The seat state responsible for all sorts of input.
     pub seat_state: SeatState,
 
-    /// The data device manager, which gives each seat a data device for file drags.
+    /// The data device manager, which gives each seat a data device for file drags and the
+    /// clipboard.
     pub data_device_manager_state: Option<DataDeviceManagerState>,
+
+    /// The clipboard, which shares each seat's data device with file drags.
+    pub clipboard: Arc<ClipboardState>,
 
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
@@ -123,6 +128,7 @@ pub struct WinitState {
 
 impl WinitState {
     pub fn new(
+        connection: &Connection,
         globals: &GlobalList,
         queue_handle: &QueueHandle<Self>,
         loop_handle: LoopHandle<'static, WinitState>,
@@ -150,16 +156,28 @@ impl WinitState {
         let data_device_manager_state = match DataDeviceManagerState::bind(globals, queue_handle) {
             Ok(manager) => Some(manager),
             Err(e) => {
-                tracing::warn!("Data device manager not available, ignoring file drops: {e:?}");
+                tracing::warn!(
+                    "Data device manager not available, ignoring file drops and the clipboard: \
+                     {e:?}"
+                );
                 None
             },
         };
+
+        let clipboard = ClipboardState::new(
+            connection,
+            queue_handle,
+            data_device_manager_state.as_ref().map(|manager| manager.data_device_manager().clone()),
+        );
 
         let mut seats = AHashMap::default();
         for seat in seat_state.seats() {
             let data_device = data_device_manager_state
                 .as_ref()
                 .map(|manager| manager.get_data_device(queue_handle, &seat));
+            if let Some(data_device) = &data_device {
+                clipboard.add_seat(seat.id(), data_device.inner().clone());
+            }
             seats.insert(seat.id(), WinitSeatState::new(data_device));
         }
 
@@ -180,6 +198,7 @@ impl WinitState {
             output_state,
             seat_state,
             data_device_manager_state,
+            clipboard,
             shm,
             custom_cursor_pool,
 

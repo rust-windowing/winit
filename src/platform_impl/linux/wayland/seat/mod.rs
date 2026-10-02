@@ -217,6 +217,9 @@ impl SeatHandler for WinitState {
             .data_device_manager_state
             .as_ref()
             .map(|manager| manager.get_data_device(queue_handle, &seat));
+        if let Some(data_device) = &data_device {
+            self.clipboard.add_seat(seat.id(), data_device.inner().clone());
+        }
         self.seats.insert(seat.id(), WinitSeatState::new(data_device));
     }
 
@@ -227,6 +230,7 @@ impl SeatHandler for WinitState {
         seat: WlSeat,
     ) {
         self.cancel_file_drag(&seat.id());
+        self.clipboard.remove_seat(&seat.id());
         let _ = self.seats.remove(&seat.id());
         self.on_keyboard_destroy(&seat.id());
     }

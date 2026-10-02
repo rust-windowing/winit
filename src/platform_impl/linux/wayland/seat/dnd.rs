@@ -229,6 +229,7 @@ impl DataDeviceHandler for WinitState {
         }
     }
 
+    // The clipboard reads the device's current selection when asked.
     fn selection(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataDevice) {}
 
     fn drop_performed(
@@ -281,7 +282,7 @@ impl DataOfferHandler for WinitState {
     }
 }
 
-// Winit never offers data, but the data device manager handles sources too.
+// Winit offers data only for the clipboard.
 impl DataSourceHandler for WinitState {
     fn accept_mime(
         &mut self,
@@ -296,13 +297,16 @@ impl DataSourceHandler for WinitState {
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        _: &WlDataSource,
-        _: String,
-        _: sctk::data_device_manager::WritePipe,
+        source: &WlDataSource,
+        mime: String,
+        pipe: sctk::data_device_manager::WritePipe,
     ) {
+        self.clipboard.send(source, &mime, pipe);
     }
 
-    fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {}
+    fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, source: &WlDataSource) {
+        self.clipboard.source_cancelled(source);
+    }
 
     fn dnd_dropped(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlDataSource) {}
 
@@ -377,10 +381,10 @@ mod tests {
 
     #[test]
     fn reads_file_uris() {
-        assert_eq!(
-            paths("file:///home/me/a.txt\r\nfile:///tmp/b%20c.png\r\n"),
-            [PathBuf::from("/home/me/a.txt"), PathBuf::from("/tmp/b c.png")]
-        );
+        assert_eq!(paths("file:///home/me/a.txt\r\nfile:///tmp/b%20c.png\r\n"), [
+            PathBuf::from("/home/me/a.txt"),
+            PathBuf::from("/tmp/b c.png")
+        ]);
     }
 
     #[test]
@@ -398,10 +402,10 @@ mod tests {
 
     #[test]
     fn accepts_localhost_and_skips_other_hosts() {
-        assert_eq!(
-            paths("file://localhost/a\r\nfile://LOCALHOST/b\r\nfile://elsewhere/c\r\n"),
-            [PathBuf::from("/a"), PathBuf::from("/b")]
-        );
+        assert_eq!(paths("file://localhost/a\r\nfile://LOCALHOST/b\r\nfile://elsewhere/c\r\n"), [
+            PathBuf::from("/a"),
+            PathBuf::from("/b")
+        ]);
     }
 
     #[test]
