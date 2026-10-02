@@ -85,6 +85,7 @@ impl EventProcessor {
         self.process_xevent(xev, app);
 
         // Handle IME requests.
+        let mut ime_focus = None;
         while let Ok(request) = self.ime_receiver.try_recv() {
             let ime = match self.target.ime.as_mut() {
                 Some(ime) => ime,
@@ -97,15 +98,23 @@ impl EventProcessor {
                     ime.send_xim_area(window_id, x, y, w, h);
                 },
                 ImeRequest::Allow(window_id, allowed) => {
-                    if let Ok(true) = ime.set_ime_allowed(window_id, allowed) {
-                        // Replacing the context does not generate a window focus event.
-                        // Transfer focus to the new context if its window is still focused.
-                        if self.active_window == Some(window_id as xproto::Window) {
-                            let _ = ime.focus(window_id);
+                    let result = ime.set_ime_allowed(window_id, allowed);
+                    if self.active_window == Some(window_id as xproto::Window) {
+                        match result {
+                            Ok(true) => ime_focus = Some(window_id),
+                            Err(_) => ime_focus = None,
+                            Ok(false) => {},
                         }
                     }
                 },
             }
+        }
+
+        // Replacing the context does not generate a window focus event. Transfer
+        // focus after draining requests, so contexts replaced again in this batch
+        // do not activate the input method unnecessarily.
+        if let (Some(window_id), Some(ime)) = (ime_focus, self.target.ime.as_mut()) {
+            let _ = ime.get_mut().focus(window_id);
         }
 
         // Drain IME events.
