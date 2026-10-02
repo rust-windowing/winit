@@ -46,6 +46,9 @@ changelog entry.
 - On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 
+- On X11, preserve input context focus when enabling or disabling IME on a
+  focused window.
+
 ### Changed
 
 - Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,

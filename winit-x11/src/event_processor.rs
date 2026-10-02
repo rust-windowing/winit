@@ -97,7 +97,13 @@ impl EventProcessor {
                     ime.send_xim_area(window_id, x, y, w, h);
                 },
                 ImeRequest::Allow(window_id, allowed) => {
-                    ime.set_ime_allowed(window_id, allowed);
+                    if let Ok(true) = ime.set_ime_allowed(window_id, allowed) {
+                        // Replacing the context does not generate a window focus event.
+                        // Transfer focus to the new context if its window is still focused.
+                        if self.active_window == Some(window_id as xproto::Window) {
+                            let _ = ime.focus(window_id);
+                        }
+                    }
                 },
             }
         }
