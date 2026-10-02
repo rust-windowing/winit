@@ -67,6 +67,7 @@ wayland = [
     "sctk",
     "ahash",
     "memmap2",
+    "percent-encoding",
 ]
 wayland-dlopen = ["wayland-backend/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
