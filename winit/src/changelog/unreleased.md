@@ -45,6 +45,7 @@ changelog entry.
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
 - On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
+- On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
 
 ### Changed
 
