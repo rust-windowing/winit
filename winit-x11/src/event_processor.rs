@@ -576,14 +576,14 @@ impl EventProcessor {
                     dnd.send_finished(window, source_window)
                         .expect("Failed to send `XdndFinished` message.");
                 }
+                dnd.reset_state();
             }
 
             return;
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
-            let dnd = self.target.dnd.borrow();
-            let Some(state) = dnd.state() else {
+            let Some(state) = self.target.dnd.borrow_mut().reset_state() else {
                 return;
             };
             app.window_event(&self.target, window_id, WindowEvent::DragLeft {
@@ -670,7 +670,7 @@ impl EventProcessor {
             value,
         });
 
-        let dnd = self.target.dnd.borrow();
+        let mut dnd = self.target.dnd.borrow_mut();
 
         // If we have another fetch pending, request it from the drag source window
         if let Some((window, type_)) = dnd.state().and_then(|state| {
@@ -688,6 +688,7 @@ impl EventProcessor {
                 dnd.send_finished(this_window, target_window)
                     .expect("Failed to send `XdndFinished` message.");
             }
+            dnd.reset_state();
         }
     }
 
