@@ -95,8 +95,9 @@ impl<T: 'static> EventLoop<T> {
         let event_loop =
             map_err!(calloop::EventLoop::<WinitState>::try_new(), WaylandError::Calloop)?;
 
-        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
-            .map_err(|error| os_error!(error))?;
+        let mut winit_state =
+            WinitState::new(&connection, &globals, &queue_handle, event_loop.handle())
+                .map_err(|error| os_error!(error))?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
