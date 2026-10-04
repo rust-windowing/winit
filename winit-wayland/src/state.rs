@@ -6,6 +6,7 @@ use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
 use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::output::{OutputHandler, OutputState};
+use sctk::primary_selection::PrimarySelectionManagerState;
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::globals::GlobalList;
@@ -120,6 +121,9 @@ pub struct WinitState {
     /// Data device manager state on the given window.
     pub data_device_manager_state: Option<DataDeviceManagerState>,
 
+    /// Primary selection manager state.
+    pub primary_selection_manager_state: Option<PrimarySelectionManagerState>,
+
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
@@ -189,6 +193,9 @@ impl WinitState {
             },
         };
 
+        let primary_selection_manager_state =
+            PrimarySelectionManagerState::bind(globals, queue_handle).ok();
+
         let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
@@ -213,6 +220,7 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             data_device_manager_state,
+            primary_selection_manager_state,
             fractional_scaling_manager,
             blur_manager: BgrEffectManager::new(globals, queue_handle).ok(),
 

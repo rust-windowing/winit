@@ -15,13 +15,20 @@ use rustix::pipe::{self, PipeFlags};
 use sctk::compositor::Surface;
 use sctk::data_device_manager::data_device::{DataDeviceData, DataDeviceHandler};
 use sctk::data_device_manager::data_offer::{
-    DataOfferHandler, DragOffer, SelectionOffer, receive_to_fd,
+    DataOfferHandler, DragOffer, SelectionOffer as ClipboardOffer, receive_to_fd,
 };
 use sctk::data_device_manager::data_source::{
     CopyPasteSource, DataSourceHandler, DragSource as SctkDragSource,
 };
 use sctk::data_device_manager::{ReadPipe, WritePipe};
+use sctk::primary_selection::device::{PrimarySelectionDeviceData, PrimarySelectionDeviceHandler};
+use sctk::primary_selection::offer::PrimarySelectionOffer;
+use sctk::primary_selection::selection::{
+    PrimarySelectionSource as SctkPrimarySelectionSource, PrimarySelectionSourceHandler,
+};
 use sctk::reexports::client::backend::ObjectId;
+use sctk::reexports::protocols::wp::primary_selection::zv1::client::zwp_primary_selection_device_v1::ZwpPrimarySelectionDeviceV1;
+use sctk::reexports::protocols::wp::primary_selection::zv1::client::zwp_primary_selection_source_v1::ZwpPrimarySelectionSourceV1;
 use sctk::shell::WaylandSurface;
 use wayland_client::protocol::wl_data_device::WlDataDevice;
 use wayland_client::protocol::wl_data_device_manager::DndAction as WlDndAction;
@@ -427,8 +434,10 @@ impl Session<'_> {
 pub struct DataTransferState {
     drags: HashMap<ObjectId, DragSession>,
     clipboards: HashMap<ObjectId, ClipboardSession>,
+    primary_selections: HashMap<ObjectId, ClipboardSession>,
     send_drag: Option<DragSource>,
     send_clipboard: Option<ClipboardSource>,
+    send_primary_selection: Option<PrimarySelectionSource>,
     clipboard_serial: u32,
 }
 
@@ -440,6 +449,7 @@ impl DataTransferState {
 
         self.clipboards
             .values_mut()
+            .chain(self.primary_selections.values_mut())
             .find(|clipboard| clipboard.data.transfer_id() == id)
             .map(Session::Clipboard)
     }
@@ -559,37 +569,8 @@ where
     out
 }
 
-impl DataSourceHandler for WinitState {
-    fn accept_mime(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        _: &WlDataSource,
-        _: Option<String>,
-    ) {
-        // This method isn't a necessary part of the protocol, it's a holdover from the first
-        // version of DnD in Wayland and now just serves as a hint.
-    }
-
-    fn send_request(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        source: &WlDataSource,
-        mime: String,
-        fd: WritePipe,
-    ) {
-        let Some(data) = self.data_transfer_state.send_data_mut(source) else {
-            // TODO: Is there a way to explicitly express that the data was not sent?
-            return;
-        };
-
-        let mime = MimeType::parse(mime);
-
-        let Some(send_data) = data.data_for_type(&mime) else {
-            return;
-        };
-
+impl WinitState {
+    fn write_send_data(&self, mime: MimeType, send_data: SendData, fd: WritePipe) {
         let mut encoder = match send_data {
             SendData::Uris(strings) => Cursor::new(encode_uri_list(strings)),
             SendData::String(str) => match mime.parse_charset() {
@@ -627,6 +608,41 @@ impl DataSourceHandler for WinitState {
                 }
             }
         });
+    }
+}
+
+impl DataSourceHandler for WinitState {
+    fn accept_mime(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &WlDataSource,
+        _: Option<String>,
+    ) {
+        // This method isn't a necessary part of the protocol, it's a holdover from the first
+        // version of DnD in Wayland and now just serves as a hint.
+    }
+
+    fn send_request(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        source: &WlDataSource,
+        mime: String,
+        fd: WritePipe,
+    ) {
+        let Some(data) = self.data_transfer_state.send_data_mut(source) else {
+            // TODO: Is there a way to explicitly express that the data was not sent?
+            return;
+        };
+
+        let mime = MimeType::parse(mime);
+
+        let Some(send_data) = data.data_for_type(&mime) else {
+            return;
+        };
+
+        self.write_send_data(mime, send_data, fd);
     }
 
     fn cancelled(&mut self, _: &Connection, _: &QueueHandle<Self>, source: &WlDataSource) {
@@ -686,6 +702,21 @@ impl DataSourceHandler for WinitState {
 }
 
 #[derive(Debug)]
+enum SelectionOffer {
+    Clipboard(ClipboardOffer),
+    Primary(PrimarySelectionOffer),
+}
+
+impl SelectionOffer {
+    fn receive_to_fd(&self, mime_type: String, writefd: OwnedFd) {
+        match self {
+            Self::Clipboard(offer) => receive_to_fd(offer.inner(), mime_type, writefd),
+            Self::Primary(offer) => offer.receive_to_fd(mime_type, writefd),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct ClipboardSession {
     offer: SelectionOffer,
     data: DataOffer,
@@ -695,7 +726,7 @@ struct ClipboardSession {
 
 impl ClipboardSession {
     fn start_fetch(&mut self, mime_type: String, writefd: OwnedFd, serial: AsyncRequestSerial) {
-        receive_to_fd(self.offer.inner(), mime_type, writefd);
+        self.offer.receive_to_fd(mime_type, writefd);
         self.fetches.insert(serial);
     }
 }
@@ -706,9 +737,19 @@ struct ClipboardSource {
     data: Box<dyn DataTransferSend>,
 }
 
+#[derive(Debug)]
+struct PrimarySelectionSource {
+    data_source: SctkPrimarySelectionSource,
+    data: Box<dyn DataTransferSend>,
+}
+
 impl DataTransferState {
     fn clipboard_id(&self) -> Option<DataTransferId> {
         self.clipboards.values().next().map(|clipboard| clipboard.data.transfer_id())
+    }
+
+    fn primary_selection_id(&self) -> Option<DataTransferId> {
+        self.primary_selections.values().next().map(|primary| primary.data.transfer_id())
     }
 }
 
@@ -750,6 +791,47 @@ impl WinitState {
 
         self.data_transfer_state.send_clipboard =
             Some(ClipboardSource { data_source, data: send_data });
+
+        Ok(())
+    }
+
+    pub(crate) fn primary_selection(&self) -> Result<Option<DataTransferId>, TransferError> {
+        self.primary_selection_manager_state.as_ref().ok_or(NotSupportedError::new(
+            "Tried to read the primary selection, but it is not supported",
+        ))?;
+
+        Ok(self.data_transfer_state.primary_selection_id())
+    }
+
+    pub(crate) fn set_primary_selection(
+        &mut self,
+        queue_handle: &QueueHandle<Self>,
+        send_data: Box<dyn DataTransferSend>,
+    ) -> Result<(), TransferError> {
+        let manager = self.primary_selection_manager_state.as_ref().ok_or(
+            NotSupportedError::new("Tried to set the primary selection, but it is not supported"),
+        )?;
+
+        let mime_types = send_data
+            .available_types()
+            .into_iter()
+            .flat_map(MimeType::from_dyn)
+            .collect::<Vec<_>>();
+
+        let data_source = manager.create_selection_source(queue_handle, mime_types);
+
+        let (device, serial) = self
+            .seats
+            .values()
+            .find_map(|seat| Some((seat.primary_selection_device()?, seat.latest_serial()?)))
+            .ok_or(NotSupportedError::new(
+                "Tried to set the primary selection, but no seat has received input",
+            ))?;
+
+        data_source.set_selection(device, serial);
+
+        self.data_transfer_state.send_primary_selection =
+            Some(PrimarySelectionSource { data_source, data: send_data });
 
         Ok(())
     }
@@ -1199,7 +1281,7 @@ impl DataDeviceHandler for WinitState {
             data: offer.with_mime_types(|types| {
                 DataOffer::new(types, make_data_transfer_id(offer.inner().id(), serial))
             }),
-            offer,
+            offer: SelectionOffer::Clipboard(offer),
             seat,
             fetches: HashSet::default(),
         };
@@ -1226,5 +1308,79 @@ impl DataDeviceHandler for WinitState {
             },
             session.window_id,
         );
+    }
+}
+
+impl PrimarySelectionDeviceHandler for WinitState {
+    fn selection(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        device: &ZwpPrimarySelectionDeviceV1,
+    ) {
+        let device_id = device.id();
+
+        let serial = &mut self.data_transfer_state.clipboard_serial;
+        *serial = serial.wrapping_add(1);
+        let serial = *serial;
+
+        let Some(data) = device.data::<PrimarySelectionDeviceData>() else {
+            return;
+        };
+
+        let Some(offer) = data.selection_offer() else {
+            self.data_transfer_state.primary_selections.remove(&device_id);
+            return;
+        };
+
+        let session = ClipboardSession {
+            data: offer.with_mime_types(|types| {
+                DataOffer::new(types, make_data_transfer_id(device_id.clone(), serial))
+            }),
+            offer: SelectionOffer::Primary(offer),
+            seat: data.seat().id(),
+            fetches: HashSet::default(),
+        };
+
+        self.data_transfer_state.primary_selections.insert(device_id, session);
+    }
+}
+
+impl PrimarySelectionSourceHandler for WinitState {
+    fn send_request(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        source: &ZwpPrimarySelectionSourceV1,
+        mime: String,
+        fd: WritePipe,
+    ) {
+        let Some(primary) = self
+            .data_transfer_state
+            .send_primary_selection
+            .as_ref()
+            .filter(|primary| primary.data_source.inner() == source)
+        else {
+            return;
+        };
+
+        let mime = MimeType::parse(mime);
+
+        let Some(send_data) = primary.data.data_for_type(&mime) else {
+            return;
+        };
+
+        self.write_send_data(mime, send_data, fd);
+    }
+
+    fn cancelled(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        source: &ZwpPrimarySelectionSourceV1,
+    ) {
+        self.data_transfer_state
+            .send_primary_selection
+            .take_if(|primary| primary.data_source.inner() == source);
     }
 }

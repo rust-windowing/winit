@@ -24,6 +24,7 @@ use winit_core::error::{
     CreateWindowError, CustomCursorError, EventLoopError, OsError, TransferError,
 };
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
+use winit_core::event_loop::primary_selection::PrimarySelectionExt;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
@@ -812,6 +813,27 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
     fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
         self.state.borrow_mut().set_clipboard(&self.queue_handle, send_data)
+    }
+
+    fn primary_selection_ext(&self) -> Option<&dyn PrimarySelectionExt> {
+        self.state
+            .borrow()
+            .primary_selection_manager_state
+            .is_some()
+            .then_some(self as &dyn PrimarySelectionExt)
+    }
+}
+
+impl PrimarySelectionExt for ActiveEventLoop {
+    fn primary_selection(&self) -> Result<Option<DataTransferId>, TransferError> {
+        self.state.borrow().primary_selection()
+    }
+
+    fn set_primary_selection(
+        &self,
+        send_data: Box<dyn DataTransferSend>,
+    ) -> Result<(), TransferError> {
+        self.state.borrow_mut().set_primary_selection(&self.queue_handle, send_data)
     }
 }
 

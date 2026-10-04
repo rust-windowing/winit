@@ -1,4 +1,5 @@
 pub mod never_return;
+pub mod primary_selection;
 pub mod pump_events;
 pub mod register;
 pub mod run_on_demand;
@@ -352,6 +353,17 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
         let _ = send_data;
         Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Access the primary selection platform extension, where available.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:*x* Available if supported by compositor.
+    /// - **X11:** Always available.
+    /// - **Others:** Unsupported.
+    fn primary_selection_ext(&self) -> Option<&dyn primary_selection::PrimarySelectionExt> {
+        None
     }
 }
 

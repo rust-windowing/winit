@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use foldhash::HashMap;
 use sctk::data_device_manager::data_device::DataDevice;
+use sctk::primary_selection::device::PrimarySelectionDevice;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
@@ -69,6 +70,9 @@ pub struct WinitSeatState {
     /// The drag-and-drop and clipboard state
     data_device: Option<DataDevice>,
 
+    /// The primary selection state
+    primary_selection_device: Option<PrimarySelectionDevice>,
+
     /// The keyboard bound on the seat.
     keyboard_state: Option<KeyboardState>,
 
@@ -97,6 +101,10 @@ impl WinitSeatState {
 
     pub(crate) fn data_device(&self) -> Option<&DataDevice> {
         self.data_device.as_ref()
+    }
+
+    pub(crate) fn primary_selection_device(&self) -> Option<&PrimarySelectionDevice> {
+        self.primary_selection_device.as_ref()
     }
 
     pub(crate) fn pointer_data(&self) -> Option<&PointerData<WinitPointerData>> {
@@ -157,6 +165,11 @@ impl SeatHandler for WinitState {
                     .data_device_manager_state
                     .as_ref()
                     .map(|device| device.get_data_device(queue_handle, &seat));
+
+                seat_state.primary_selection_device = self
+                    .primary_selection_manager_state
+                    .as_ref()
+                    .map(|manager| manager.get_selection_device(queue_handle, &seat));
 
                 seat_state.relative_pointer = self.relative_pointer.as_ref().map(|manager| {
                     manager.get_relative_pointer(
@@ -255,6 +268,7 @@ impl SeatHandler for WinitState {
                 }
 
                 seat_state.data_device = None;
+                seat_state.primary_selection_device = None;
 
                 if let Some(pointer) = seat_state.pointer.take() {
                     let pointer_data = pointer.pointer().winit_data();

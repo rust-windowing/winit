@@ -24,6 +24,7 @@ use winit_core::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
+use winit_core::event_loop::primary_selection::PrimarySelectionExt;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
@@ -773,6 +774,34 @@ impl ActiveEventLoop {
                     .map(|(id, _)| id.into_raw() as _)
             })
     }
+
+    fn read_clipboard(
+        &self,
+        clipboard: ClipboardSelectionType,
+    ) -> Result<Option<DataTransferId>, TransferError> {
+        let selection = clipboard.selection_atom(self.xconn.atoms());
+        if self.xconn.selection_owner(selection).map_err(|err| os_error!(err))?.is_none() {
+            return Ok(None);
+        }
+
+        let mut data_transfer = self.data_transfer_state.borrow_mut();
+
+        Ok(Some(data_transfer.request_clipboard_read(clipboard)))
+    }
+
+    fn write_clipboard(
+        &self,
+        clipboard: ClipboardSelectionType,
+        send_data: Box<dyn DataTransferSend>,
+    ) -> Result<(), TransferError> {
+        let Some(xwindow) = self.clipboard_window() else {
+            return Err(os_error!("no active window").into());
+        };
+        let mut data_transfer = self.data_transfer_state.borrow_mut();
+        data_transfer.set_clipboard(xwindow, send_data, clipboard);
+
+        Ok(())
+    }
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
@@ -902,25 +931,28 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
-        let clipboard = ClipboardSelectionType::Clipboard;
-        let selection = clipboard.selection_atom(self.xconn.atoms());
-        if self.xconn.selection_owner(selection).map_err(|err| os_error!(err))?.is_none() {
-            return Ok(None);
-        }
-
-        let mut data_transfer = self.data_transfer_state.borrow_mut();
-
-        Ok(Some(data_transfer.request_clipboard_read(clipboard)))
+        self.read_clipboard(ClipboardSelectionType::Clipboard)
     }
 
     fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
-        let Some(xwindow) = self.clipboard_window() else {
-            return Err(os_error!("no active window").into());
-        };
-        let mut data_transfer = self.data_transfer_state.borrow_mut();
-        data_transfer.set_clipboard(xwindow, send_data, ClipboardSelectionType::Clipboard);
+        self.write_clipboard(ClipboardSelectionType::Clipboard, send_data)
+    }
 
-        Ok(())
+    fn primary_selection_ext(&self) -> Option<&dyn PrimarySelectionExt> {
+        Some(self)
+    }
+}
+
+impl PrimarySelectionExt for ActiveEventLoop {
+    fn primary_selection(&self) -> Result<Option<DataTransferId>, TransferError> {
+        self.read_clipboard(ClipboardSelectionType::Primary)
+    }
+
+    fn set_primary_selection(
+        &self,
+        send_data: Box<dyn DataTransferSend>,
+    ) -> Result<(), TransferError> {
+        self.write_clipboard(ClipboardSelectionType::Primary, send_data)
     }
 }
 
