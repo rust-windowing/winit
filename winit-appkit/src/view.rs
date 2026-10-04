@@ -20,7 +20,7 @@ use objc2_foundation::{
 use tracing::{debug_span, trace_span};
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, TouchPhase, WindowEvent,
+    PointerKind, PointerSource, ScrollSource, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use winit_core::window::ImeCapabilities;
@@ -707,15 +707,26 @@ define_class!(
             // be mutually exclusive anyhow, which is why the API is rather incoherent). If no
             // momentum phase is recorded (or rather, the started/ended cases of the
             // momentum phase) then we report the touch phase.
+            let momentum_phase = event.momentumPhase();
+            let touch_phase = event.phase();
             #[allow(non_upper_case_globals)]
-            let phase = match event.momentumPhase() {
+            let phase = match momentum_phase {
                 NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
-                _ => match event.phase() {
+                _ => match touch_phase {
                     NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                     NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 },
+            };
+
+            // Mouse wheels have neither phase. Trackpads have one of them.
+            let source = if momentum_phase != NSEventPhase::None {
+                ScrollSource::Momentum
+            } else if touch_phase != NSEventPhase::None {
+                ScrollSource::Finger
+            } else {
+                ScrollSource::Wheel
             };
 
             self.update_modifiers(event, false);
@@ -723,7 +734,7 @@ define_class!(
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
             });
-            self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase });
+            self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase, source });
         }
 
         #[unsafe(method(magnifyWithEvent:))]
