@@ -40,14 +40,24 @@ changelog entry.
 
 ## Unreleased
 
-### Fixed
+### Added
 
-- On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
-- On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
-- On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
+- On X11, add tablet tool support through the unified pointer events, including
+  pressure, tilt, tool kind, and tablet buttons.
 
 ### Changed
 
-- Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
-  `TypedData::try_as_file_paths` and `impl From<Vec<url::Url>> for SendData`. Use `SendData::Uris`
-  / `TypedData::try_as_uris` with `file:` URIs instead.
+- Removed the `url` dependency from `winit-core`, along with
+  `SendData::from_file_paths`, `TypedData::try_as_file_paths` and
+  `impl From<Vec<url::Url>> for SendData`. Use `SendData::Uris` /
+  `TypedData::try_as_uris` with `file:` URIs instead.
+
+### Fixed
+
+- On Windows, fix a crash occurring when trying to create a DXGI surface on a
+  window that is both fullscreen and always on top.
+- On Wayland, use the touch serial for `Window::drag_window`,
+  `Window::drag_resize_window` and `Window::show_window_menu` when the interaction
+  was started by touch.
+- On Windows, fix a crash when moving a window that owns windows not created by
+  winit, such as native dialogs or application helper windows.

@@ -594,6 +594,14 @@ pub enum PointerSource {
         ///   force will be 0.5 when a button is pressed or 0.0 otherwise.
         force: Option<Force>,
     },
+    /// Represents a tablet tool event, including tool kind, pressure, and orientation.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **X11:** Reported through XInput2 for recognized tablet devices. Tool kind is
+    /// inferred from the device name, defaulting to [`TabletToolKind::Pen`].
+    /// Pressure and tilt are available when exposed by the driver. Enter and leave
+    /// events track the window boundary, not tool proximity to the tablet.
     TabletTool {
         /// Describes as which tool kind the interaction happened.
         kind: TabletToolKind,
@@ -1197,6 +1205,13 @@ pub enum TabletToolKind {
     Lens,
 }
 
+/// Pressure and orientation data reported by a tablet tool.
+///
+/// ## Platform-specific
+///
+/// **X11:** Tangential force, twist, and angle are not reported and remain [`None`].
+/// Use [`Self::angle()`] to calculate an angle from tilt when available. Tilt is
+/// reported in degrees; if only one tilt axis is available, the other defaults to zero.
 #[derive(Default, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TabletToolData {
@@ -1207,6 +1222,9 @@ pub struct TabletToolData {
     /// ## Platform-specific
     ///
     /// **Web:** Has no mechanism to detect support, so this will always be [`Some`].
+    ///
+    /// **X11:** Normalized to the range 0.0 to 1.0 using the driver's pressure range.
+    /// Returns [`None`] when no pressure axis or valid range is available.
     pub force: Option<Force>,
     /// Represents normalized tangential pressure, also known as barrel pressure. In the range of
     /// -1 to 1. 0 means no tangential pressure is applied. [`None`] means backend or device has no
