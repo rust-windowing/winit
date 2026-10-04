@@ -134,7 +134,9 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
                 }
 
                 // Don't handle events from a subsurface.
-                if surface.data::<SurfaceData>().is_none_or(|data| data.parent_surface().is_some())
+                if surface
+                    .data::<SurfaceData<()>>()
+                    .is_none_or(|data| data.parent_surface().is_some())
                 {
                     return;
                 }

@@ -90,7 +90,7 @@ impl PointerHandler {
                     PointerSource::TabletTool { kind, data } => {
                         ButtonSource::TabletTool { kind, button: event::tool_button(button), data }
                     },
-                    PointerSource::Unknown => ButtonSource::Unknown(button),
+                    _ => ButtonSource::Unknown(button),
                 };
 
                 handler(
@@ -152,7 +152,7 @@ impl PointerHandler {
 
                         ButtonSource::TabletTool { kind, button: event::tool_button(button), data }
                     },
-                    PointerSource::Unknown => ButtonSource::Unknown(button),
+                    _ => ButtonSource::Unknown(button),
                 };
 
                 handler(
@@ -229,7 +229,7 @@ impl PointerHandler {
                             button: event::tool_button(button),
                             data,
                         },
-                        PointerSource::Unknown => ButtonSource::Unknown(button),
+                        _ => ButtonSource::Unknown(button),
                     };
 
                     button_handler(

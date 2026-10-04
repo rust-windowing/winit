@@ -8,12 +8,12 @@ use dpi::{
 };
 use web_sys::HtmlCanvasElement;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoremMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeRequestError, ResizeDirection, Theme, UserAttentionType,
-    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel,
+    Window as RootWindow, WindowAttributes, WindowButtons, WindowId, WindowLevel, WindowType,
 };
 
 use crate::r#async::Dispatcher;
@@ -45,7 +45,13 @@ impl Window {
     pub(crate) fn new(
         target: &ActiveEventLoop,
         attr: WindowAttributes,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, CreateWindowError> {
+        match attr.window_type() {
+            WindowType::Window => (),
+            WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            _ => panic!("Unknown WindowType"),
+        }
+
         let id = target.generate_id();
 
         let window = target.runner.window();
@@ -103,6 +109,10 @@ impl Window {
 }
 
 impl RootWindow for Window {
+    fn window_type(&self) -> WindowType {
+        WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.inner.queue(|inner| inner.id)
     }

@@ -18,14 +18,14 @@ use objc2_ui_kit::{
 };
 use tracing::{debug, debug_span, warn};
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::event::WindowEvent;
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    WindowLevel, WindowType,
 };
 
 use super::app_state::EventWrapper;
@@ -323,9 +323,7 @@ impl Inner {
             Some(Fullscreen::Borderless(Some(monitor))) => {
                 monitor.cast_ref::<MonitorHandle>().unwrap().ui_screen(mtm).clone()
             },
-            Some(Fullscreen::Borderless(None)) => {
-                self.current_monitor_inner().ui_screen(mtm).clone()
-            },
+            Some(_) => self.current_monitor_inner().ui_screen(mtm).clone(),
             None => {
                 warn!("`Window::set_fullscreen(None)` ignored on iOS");
                 return;
@@ -405,6 +403,7 @@ impl Inner {
                 *current_caps = None;
                 self.view.resignFirstResponder();
             },
+            _ => return Err(ImeRequestError::NotSupported),
         }
 
         Ok(())
@@ -489,7 +488,13 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         mut window_attributes: WindowAttributes,
-    ) -> Result<Window, RequestError> {
+    ) -> Result<Window, CreateWindowError> {
+        match window_attributes.window_type() {
+            WindowType::Window => (),
+            WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            _ => panic!("Unknown WindowType"),
+        }
+
         let mtm = event_loop.mtm;
 
         if window_attributes.min_surface_size.is_some() {
@@ -516,7 +521,7 @@ impl Window {
                 let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
                 monitor.ui_screen(mtm)
             },
-            Some(Fullscreen::Borderless(None)) | None => &main_screen,
+            _ => &main_screen,
         };
 
         let screen_bounds = screen.bounds();
@@ -590,6 +595,10 @@ impl rwh_06::HasWindowHandle for Window {
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> WindowType {
+        WindowType::Window
+    }
+
     fn id(&self) -> winit_core::window::WindowId {
         self.maybe_wait_on_main(|delegate| delegate.id())
     }

@@ -42,31 +42,22 @@ changelog entry.
 
 ### Added
 
-- Add `keyboard` support for OpenHarmony.
-- On iOS, add Apple Pencil support with force, altitude, and azimuth data.
-- On Redox, add support for missing keyboard scancodes.
-- Implement `Send` and `Sync` for `OwnedDisplayHandle`.
-- Use new macOS 15 cursors for resize icons.
-- On Android, added scancode conversions for more obscure key codes.
-- On Wayland, added `HoldGesture` event for multi-finger hold gestures
-- On Wayland, added ext-background-effect-v1 support.
-- On X11, add tablet tool support through the unified pointer events, including pressure, tilt,
-  tool kind, and tablet buttons.
+- On X11, add tablet tool support through the unified pointer events, including
+  pressure, tilt, tool kind, and tablet buttons.
 
 ### Changed
 
-- Updated `windows-sys` to `v0.61`.
-- On older macOS versions (tested up to 12.7.6), applications now receive mouse movement events for unfocused windows, matching the behavior on other platforms.
+- Removed the `url` dependency from `winit-core`, along with
+  `SendData::from_file_paths`, `TypedData::try_as_file_paths` and
+  `impl From<Vec<url::Url>> for SendData`. Use `SendData::Uris` /
+  `TypedData::try_as_uris` with `file:` URIs instead.
 
 ### Fixed
 
-- On Windows, fix a freeze that occurs when the keyboard layout is switched by
-  tools such as Punto Switcher. The `WM_INPUTLANGCHANGE` message is now handled
-  to refresh the cached keyboard layout, while still deferring to
-  `DefWindowProc` for normal propagation.
-- On Redox, handle `EINTR` when reading from `event_socket` instead of panicking.
-- On Wayland, switch from using the `ahash` hashing algorithm to `foldhash`.
-- On macOS, fix borderless game presentation options not sticking after switching spaces.
-- On macOS, fix IME being locked on (regardless of requests to disable) after being enabled once.
-- On macOS, fix a panic and incorrect cursor position in Ime::Preedit when the preedit string contains special characters (ie. emojis) caused by incorrect UTF-16 to UTF-8 offset conversion.
-- On Wayland, fix a protocol error when setting a custom cursor on compositors with `wl_surface` version below 3.
+- On Windows, fix a crash occurring when trying to create a DXGI surface on a
+  window that is both fullscreen and always on top.
+- On Wayland, use the touch serial for `Window::drag_window`,
+  `Window::drag_resize_window` and `Window::show_window_menu` when the interaction
+  was started by touch.
+- On Windows, fix a crash when moving a window that owns windows not created by
+  winit, such as native dialogs or application helper windows.

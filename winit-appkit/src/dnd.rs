@@ -453,6 +453,7 @@ impl PasteboardWriterState {
             SendData::Uris(_) => None,
             SendData::String(string) => Some(NSString::from_str(&string).into()),
             SendData::Bytes(binary) => Some(NSData::from_vec(binary).into()),
+            _ => None,
         }
     }
 }

@@ -6,7 +6,7 @@ use std::ptr::NonNull;
 use std::{fmt, ptr};
 
 use dispatch2::run_on_main;
-use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::NSScreen;
@@ -168,6 +168,22 @@ impl MonitorHandle {
             };
 
             VideoModeHandle::new(monitor.clone(), NativeDisplayMode(mode), refresh_rate_millihertz)
+        })
+    }
+
+    /// The monitor's work area, i.e. its bounds minus space reserved by the system for the menu
+    /// bar and the Dock (see `NSScreen.visibleFrame`). `None` if the underlying
+    /// `NSScreen` can no longer be found.
+    pub(crate) fn work_area(&self) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+        let scale_factor = self.scale_factor();
+        run_on_main(|mtm| {
+            let visible_frame = self.ns_screen(mtm)?.visibleFrame();
+            let origin = flip_window_screen_coordinates(visible_frame);
+            let position =
+                LogicalPosition::new(origin.x, origin.y).to_physical::<i32>(scale_factor);
+            let size = LogicalSize::new(visible_frame.size.width, visible_frame.size.height)
+                .to_physical::<u32>(scale_factor);
+            Some((position, size))
         })
     }
 

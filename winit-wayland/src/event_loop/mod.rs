@@ -2,6 +2,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::io::{self, Read, Result as IOResult};
+use std::mem;
 use std::ops::BitOr;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
@@ -9,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
-use std::{fmt, mem};
 
 use calloop::PostAction;
 use calloop::ping::Ping;
@@ -27,16 +27,18 @@ use wayland_client::protocol::wl_shm::Format;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use winit_core::error::{EventLoopError, NotSupportedError, OsError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, OsError, TransferError,
+};
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    DndAction, DragIcon, OwnedDisplayHandle as CoreOwnedDisplayHandle,
+    DndAction, DragIcon, EventLoopProvider, OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::icon::RgbaIcon;
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
-use winit_core::window::Theme;
+use winit_core::window::{Theme, WindowType};
 
 use crate::dnd::{MimeData, dnd_action_winit_to_wl};
 use crate::types::cursor::WaylandCustomCursor;
@@ -49,10 +51,10 @@ use proxy::EventLoopProxy;
 use sink::EventSink;
 pub use winit_core::event_loop::EventLoopProxy as CoreEventLoopProxy;
 
+use super::WindowId;
 use super::output::MonitorHandle;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{WindowId, logical_to_physical_rounded};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -322,6 +324,35 @@ impl EventLoop {
         self.single_iteration(app, cause);
     }
 
+    /// Recursive closing all windows from the child to the parent
+    fn find_windows_to_close(
+        window_id: &WindowId,
+        state: &mut WinitState,
+        out: &mut Vec<WindowId>,
+    ) -> bool {
+        if !state.window_requests.get_mut().get(window_id).unwrap().closed.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        out.push(*window_id);
+        fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
+            // We don't need to check here if it should be closed, because if the parent should
+            // be closed all children must be closed as well
+            let Some(window_state) = state.windows.get_mut().get(window_id) else {
+                return;
+            };
+            let children = window_state.lock().unwrap().children().clone();
+            // First all children and then all subchildren
+            out.extend(&children);
+            for child in children.clone() {
+                window_to_close(&child, out, state);
+            }
+        }
+        window_to_close(window_id, out, state);
+
+        true
+    }
+
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
@@ -355,9 +386,8 @@ impl EventLoop {
                 let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
-                    let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
-                    (size, scale_factor)
+                    let size = window.surface_size_physical();
+                    (size, window.scale_factor())
                 });
 
                 // Stash the old window size.
@@ -397,8 +427,7 @@ impl EventLoop {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
-                    let scale_factor = window.scale_factor();
-                    let size = logical_to_physical_rounded(window.surface_size(), scale_factor);
+                    let size = window.surface_size_physical();
 
                     // Mark the window as needed a redraw.
                     state
@@ -457,14 +486,33 @@ impl EventLoop {
         });
 
         for window_id in window_ids.iter() {
-            let event = self.with_state(|state| {
-                let window_requests = state.window_requests.get_mut();
-                if window_requests.get(window_id).unwrap().take_closed() {
-                    mem::drop(window_requests.remove(window_id));
-                    mem::drop(state.windows.get_mut().remove(window_id));
-                    return Some(WindowEvent::Destroyed);
-                }
+            if self.with_state(|state| state.window_requests.get_mut().get(window_id).is_none()) {
+                continue; // The element might not exist anymore so just ignore
+            }
+            let mut windows_to_close = Vec::new();
+            if self.with_state(|state| {
+                Self::find_windows_to_close(window_id, state, &mut windows_to_close)
+            }) {
+                for w in windows_to_close.into_iter().rev() {
+                    self.with_state(|state| {
+                        let parent =
+                            state.windows.get_mut().get_mut(&w).unwrap().lock().unwrap().parent();
 
+                        if let Some(p) = parent.and_then(|p| state.windows.get_mut().get_mut(&p)) {
+                            p.lock().unwrap().remove_child(&w)
+                        }
+
+                        let window_requests = state.window_requests.get_mut();
+                        window_requests.get(&w).unwrap().take_closed();
+                        mem::drop(window_requests.remove(&w));
+                        mem::drop(state.windows.get_mut().remove(&w));
+                    });
+                    app.window_event(&self.active_event_loop, w, WindowEvent::Destroyed);
+                }
+                continue;
+            }
+
+            let event = self.with_state(|state| {
                 let mut window =
                     state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
 
@@ -474,6 +522,7 @@ impl EventLoop {
 
                 // Reset the frame callbacks state.
                 window.frame_callback_reset();
+                let window_requests = state.window_requests.get_mut();
                 let mut redraw_requested =
                     window_requests.get(window_id).unwrap().take_redraw_requested();
 
@@ -575,6 +624,41 @@ impl EventLoop {
     }
 }
 
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.active_event_loop.create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.active_event_loop.owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.active_event_loop.listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.active_event_loop.set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
+        self.active_event_loop.create_custom_cursor(custom_cursor)
+    }
+}
+
 impl AsFd for EventLoop {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
@@ -642,11 +726,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_custom_cursor(
         &self,
         cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         let cursor_image = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
-            CustomCursorSource::Animation { .. } | CustomCursorSource::Url { .. } => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
+            _ => {
+                return Err(CustomCursorError::UnsupportedSource);
             },
         };
 
@@ -661,9 +745,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
-        let window = crate::Window::new(self, window_attributes)?;
-        Ok(Box::new(window))
+    ) -> Result<Box<dyn winit_core::window::Window>, CreateWindowError> {
+        match window_attributes.window_type() {
+            WindowType::Window => {
+                let window = crate::Window::new(self, window_attributes)?;
+                Ok(Box::new(window))
+            },
+            WindowType::Popup => {
+                let popup = crate::Popup::new(self, window_attributes)?;
+                Ok(Box::new(popup))
+            },
+            _ => panic!("Unknown WindowType"),
+        }
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
@@ -694,18 +787,18 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let state = self.state.borrow_mut();
         let Some(current_drag) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         if current_drag.transfer_id() != id {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         let Some(mime_type) = current_drag.find_type_dyn(type_) else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         let mime_type_str = mime_type.to_string();
@@ -755,14 +848,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(async_request_serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let state = self.state.borrow();
         let Some(state) = state.dnd_state.receive_drag() else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         if state.transfer_id() != id {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         Ok(Box::new(state.clone()))
@@ -772,14 +865,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let state = self.state.borrow();
         let Some(state) = state.dnd_state.receive_drag() else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         if state.transfer_id() != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         let any_actions = state.set_actions(actions);
@@ -801,7 +894,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         action_mask: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         const NO_POINTER_CAP_ERROR_MSG: &str =
             "Tried to initiate drag, but source window does not have the pointer capability";
 
@@ -878,7 +971,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
             let serial = seat
                 .pointer_data()
                 .ok_or(NotSupportedError::new(NO_POINTER_CAP_ERROR_MSG))?
-                .latest_button_serial();
+                .latest_button_serial()
+                .unwrap_or_default();
 
             data_source.start_drag(data_device, source_surface, icon_surface.as_ref(), serial);
 
@@ -902,19 +996,6 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(transfer_id)
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 impl ActiveEventLoop {
     fn clear_exit(&self) {

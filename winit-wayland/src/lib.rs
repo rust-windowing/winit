@@ -16,6 +16,7 @@
 //! * `wayland-csd-adwaita-notitlebar`.
 
 #![allow(clippy::mutable_key_type)]
+#![warn(clippy::exhaustive_enums)]
 
 use std::ffi::c_void;
 use std::hash::BuildHasher;
@@ -40,6 +41,7 @@ macro_rules! os_error {
 mod dnd;
 mod event_loop;
 mod output;
+mod popup;
 mod seat;
 mod state;
 mod types;
@@ -47,6 +49,7 @@ mod window;
 
 pub use self::dnd::{DataOffer, DragSource, MimeData, MimeType};
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
+pub use self::popup::Popup;
 pub use self::window::Window;
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
@@ -123,6 +126,11 @@ impl WindowAttributesWayland {
         self
     }
 
+    /// Sets an activation token to use when creating the window.
+    ///
+    /// The activation token allows the compositor to grant focus to the new window,
+    /// overriding focus-stealing prevention. Obtain a token via
+    /// [`ActiveEventLoop::request_activation_token`].
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);

@@ -3,6 +3,8 @@
 //! Redox OS has some functionality not yet present that will be implemented
 //! when its orbital display server provides it.
 
+#![warn(clippy::exhaustive_enums)]
+
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Result, Write};
 use std::os::fd::AsRawFd;
@@ -66,6 +68,7 @@ impl TimeSocket {
     }
 
     // Read current time.
+    #[allow(unused)]
     fn current_time(&self) -> Result<TimeSpec> {
         let mut timespec: libredox::data::TimeSpec = unsafe { mem::zeroed() };
         let timespec_bytes = unsafe {
@@ -121,8 +124,14 @@ impl fmt::Display for WindowProperties<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "/scheme/orbital/{}/{}/{}/{}/{}/{}",
-            self.flags, self.x, self.y, self.w, self.h, self.title
+            "{}/{}/{}/{}/{}/{}/{}",
+            std::env::var("ORBITAL_DISPLAY").unwrap_or_else(|_| "/scheme/orbital".to_owned()),
+            self.flags,
+            self.x,
+            self.y,
+            self.w,
+            self.h,
+            self.title
         )
     }
 }

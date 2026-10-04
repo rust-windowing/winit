@@ -7,10 +7,11 @@ use std::{fmt, ptr};
 
 use rwh_06::HasDisplayHandle;
 use winit_core::cursor::CursorIcon;
-use x11rb::connection::Connection;
+use x11rb::connection::{Connection, RequestConnection};
+use x11rb::errors::ReplyError;
 use x11rb::protocol::randr::ConnectionExt as _;
-use x11rb::protocol::render;
 use x11rb::protocol::xproto::{self, ConnectionExt};
+use x11rb::protocol::{ErrorKind, randr, render};
 use x11rb::resource_manager;
 use x11rb::xcb_ffi::XCBConnection;
 
@@ -119,11 +120,28 @@ impl XConnection {
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         // Load the RandR version.
+        xcb.extension_information(randr::X11_EXTENSION_NAME)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+            .ok_or(XNotSupported::ExtensionNotSupported(
+                "the X11 backend requires XRandR 1.2 or newer",
+            ))?;
         let randr_version = xcb
             .randr_query_version(1, 3)
-            .expect("failed to request XRandR version")
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
-            .expect("failed to query XRandR version");
+            .map_err(|e| match e {
+                ReplyError::X11Error(error) if error.error_kind == ErrorKind::Request => {
+                    XNotSupported::ExtensionNotSupported(
+                        "the X11 backend requires XRandR 1.2 or newer",
+                    )
+                },
+                error => XNotSupported::XcbConversionError(Arc::new(error)),
+            })?;
+        if (randr_version.major_version, randr_version.minor_version) < (1, 2) {
+            return Err(XNotSupported::ExtensionNotSupported(
+                "the X11 backend requires XRandR 1.2 or newer",
+            ));
+        }
 
         let xsettings_screen = Self::new_xsettings_screen(&xcb, default_screen);
         if xsettings_screen.is_none() {
@@ -338,7 +356,7 @@ impl fmt::Display for XError {
     }
 }
 
-/// Error returned if this system doesn't have XLib or can't create an X connection.
+/// Error returned if this system doesn't support the X11 backend.
 #[derive(Clone, Debug)]
 pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
@@ -349,6 +367,9 @@ pub enum XNotSupported {
 
     /// We encountered an error while converting the connection to XCB.
     XcbConversionError(Arc<dyn Error + Send + Sync + 'static>),
+
+    /// A required X11 extension is not supported.
+    ExtensionNotSupported(&'static str),
 }
 
 impl From<ffi::OpenError> for XNotSupported {
@@ -364,6 +385,7 @@ impl XNotSupported {
             XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
             XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
             XNotSupported::XcbConversionError(_) => "Failed to convert Xlib connection to XCB",
+            XNotSupported::ExtensionNotSupported(reason) => reason,
         }
     }
 }

@@ -12,7 +12,7 @@ use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, info, warn};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::icon::RgbaIcon;
@@ -65,14 +65,25 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         attribs: WindowAttributes,
-    ) -> Result<Self, RequestError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
-        event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
+    ) -> Result<Self, CreateWindowError> {
+        use winit_core::window::WindowType;
+        match attribs.window_type() {
+            WindowType::Window => {
+                let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
+                event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
+                Ok(Window(window))
+            },
+            WindowType::Popup => Err(CreateWindowError::PopupNotSupported),
+            _ => panic!("Unknown WindowType"),
+        }
     }
 }
 
 impl CoreWindow for Window {
+    fn window_type(&self) -> winit_core::window::WindowType {
+        winit_core::window::WindowType::Window
+    }
+
     fn id(&self) -> WindowId {
         self.0.id()
     }
@@ -447,7 +458,7 @@ impl UnownedWindow {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         mut window_attrs: WindowAttributes,
-    ) -> Result<UnownedWindow, RequestError> {
+    ) -> Result<UnownedWindow, CreateWindowError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
 
@@ -462,13 +473,14 @@ impl UnownedWindow {
             None => xconn.default_screen_index() as c_int,
         };
 
-        let screen = {
-            let screen_id_usize = usize::try_from(screen_id)
-                .map_err(|_| NotSupportedError::new("screen id must be non-negative"))?;
-            xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
-                NotSupportedError::new("requested screen id not present in server's response"),
-            )?
-        };
+        let screen =
+            {
+                let screen_id_usize = usize::try_from(screen_id)
+                    .map_err(|_| InvalidInput::new("screen id must be non-negative"))?;
+                xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
+                    InvalidInput::new("requested screen id not present in server's response"),
+                )?
+            };
 
         let root = match window_attrs.parent_window() {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
@@ -902,7 +914,7 @@ impl UnownedWindow {
     }
 
     /// Embed this window into a parent window.
-    pub(super) fn embed_window(&self) -> Result<(), RequestError> {
+    pub(super) fn embed_window(&self) -> Result<(), CreateWindowError> {
         let atoms = self.xconn.atoms();
         leap!(
             leap!(self.xconn.change_property(
@@ -1092,9 +1104,7 @@ impl UnownedWindow {
                             let monitor = monitor.cast_ref::<X11MonitorHandle>().unwrap();
                             (Cow::Borrowed(monitor), None)
                         },
-                        Fullscreen::Borderless(None) => {
-                            (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None)
-                        },
+                        _ => (Cow::Owned(self.shared_state_lock().last_monitor.clone()), None),
                     };
 
                 // Don't set fullscreen on an invalid dummy monitor handle
@@ -2003,7 +2013,12 @@ impl UnownedWindow {
                 0,
                 &rectangles,
             )
-            .map_err(|_e| RequestError::Ignored)?;
+            .map_err(|e| match e {
+                x11rb::errors::ConnectionError::UnsupportedExtension => RequestError::NotSupported(
+                    NotSupportedError::new("set_cursor_hittest is not supported"),
+                ),
+                e => os_error!(e).into(),
+            })?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
     }
@@ -2131,6 +2146,7 @@ impl UnownedWindow {
                 self.set_ime_allowed(false);
                 return Ok(());
             },
+            _ => return Err(ImeRequestError::NotSupported),
         };
 
         if let Some((position, size)) = state.cursor_area {

@@ -20,12 +20,14 @@ use winit_common::xkb::Context;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+};
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    DndAction, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
+    DndAction, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
@@ -33,7 +35,7 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::{xkb, xproto};
+use x11rb::protocol::{ErrorKind, xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
@@ -219,6 +221,9 @@ impl EventLoop {
 
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
+            Err(XNotSupported::ExtensionNotSupported(reason)) => {
+                return Err(NotSupportedError::new(reason).into());
+            },
             Err(err) => return Err(os_error!(err.clone()).into()),
         };
 
@@ -266,27 +271,40 @@ impl EventLoop {
 
         let ime = ime.ok().map(RefCell::new);
 
-        let randr_event_offset =
-            xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
+        let randr_event_offset = xconn.select_xrandr_input(root).map_err(|err| match err {
+            X11Error::MissingExtension(_) => EventLoopError::NotSupported(NotSupportedError::new(
+                "the X11 backend requires XRandR 1.2 or newer",
+            )),
+            error => os_error!(error).into(),
+        })?;
 
         let xi2ext = xconn
             .xcb_connection()
             .extension_information(xinput::X11_EXTENSION_NAME)
-            .expect("Failed to query XInput extension")
-            .expect("X server missing XInput extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| {
+                NotSupportedError::new("the X11 backend requires XInput 2.0 or newer")
+            })?;
         let xkbext = xconn
             .xcb_connection()
             .extension_information(xkb::X11_EXTENSION_NAME)
-            .expect("Failed to query XKB extension")
-            .expect("X server missing XKB extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         // Check for XInput2 support.
         xconn
             .xcb_connection()
             .xinput_xi_query_version(2, 3)
-            .expect("Failed to send XInput2 query version request")
+            .map_err(|err| os_error!(X11Error::from(err)))?
             .reply()
-            .expect("Error while checking for XInput2 query version reply");
+            .map_err(|err| match err {
+                ReplyError::X11Error(error) if error.error_kind == ErrorKind::Request => {
+                    EventLoopError::NotSupported(NotSupportedError::new(
+                        "the X11 backend requires XInput 2.0 or newer",
+                    ))
+                },
+                error => os_error!(X11Error::from(error)).into(),
+            })?;
 
         xconn.update_cached_wm_info(root);
 
@@ -336,8 +354,8 @@ impl EventLoop {
             .expect("Failed to register the event loop waker source");
         let event_loop_proxy = EventLoopProxy::new(user_waker);
 
-        let xkb_context =
-            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context = Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection())
+            .map_err(|_| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         let mut xmodmap = util::ModifierKeymap::new();
         xmodmap.reload_from_x_connection(&xconn);
@@ -411,7 +429,7 @@ impl EventLoop {
                     | xkb::EventType::MAP_NOTIFY
                     | xkb::EventType::STATE_NOTIFY,
             )
-            .unwrap();
+            .map_err(|err| os_error!(err))?;
 
         event_processor.init_device(ALL_DEVICES);
 
@@ -647,6 +665,41 @@ impl EventLoop {
     }
 }
 
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
+        self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
 impl AsFd for EventLoop {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
@@ -706,14 +759,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         Ok(CoreCustomCursor(Arc::new(CustomCursor::new(self, custom_cursor)?)))
     }
 
@@ -763,15 +816,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let dnd = self.dnd.borrow();
 
         if dnd.state().is_none_or(|state| state.transfer_id != id) {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         let Some(state) = dnd.state() else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         Ok(Box::new(Selection::new(state.types.clone())))
@@ -781,7 +834,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let mut dnd = self.dnd.borrow_mut();
 
         let serial = AsyncRequestSerial::get();
@@ -790,17 +843,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
             .cast_ref::<SelectionType>()
             .or_else(|| dnd.find_type_by_hint(type_.hint()?))
             .cloned()
-            .ok_or(RequestError::NotSupported(NotSupportedError::new("Unknown type hint")))?;
+            .ok_or(TransferError::Failed)?;
 
         let new_convert_selection = {
             let Some(state) = dnd.state_mut() else {
-                return Err(RequestError::Ignored);
+                return Err(TransferError::Failed);
             };
 
             if state.transfer_id != id {
-                return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Unknown data transfer",
-                )));
+                return Err(TransferError::UnknownTransfer(id));
             }
 
             // If it's non-empty, assume that we're still waiting on some other fetch operation.
@@ -831,15 +882,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let mut dnd = self.dnd.borrow_mut();
 
         let Some(state) = dnd.state_mut() else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         if state.transfer_id != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         state.accepted = !actions.is_empty();
@@ -853,19 +904,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         self.xconn.display_handle()
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 pub(crate) struct DeviceInfo<'a> {
     xconn: &'a XConnection,

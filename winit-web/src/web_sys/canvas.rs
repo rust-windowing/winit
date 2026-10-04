@@ -11,7 +11,7 @@ use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Navigator,
     PointerEvent, WheelEvent,
 };
-use winit_core::error::RequestError;
+use winit_core::error::CreateWindowError;
 use winit_core::event::{
     ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
     SurfaceSizeWriter, WindowEvent,
@@ -86,7 +86,7 @@ impl Canvas {
         navigator: Navigator,
         document: Document,
         mut attr: WindowAttributes,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, CreateWindowError> {
         let web_attributes = attr
             .platform
             .take()

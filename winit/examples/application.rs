@@ -22,7 +22,7 @@ use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::error::RequestError;
+use winit::error::CustomCursorError;
 use winit::event::{DeviceEvent, DeviceId, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
 use winit::icon::{Icon, RgbaIcon};
@@ -83,7 +83,7 @@ struct Application {
     receiver: Receiver<Action>,
     sender: Sender<Action>,
     /// Custom cursors assets.
-    custom_cursors: Result<Vec<CustomCursor>, RequestError>,
+    custom_cursors: Result<Vec<CustomCursor>, CustomCursorError>,
     /// Application icon.
     icon: Icon,
     windows: HashMap<WindowId, WindowState>,
@@ -457,6 +457,7 @@ impl ApplicationHandler for Application {
                 MouseScrollDelta::PixelDelta(px) => {
                     info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
                 },
+                _ => (),
             },
             WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
                 let mods = window.modifiers;
@@ -474,11 +475,25 @@ impl ApplicationHandler for Application {
                     }
                 }
             },
-            WindowEvent::PointerButton { device_id, primary, state, position, button } => {
+            WindowEvent::PointerButton {
+                device_id,
+                primary,
+                state,
+                position,
+                button,
+                is_macos_activation_click,
+            } => {
                 info!(
                     "Pointer button device={device_id:?} primary={primary} position={position:?} \
                      button={button:?} state={state:?}"
                 );
+                // On macOS, drop both press and release of the click that activated this
+                // window — real apps would typically skip destructive or button-target
+                // actions for such clicks; this example just logs them.
+                if is_macos_activation_click {
+                    info!("(macOS activation click — ignoring)");
+                    return;
+                }
                 let mods = window.modifiers;
                 if let Some(action) = state
                     .is_pressed()

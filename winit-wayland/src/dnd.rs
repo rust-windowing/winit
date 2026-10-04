@@ -85,6 +85,7 @@ impl DataSourceHandler for WinitState {
                 },
             },
             SendData::Bytes(binary) => Cursor::new(binary),
+            _ => return,
         };
 
         let _ = self.loop_handle.insert_source(fd, move |_, file, _| {
@@ -801,5 +802,3 @@ impl DataDeviceHandler for WinitState {
         }
     }
 }
-
-sctk::delegate_data_device!(WinitState);

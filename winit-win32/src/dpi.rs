@@ -5,6 +5,7 @@ use std::sync::Once;
 use windows_sys::Win32::Foundation::{HWND, S_OK};
 use windows_sys::Win32::Graphics::Gdi::{
     GetDC, GetDeviceCaps, HMONITOR, LOGPIXELSX, MONITOR_DEFAULTTONEAREST, MonitorFromWindow,
+    ReleaseDC,
 };
 use windows_sys::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
@@ -72,10 +73,6 @@ pub fn dpi_to_scale_factor(dpi: u32) -> f64 {
 }
 
 pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
-    let hdc = unsafe { GetDC(hwnd) };
-    if hdc.is_null() {
-        panic!("[winit] `GetDC` returned null!");
-    }
     if let Some(GetDpiForWindow) = *GET_DPI_FOR_WINDOW {
         // We are on Windows 10 Anniversary Update (1607) or later.
         match unsafe { GetDpiForWindow(hwnd) } {
@@ -99,9 +96,15 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
     } else {
         // We are on Vista or later.
         if unsafe { IsProcessDPIAware() } != false.into() {
+            let hdc = unsafe { GetDC(hwnd) };
+            if hdc.is_null() {
+                panic!("[winit] `GetDC` returned null!");
+            }
             // If the process is DPI aware, then scaling must be handled by the application using
             // this DPI value.
-            unsafe { GetDeviceCaps(hdc, LOGPIXELSX as i32) as u32 }
+            let dpi = unsafe { GetDeviceCaps(hdc, LOGPIXELSX as i32) as u32 };
+            unsafe { ReleaseDC(hwnd, hdc) };
+            dpi
         } else {
             // If the process is DPI unaware, then scaling is performed by the OS; we thus return
             // 96 (scale factor 1.0) to prevent the window from being re-scaled by both the

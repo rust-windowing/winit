@@ -1,4 +1,3 @@
-use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -23,12 +22,12 @@ use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint,
 };
-use winit_core::error::{EventLoopError, RequestError};
+use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError, TransferError};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    DndAction, DragIcon, EventLoopProxy as CoreEventLoopProxy,
+    DndAction, DragIcon, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
 use winit_core::monitor::MonitorHandle as CoreMonitorHandle;
@@ -76,14 +75,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
+    ) -> Result<Box<dyn winit_core::window::Window>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         Ok(CoreCustomCursor(Arc::new(CustomCursor::new(source)?)))
     }
 
@@ -141,12 +140,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let Some(pb) = self.app_state.pasteboards().get(id) else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         };
         let Some(window_id) = self.app_state.pasteboards().window_id(id) else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::Failed);
         };
 
         let serial = AsyncRequestSerial::get();
@@ -168,9 +167,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let Some(pb) = self.app_state.pasteboards().get(id) else {
-            return Err(RequestError::Ignored);
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         Ok(Box::new(pb))
@@ -180,14 +179,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let mut state = self.app_state.drag_state().borrow_mut();
         let Some(drag_state) = &mut *state else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         if drag_state.id != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         }
 
         drag_state.valid_actions.clear();
@@ -202,7 +201,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         let drag_operation = dnd_actions_to_ns_drag_operation(actions);
 
         self.app_state
@@ -212,7 +211,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let drag_image = icon.and_then(|icon| image_from_icon(&icon.icon).ok());
 
                 let Some(event) = delegate.window().currentEvent() else {
-                    return Err(RequestError::Ignored);
+                    return Err(TransferError::Failed);
                 };
 
                 let dragging_rect_size = drag_image
@@ -248,6 +247,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                                     .chain(Vec::new().into_iter().map(ns_url_from_str)),
                             ),
                             SendData::Bytes(_) => None,
+                            _ => None,
                         }
                     })
                     .into_iter()
@@ -296,22 +296,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
                 Ok(id)
             })
-            .ok_or(RequestError::Ignored)?
+            .ok_or(TransferError::Failed)?
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
@@ -548,6 +535,41 @@ impl EventLoop {
                 }
             })
         })
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app<A: ApplicationHandler + 'static>(
+        mut self,
+        mut app: A,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut app);
+        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
+        self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 

@@ -41,6 +41,7 @@ pub fn reset_dead_keys() {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// libxkbcommon is not available
     XKBNotFound,

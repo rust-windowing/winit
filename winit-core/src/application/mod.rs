@@ -125,7 +125,7 @@ pub trait ApplicationHandler {
     /// use std::thread;
     /// use std::time::Duration;
     ///
-    /// use winit::event_loop::EventLoop;
+    /// use winit::event_loop::{EventLoop, EventLoopProvider};
     /// use winit_core::application::ApplicationHandler;
     /// use winit_core::event_loop::ActiveEventLoop;
     ///

@@ -140,7 +140,6 @@ fn classify_device(name: &str, axes: Vec<ValuatorAxis>) -> Option<TabletDevice> 
         || name_word(&lower_name, "pencil")
         || name_word(&lower_name, "airbrush")
         || name_word(&lower_name, "finger")
-        || name_word(&lower_name, "mouse")
         || name_word(&lower_name, "cursor")
         || name_word(&lower_name, "puck")
         || name_word(&lower_name, "lens");
@@ -238,7 +237,14 @@ mod tests {
     #[test]
     fn absolute_xy_alone_is_not_a_tablet() {
         let axes = vec![axis(0, AxisLabel::X, 0.0), axis(1, AxisLabel::Y, 0.0)];
-        assert!(classify_device("Generic absolute pointer", axes).is_none());
+        for name in [
+            "Generic absolute pointer",
+            "QEMU QEMU USB Tablet",
+            "VMware Virtual USB Mouse",
+            "VirtualBox USB Tablet",
+        ] {
+            assert!(classify_device(name, axes.clone()).is_none(), "{name}");
+        }
     }
 
     #[test]
@@ -262,12 +268,22 @@ mod tests {
             ("Wacom Pencil", TabletToolKind::Pencil),
             ("Wacom Airbrush", TabletToolKind::Airbrush),
             ("Wacom Finger", TabletToolKind::Finger),
-            ("Wacom Mouse", TabletToolKind::Mouse),
             ("Tablet Cursor Puck", TabletToolKind::Mouse),
             ("Tablet Lens", TabletToolKind::Lens),
         ] {
             assert_eq!(classify_device(name, axes.clone()).unwrap().kind, expected);
         }
+    }
+
+    #[test]
+    fn mouse_tool_requires_tablet_axes() {
+        let axes = vec![
+            axis(0, AxisLabel::X, 0.0),
+            axis(1, AxisLabel::Y, 0.0),
+            axis(3, AxisLabel::TiltX, 0.0),
+        ];
+        let tablet = classify_device("Wacom Mouse", axes).unwrap();
+        assert_eq!(tablet.kind, TabletToolKind::Mouse);
     }
 
     #[test]
