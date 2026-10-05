@@ -46,6 +46,7 @@ changelog entry.
 - On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
+- On Wayland, fit the initial surface size into the minimum and maximum surface sizes, as the other backends do, so a window no longer opens below its minimum size. At window creation, minimum and maximum sizes given as a physical size, and a non-resizable window's size, now use the window's scale factor.
 
 ### Changed
 
