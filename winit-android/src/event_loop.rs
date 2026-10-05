@@ -2,10 +2,10 @@ use std::cell::Cell;
 use std::fmt;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction, TextInputState};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -33,6 +33,16 @@ use winit_core::window::{
 use crate::keycodes;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
+
+/// Last-observed soft-keyboard buffer. `GameTextInput` sends full
+/// buffer snapshots per edit; winit's `Ime::Commit` is delta-based, so
+/// we diff against this mirror. Cleared by `ImeRequest::Enable` so a
+/// focus change between fields starts from a clean baseline.
+static IME_TEXT_MIRROR: OnceLock<Mutex<String>> = OnceLock::new();
+
+fn ime_text_mirror() -> &'static Mutex<String> {
+    IME_TEXT_MIRROR.get_or_init(|| Mutex::new(String::new()))
+}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -501,6 +511,51 @@ impl EventLoop {
 
                         app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                     },
+                }
+            },
+            InputEvent::TextEvent(state) => {
+                let new_text = state.text.clone();
+                let old_text = {
+                    let mut guard = ime_text_mirror().lock().unwrap_or_else(|e| e.into_inner());
+                    std::mem::replace(&mut *guard, new_text.clone())
+                };
+
+                if new_text != old_text {
+                    // Char-wise LCP: byte-wise would split multi-byte UTF-8.
+                    let prefix_chars = old_text
+                        .chars()
+                        .zip(new_text.chars())
+                        .take_while(|(a, b)| a == b)
+                        .count();
+                    let prefix_bytes: usize =
+                        old_text.chars().take(prefix_chars).map(char::len_utf8).sum();
+                    let removed_bytes = old_text.len() - prefix_bytes;
+                    let added = &new_text[prefix_bytes..];
+
+                    if removed_bytes > 0 {
+                        app.window_event(
+                            &self.window_target,
+                            GLOBAL_WINDOW,
+                            event::WindowEvent::Ime(event::Ime::DeleteSurrounding {
+                                before_bytes: removed_bytes,
+                                after_bytes: 0,
+                            }),
+                        );
+                    }
+
+                    if !added.is_empty() {
+                        // `Ime::Commit` docstring requires an empty `Preedit` right before.
+                        app.window_event(
+                            &self.window_target,
+                            GLOBAL_WINDOW,
+                            event::WindowEvent::Ime(event::Ime::Preedit(String::new(), None)),
+                        );
+                        app.window_event(
+                            &self.window_target,
+                            GLOBAL_WINDOW,
+                            event::WindowEvent::Ime(event::Ime::Commit(added.to_owned())),
+                        );
+                    }
                 }
             },
             _ => {
@@ -1003,6 +1058,13 @@ impl CoreWindow for Window {
                     return Err(ImeRequestError::AlreadyEnabled);
                 }
                 *current_caps = Some(capabilities);
+                // Reset mirror + GameTextInput buffer so a focus change
+                // between fields doesn't re-attribute the previous field's
+                // text to the new one on first keystroke.
+                if let Ok(mut mirror) = ime_text_mirror().lock() {
+                    mirror.clear();
+                }
+                self.app.set_text_input_state(TextInputState::default());
                 self.app.show_soft_input(true);
             },
             ImeRequest::Update(_) => {
