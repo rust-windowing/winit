@@ -44,3 +44,4 @@ changelog entry.
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Windows, fix pen and touch pointer events using the frame's current pressure, tilt, rotation and force for every historical sample instead of the per-sample values.
