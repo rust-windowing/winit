@@ -53,3 +53,4 @@ changelog entry.
 - Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
   `TypedData::try_as_file_paths` and `impl From<Vec<url::Url>> for SendData`. Use `SendData::Uris`
   / `TypedData::try_as_uris` with `file:` URIs instead.
+- On Windows, if the window is created through `with_active(false)`, subsequent `window.set_visible(true)` calls will now focus the window (the current behavior is the window only gets focus if you call `window.set_focus()` or `window.set_maximized(true)`) this is consistent with the other platforms.

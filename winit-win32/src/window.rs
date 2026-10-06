@@ -1657,6 +1657,7 @@ unsafe fn init(
     let menu = win_attributes.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
+    let active = attributes.active;
     let mut initdata = InitData { runner, attributes, win_attributes, window_flags, window: None };
 
     let (style, ex_style) = window_flags.to_window_styles();
@@ -1698,6 +1699,11 @@ unsafe fn init(
         unsafe { force_window_active(win.window.hwnd()) };
     } else if maximized {
         win.set_maximized(true);
+    }
+
+    if !active {
+        win.window_state_lock()
+            .set_window_flags_in_place(|f| f.insert(WindowFlags::MARKER_ACTIVATE));
     }
 
     Ok(win)
