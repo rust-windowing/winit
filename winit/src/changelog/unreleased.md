@@ -48,6 +48,9 @@ changelog entry.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
 
+- On X11, preserve input context focus when enabling or disabling IME on a
+  focused window.
+
 ### Changed
 
 - Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
