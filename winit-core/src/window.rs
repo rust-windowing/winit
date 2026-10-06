@@ -1201,13 +1201,13 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///   The dock and the menu bar are disabled in exclusive fullscreen mode.
     /// - **Orbital / Wayland:** Does not support exclusive fullscreen mode and will no-op a
     ///   request.
-    /// - **Windows:** Screen saver is disabled in fullscreen mode. Requests from other threads
-    ///   are queued on the event-loop thread. Exclusive display-switch failures are logged
-    ///   instead of panicking, and the requested fullscreen state is recorded only after a
-    ///   successful display transition. A rejected transition retains the previous state unless
-    ///   restoring it also fails during a transfer between monitors, in which case the window
-    ///   returns to windowed mode. The original windowed placement is preserved across fullscreen
-    ///   transitions and restored when leaving fullscreen.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode. Requests from other threads are
+    ///   queued on the event-loop thread. Exclusive display-switch failures are logged instead of
+    ///   panicking, and the requested fullscreen state is recorded only after a successful display
+    ///   transition. A rejected transition retains the previous state unless restoring it also
+    ///   fails during a transfer between monitors, in which case the window returns to windowed
+    ///   mode. The original windowed placement is preserved across fullscreen transitions and
+    ///   restored when leaving fullscreen.
     /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with detailed
     ///   monitor permissions or calling without a [transient activation] does nothing.
     ///
@@ -1220,8 +1220,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **Windows:** Returns the last applied fullscreen state. Requests queued from another
-    ///   thread are not reflected until they execute on the event-loop thread. A rejected
-    ///   display transition is not reported as the requested fullscreen state.
+    ///   thread are not reflected until they execute on the event-loop thread. A rejected display
+    ///   transition is not reported as the requested fullscreen state.
     /// - **Android:** Will always return `None`.
     /// - **Orbital / Web:** Can only return `None` or `Borderless(None)`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
