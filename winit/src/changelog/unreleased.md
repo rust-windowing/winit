@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Wayland, add `WindowAttributesWayland::with_csd_fallback` to opt out of the client-side decoration fallback when the compositor declines server-side decoration.
+
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.

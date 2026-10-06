@@ -75,6 +75,7 @@ impl WindowState {
         if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
             configure.decoration_mode == DecorationMode::Client
                 && self.frame.is_none()
+                && self.csd_fallback
                 && !self.csd_fails
         }) {
             match WinitFrame::new(

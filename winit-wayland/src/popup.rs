@@ -154,6 +154,7 @@ impl Popup {
             },
             attributes.preferred_theme,
             false,
+            true,
             scale_factor,
             Some(parent_window_id),
         );
