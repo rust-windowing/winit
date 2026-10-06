@@ -414,9 +414,9 @@ pub enum DndAction {
 #[non_exhaustive]
 pub struct HistoricalMoveEvent {
     /// Event time
-    event_time: Duration,
-    source: PointerSource,
-    position: PhysicalPosition<f64>,
+    pub event_time: Duration,
+    pub source: PointerSource,
+    pub position: PhysicalPosition<f64>,
 }
 
 impl HistoricalMoveEvent {

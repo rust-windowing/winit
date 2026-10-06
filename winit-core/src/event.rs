@@ -376,7 +376,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **Wayland**.
-    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase, event_time: Duration },
+    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase, event_time: Option<Duration> },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///

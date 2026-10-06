@@ -114,7 +114,7 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
         state.events_sink.push_window_event(
             WindowEvent::HoldGesture {
                 device_id: None,
-                event_time: Duration::from_millis(time as u64),
+                event_time: Some(Duration::from_millis(time as u64)),
                 phase,
             },
             window_id,
