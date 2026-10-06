@@ -4,15 +4,18 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
 use dpi::{LogicalPosition, PhysicalSize};
-use objc2::rc::Retained;
+use objc2::rc::{Retained, Weak};
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, Message, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
-    NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventModifierFlags,
+    NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
     NSViewLayerContentsRedrawPolicy, NSWindow,
 };
-use objc2_core_foundation::CGRect;
+use objc2_core_foundation::{
+    CFAbsoluteTimeGetCurrent, CFRetained, CFRunLoop, CFRunLoopTimer, CFRunLoopTimerContext, CGRect,
+    kCFRunLoopCommonModes,
+};
 use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
@@ -24,6 +27,75 @@ use winit_core::event::{
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use winit_core::window::ImeCapabilities;
+
+/// Polling interval for macOS Korean IME daemon cold-start recovery (20ms).
+const IME_RETRY_INTERVAL_SECS: f64 = 0.02;
+
+/// Maximum retry attempts before falling back to committing raw keystroke (1 second total).
+const IME_MAX_RETRY_ATTEMPTS: usize = 50;
+
+#[derive(Debug)]
+struct ImeRetryState {
+    event: Retained<NSEvent>,
+    fallback_text: Option<String>,
+    attempts: usize,
+    timer: CFRetained<CFRunLoopTimer>,
+}
+
+impl Drop for ImeRetryState {
+    fn drop(&mut self) {
+        self.timer.invalidate();
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+struct ImeBatch {
+    text_to_commit: Option<String>,
+    marked_text: Option<(String, Option<(usize, usize)>)>,
+}
+
+/// Manages retry state and input queueing for macOS IME daemon cold starts.
+#[derive(Default, Debug)]
+struct ImeRetryHandler {
+    just_switched_to_korean: Cell<bool>,
+    retry_state: RefCell<Option<ImeRetryState>>,
+    batch: RefCell<Option<ImeBatch>>,
+    pending_events: RefCell<VecDeque<Retained<NSEvent>>>,
+}
+
+impl ImeRetryHandler {
+    fn is_retrying(&self) -> bool {
+        self.retry_state.borrow().is_some()
+    }
+
+    fn start_batch(&self) {
+        *self.batch.borrow_mut() = Some(ImeBatch::default());
+    }
+
+    fn finish_batch(&self) -> ImeBatch {
+        self.batch.borrow_mut().take().unwrap_or_default()
+    }
+
+    fn record_marked_text(&self, text: String, cursor_range: Option<(usize, usize)>) {
+        if let Some(ref mut batch) = *self.batch.borrow_mut() {
+            batch.marked_text = Some((text, cursor_range));
+        }
+    }
+
+    fn record_commit_text(&self, text: String) {
+        if let Some(ref mut batch) = *self.batch.borrow_mut() {
+            batch.text_to_commit = Some(text);
+        }
+    }
+}
+
+/// Returns true if `c` is an uncomposed Hangul Jamo (Compatibility Jamo or Jamo).
+///
+/// When the out-of-process `com.apple.inputmethod.Korean` daemon times out on cold start,
+/// AppKit falls back to calling `insertText:` with an isolated, uncomposed Jamo.
+fn is_hangul_jamo(c: char) -> bool {
+    matches!(c, '\u{3131}'..='\u{318E}' | '\u{1100}'..='\u{11FF}')
+}
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
@@ -148,6 +220,9 @@ pub struct ViewState {
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
+
+    /// State and event queue for recovering from macOS IME daemon cold-start timeouts.
+    ime_retry: ImeRetryHandler,
 }
 
 define_class!(
@@ -204,6 +279,14 @@ define_class!(
         fn accepts_first_responder(&self) -> bool {
             let _entered = trace_span!("acceptsFirstResponder").entered();
             true
+        }
+
+        #[unsafe(method(resignFirstResponder))]
+        fn resign_first_responder(&self) -> bool {
+            let _entered = debug_span!("resignFirstResponder").entered();
+            self.cancel_ime_retry_on_blur();
+            let res: bool = unsafe { msg_send![super(self), resignFirstResponder] };
+            res
         }
 
         // This is necessary to prevent a beefy terminal error on MacBook Pros:
@@ -316,6 +399,8 @@ define_class!(
                 Some((lowerbound_utf8, upperbound_utf8))
             };
 
+            self.ivars().ime_retry.record_marked_text(string.clone(), cursor_range);
+
             // Send WindowEvent for updating marked text
             self.queue_event(WindowEvent::Ime(Ime::Preedit(string, cursor_range)));
         }
@@ -400,6 +485,8 @@ define_class!(
             let pending_commit = self.ivars().pending_commit.get();
             let ime_enabled = self.is_ime_enabled();
 
+            self.ivars().ime_retry.record_commit_text(string.clone());
+
             // Clear preedit if there is marked text.
             if has_marked {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
@@ -459,21 +546,17 @@ define_class!(
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
             let _entered = debug_span!("keyDown:").entered();
-            {
-                let mut prev_input_source = self.ivars().input_source.borrow_mut();
-                let current_input_source = self.current_input_source();
-                if *prev_input_source != current_input_source && self.is_ime_enabled() {
-                    *prev_input_source = current_input_source;
-                    drop(prev_input_source);
-                    self.ivars().ime_state.set(ImeState::Disabled);
-                    self.queue_event(WindowEvent::Ime(Ime::Disabled));
-                }
+
+            if self.handle_ime_retry_queue(event) {
+                return;
             }
 
             // Get the characters from the event.
             let old_ime_state = self.ivars().ime_state.get();
             self.ivars().forward_key_to_app.set(false);
             let event = replace_event(event, self.option_as_alt());
+
+            self.ivars().ime_retry.start_batch();
 
             // The `interpretKeyEvents` function might call
             // `setMarkedText`, `insertText`, and `doCommandBySelector`.
@@ -490,6 +573,11 @@ define_class!(
                     // Remove any marked text, so normal input can continue.
                     *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
                 }
+            }
+
+            let batch = self.ivars().ime_retry.finish_batch();
+            if self.maybe_schedule_ime_retry(&event, &batch) {
+                return;
             }
 
             self.update_modifiers(&event, false);
@@ -839,9 +927,14 @@ impl WinitView {
             marked_text: Default::default(),
             next_click_is_activation: Default::default(),
             option_as_alt: Cell::new(option_as_alt),
+            ime_retry: Default::default(),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
-        *this.ivars().input_source.borrow_mut() = this.current_input_source();
+        let current_source = this.current_input_source();
+        *this.ivars().input_source.borrow_mut() = current_source.clone();
+        if current_source.contains("Korean") {
+            this.ivars().ime_retry.just_switched_to_korean.set(true);
+        }
 
         // Ask AppKit to redisplay the layer while the view is being resized so layer-backed
         // surfaces keep painting.
@@ -1007,6 +1100,208 @@ impl WinitView {
 
     pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
         self.ivars().ime_capabilities.get()
+    }
+
+    // ========================================================================
+    // IME Daemon Cold-Start Recovery
+    // ========================================================================
+
+    /// Handles input source switching and incoming key queuing during an active retry loop.
+    /// Returns `true` if the event was queued and should not be processed further by `keyDown:`.
+    fn handle_ime_retry_queue(&self, event: &NSEvent) -> bool {
+        let current_input_source = self.current_input_source();
+        {
+            let mut prev_input_source = self.ivars().input_source.borrow_mut();
+            if *prev_input_source != current_input_source {
+                if current_input_source.contains("Korean") {
+                    self.ivars().ime_retry.just_switched_to_korean.set(true);
+                }
+                if self.is_ime_enabled() {
+                    *prev_input_source = current_input_source.clone();
+                    drop(prev_input_source);
+                    self.ivars().ime_state.set(ImeState::Disabled);
+                    self.queue_event(WindowEvent::Ime(Ime::Disabled));
+                } else {
+                    *prev_input_source = current_input_source.clone();
+                }
+            }
+        }
+
+        if self.ivars().ime_retry.is_retrying() {
+            let modifiers = event.modifierFlags();
+            let is_shortcut = modifiers.contains(NSEventModifierFlags::Command)
+                || modifiers.contains(NSEventModifierFlags::Control);
+
+            if is_shortcut {
+                // Flush pending retry if a shortcut arrives.
+                self.cancel_ime_retry_and_flush();
+                false
+            } else {
+                // Queue the key so rapid typing does not drop characters during retry.
+                let event = replace_event(event, self.option_as_alt());
+                self.ivars().ime_retry.pending_events.borrow_mut().push_back(event);
+                true
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Checks whether the first keystroke after switching to Korean failed due to an IME
+    /// daemon cold start, and schedules a 20ms retry timer if so.
+    /// Returns `true` if a retry was scheduled and the raw commit was suppressed.
+    fn maybe_schedule_ime_retry(&self, event: &Retained<NSEvent>, batch: &ImeBatch) -> bool {
+        if !self.ivars().ime_retry.just_switched_to_korean.get() {
+            return false;
+        }
+
+        let current_source = self.current_input_source();
+        if !current_source.contains("Korean") {
+            self.ivars().ime_retry.just_switched_to_korean.set(false);
+            return false;
+        }
+
+        if batch.marked_text.is_some() {
+            // Daemon responded normally; preedit started without failure.
+            self.ivars().ime_retry.just_switched_to_korean.set(false);
+            false
+        } else if let Some(ref text) = batch.text_to_commit {
+            if text.chars().any(is_hangul_jamo) {
+                // Daemon timed out on cold start and fell back to uncomposed Jamo.
+                self.ivars().ime_retry.just_switched_to_korean.set(false);
+                self.start_ime_retry_timer(event, text.clone());
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    fn start_ime_retry_timer(&self, event: &Retained<NSEvent>, fallback_text: String) {
+        unsafe extern "C-unwind" fn ime_retry_timer_release(info: *const std::ffi::c_void) {
+            if !info.is_null() {
+                unsafe {
+                    drop(Box::from_raw(info as *mut Weak<WinitView>));
+                }
+            }
+        }
+
+        extern "C-unwind" fn ime_retry_timer_callback(
+            _timer: *mut CFRunLoopTimer,
+            info: *mut std::ffi::c_void,
+        ) {
+            if info.is_null() {
+                return;
+            }
+            let weak_view = unsafe { &*(info as *const Weak<WinitView>) };
+            if let Some(view) = weak_view.load() {
+                view.process_ime_retry();
+            }
+        }
+
+        let weak_view = Box::into_raw(Box::new(Weak::new(self)));
+        let mut context = CFRunLoopTimerContext {
+            version: 0,
+            info: weak_view.cast(),
+            retain: None,
+            release: Some(ime_retry_timer_release),
+            copyDescription: None,
+        };
+
+        unsafe {
+            let timer = CFRunLoopTimer::new(
+                None,
+                CFAbsoluteTimeGetCurrent() + IME_RETRY_INTERVAL_SECS,
+                IME_RETRY_INTERVAL_SECS,
+                0,
+                0,
+                Some(ime_retry_timer_callback),
+                &mut context as *mut _,
+            )
+            .unwrap();
+            CFRunLoop::main().unwrap().add_timer(Some(&timer), kCFRunLoopCommonModes);
+            *self.ivars().ime_retry.retry_state.borrow_mut() = Some(ImeRetryState {
+                event: Retained::clone(event),
+                fallback_text: Some(fallback_text),
+                attempts: 0,
+                timer,
+            });
+        }
+    }
+
+    fn cancel_ime_retry_and_flush(&self) {
+        if let Some(state) = self.ivars().ime_retry.retry_state.borrow_mut().take() {
+            if let Some(ref text) = state.fallback_text {
+                self.ivars().pending_commit.set(true);
+                self.queue_event(WindowEvent::Ime(Ime::Commit(text.clone())));
+            }
+            self.flush_pending_retry_events();
+        }
+    }
+
+    /// Cancels any in-flight IME retry timer and cleanly drops queued events on focus loss.
+    ///
+    /// # Invariant: Idempotent
+    /// Safe to invoke multiple times across cascading blur/close hooks (e.g.,
+    /// `resignFirstResponder` followed by `windowDidResignKey:`). The first call extracts the
+    /// retry state via `take()` and commits fallback text if needed, while subsequent calls
+    /// encounter `None` and safely no-op without re-committing or double-invalidating.
+    pub(super) fn cancel_ime_retry_on_blur(&self) {
+        if let Some(state) = self.ivars().ime_retry.retry_state.borrow_mut().take() {
+            if let Some(ref text) = state.fallback_text {
+                self.ivars().pending_commit.set(true);
+                self.queue_event(WindowEvent::Ime(Ime::Commit(text.clone())));
+            }
+        }
+        // Policy A: drop remaining queued keys to prevent cross-window ghost input leakage.
+        self.ivars().ime_retry.pending_events.borrow_mut().clear();
+    }
+
+    pub(super) fn process_ime_retry(&self) {
+        let (event, attempts) = {
+            let mut retry_state = self.ivars().ime_retry.retry_state.borrow_mut();
+            let Some(ref mut state) = *retry_state else { return };
+            state.attempts += 1;
+            (Retained::clone(&state.event), state.attempts)
+        };
+
+        self.ivars().ime_retry.start_batch();
+        let _ = if let Some(input_context) = self.inputContext() {
+            input_context.handleEvent(&event)
+        } else {
+            false
+        };
+        let batch = self.ivars().ime_retry.finish_batch();
+
+        if batch.marked_text.is_some() {
+            let _ = self.ivars().ime_retry.retry_state.borrow_mut().take();
+            self.flush_pending_retry_events();
+        } else if attempts >= IME_MAX_RETRY_ATTEMPTS {
+            let fallback_text = self
+                .ivars()
+                .ime_retry
+                .retry_state
+                .borrow_mut()
+                .take()
+                .and_then(|s| s.fallback_text.clone());
+            if let Some(text) = fallback_text {
+                self.ivars().pending_commit.set(true);
+                self.queue_event(WindowEvent::Ime(Ime::Commit(text)));
+            }
+            self.flush_pending_retry_events();
+        }
+    }
+
+    fn flush_pending_retry_events(&self) {
+        loop {
+            let next_event = self.ivars().ime_retry.pending_events.borrow_mut().pop_front();
+            let Some(queued_event) = next_event else { break };
+            unsafe {
+                let _: () = msg_send![self, keyDown: &*queued_event];
+            }
+        }
     }
 
     pub(super) fn set_ime_cursor_area(&self, position: NSPoint, size: NSSize) {

@@ -158,6 +158,7 @@ define_class!(
         #[unsafe(method(windowWillClose:))]
         fn window_will_close(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowWillClose:").entered();
+            self.view().cancel_ime_retry_on_blur();
             // `setDelegate:` retains the previous value and then autoreleases it
             autoreleasepool(|_| {
                 // Since El Capitan, we need to be careful that delegate methods can't
@@ -226,6 +227,8 @@ define_class!(
         #[unsafe(method(windowDidResignKey:))]
         fn window_did_resign_key(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidResignKey:").entered();
+            self.view().cancel_ime_retry_on_blur();
+
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
             // NSWindowDelegate will receive a didResignKey event despite no event
             // being received when the modifiers are released. This is because
