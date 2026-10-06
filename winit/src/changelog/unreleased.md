@@ -40,6 +40,9 @@ changelog entry.
 
 ## Unreleased
 
+### Changed
+- `MonitorHandleProvider::scale_factor` now returns `Option<f64>`.
+
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.

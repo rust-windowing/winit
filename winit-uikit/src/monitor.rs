@@ -109,8 +109,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Some((bounds.origin.x as f64, bounds.origin.y as f64).into())
     }
 
-    fn scale_factor(&self) -> f64 {
-        self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeScale()) as f64
+    fn scale_factor(&self) -> Option<f64> {
+        Some(self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeScale()) as f64)
     }
 
     fn current_video_mode(&self) -> Option<VideoMode> {

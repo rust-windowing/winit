@@ -68,8 +68,8 @@ impl MonitorHandleProvider for MonitorHandle {
         Some(self.position.into())
     }
 
-    fn scale_factor(&self) -> f64 {
-        self.scale_factor
+    fn scale_factor(&self) -> Option<f64> {
+        Some(self.scale_factor)
     }
 
     fn current_video_mode(&self) -> Option<VideoMode> {
