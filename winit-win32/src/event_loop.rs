@@ -71,8 +71,8 @@ use winit_core::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
 use winit_core::event::{
-    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
-    TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
+    TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -1856,6 +1856,7 @@ unsafe fn public_window_callback_inner(
                 device_id: None,
                 delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
+                source: ScrollSource::Unknown,
             });
 
             result = ProcResult::Value(0);
@@ -1889,6 +1890,7 @@ unsafe fn public_window_callback_inner(
                 device_id: None,
                 delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
+                source: ScrollSource::Unknown,
             });
 
             result = ProcResult::Value(0);

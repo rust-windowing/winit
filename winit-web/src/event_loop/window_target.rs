@@ -8,7 +8,7 @@ use web_sys::Element;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{CreateWindowError, CustomCursorError, NotSupportedError};
-use winit_core::event::{ElementState, KeyEvent, TouchPhase, WindowEvent};
+use winit_core::event::{ElementState, KeyEvent, ScrollSource, TouchPhase, WindowEvent};
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents,
     EventLoopProxy as RootEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -378,6 +378,7 @@ impl ActiveEventLoop {
                         device_id: None,
                         delta,
                         phase: TouchPhase::Moved,
+                        source: ScrollSource::Unknown,
                     },
                 },
             )));

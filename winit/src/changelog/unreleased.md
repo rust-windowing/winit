@@ -48,6 +48,10 @@ changelog entry.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
 
+### Added
+
+- Add `WindowEvent::MouseWheel::source: ScrollSource`, telling a mouse wheel from fingers on a touchpad from system-driven momentum scrolling, implemented on macOS and Wayland.
+
 ### Changed
 
 - Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
