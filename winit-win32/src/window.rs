@@ -21,9 +21,8 @@ use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DwmSetWindowAttribute,
 };
 use windows_sys::Win32::Graphics::Gdi::{
-    CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
-    DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
+    ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow,
+    ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
@@ -46,8 +45,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
     SWP_NOZORDER, SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
     SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TPM_LEFTALIGN,
-    TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON,
-    WM_SYSCOMMAND, WNDCLASSEXW,
+    TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WINDOWPLACEMENT,
+    WM_NCLBUTTONDOWN, WM_SETICON, WM_SYSCOMMAND, WNDCLASSEXW,
 };
 use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
@@ -67,6 +66,7 @@ use crate::definitions::{
 use crate::dnd::FileDropHandler;
 use crate::dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi};
 use crate::event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID, Event, EventLoopRunner};
+use crate::fullscreen::{self, DisplayTransition};
 use crate::icon::{IconType, WinCursor};
 use crate::ime::ImeContext;
 use crate::keyboard::KeyEventBuilder;
@@ -447,10 +447,9 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        // Restore fullscreen video mode on exit.
-        if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
-            self.set_fullscreen(None);
-        }
+        // A fullscreen request from another thread may still be queued. Queue restoration
+        // unconditionally so it runs after that request and before window destruction.
+        self.set_fullscreen(None);
 
         unsafe {
             // The window must be destroyed from the same thread that created it, so we send a
@@ -864,73 +863,48 @@ impl CoreWindow for Window {
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
-        let mut window_state_lock = window_state.lock().unwrap();
-        let old_fullscreen = window_state_lock.fullscreen.clone();
-
-        match (&old_fullscreen, &fullscreen) {
-            // Return if we already are in the same fullscreen mode
-            _ if old_fullscreen == fullscreen => return,
-            // Return if saved Borderless(monitor) is the same as current monitor when requested
-            // fullscreen is Borderless(None)
-            (Some(Fullscreen::Borderless(Some(monitor))), Some(Fullscreen::Borderless(None)))
-                if monitor.native_id() == monitor::current_monitor(window.hwnd()).native_id() =>
-            {
-                return;
-            },
-            _ => {},
-        }
-
-        window_state_lock.fullscreen.clone_from(&fullscreen);
-        drop(window_state_lock);
-
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
-            // Change video mode if we're transitioning to or from exclusive
-            // fullscreen
+            let old_fullscreen = window_state.lock().unwrap().fullscreen.clone();
+
             match (&old_fullscreen, &fullscreen) {
-                (_, Some(Fullscreen::Exclusive(monitor, video_mode))) => {
-                    let monitor = monitor.cast_ref::<MonitorHandle>().unwrap();
-                    let video_mode =
-                        match monitor.video_mode_handles().find(|mode| &mode.mode == video_mode) {
-                            Some(monitor) => monitor,
-                            None => return,
-                        };
-                    let monitor_info = monitor::get_monitor_info(monitor.native_id() as _).unwrap();
-
-                    let res = unsafe {
-                        ChangeDisplaySettingsExW(
-                            monitor_info.szDevice.as_ptr(),
-                            &*video_mode.native_video_mode,
-                            ptr::null_mut(),
-                            CDS_FULLSCREEN,
-                            ptr::null(),
-                        )
-                    };
-
-                    debug_assert!(res != DISP_CHANGE_BADFLAGS);
-                    debug_assert!(res != DISP_CHANGE_BADMODE);
-                    debug_assert!(res != DISP_CHANGE_BADPARAM);
-                    debug_assert!(res != DISP_CHANGE_FAILED);
-                    assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
+                _ if old_fullscreen == fullscreen => return,
+                (
+                    Some(Fullscreen::Borderless(Some(monitor))),
+                    Some(Fullscreen::Borderless(None)),
+                ) if monitor.native_id() == monitor::current_monitor(window.hwnd()).native_id() => {
+                    return;
                 },
-                (Some(Fullscreen::Exclusive(..)), _) => {
-                    let res = unsafe {
-                        ChangeDisplaySettingsExW(
-                            ptr::null(),
-                            ptr::null(),
-                            ptr::null_mut(),
-                            CDS_FULLSCREEN,
-                            ptr::null(),
-                        )
-                    };
+                _ => {},
+            }
 
-                    debug_assert!(res != DISP_CHANGE_BADFLAGS);
-                    debug_assert!(res != DISP_CHANGE_BADMODE);
-                    debug_assert!(res != DISP_CHANGE_BADPARAM);
-                    debug_assert!(res != DISP_CHANGE_FAILED);
-                    assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
-                },
-                _ => (),
+            let saved_window = if old_fullscreen.is_none() && fullscreen.is_some() {
+                let mut placement: WINDOWPLACEMENT = unsafe { mem::zeroed() };
+                placement.length = mem::size_of_val(&placement) as u32;
+                if unsafe { GetWindowPlacement(window.hwnd(), &mut placement) } == false.into() {
+                    warn!(
+                        "Failed to save window placement before fullscreen: {}",
+                        io::Error::last_os_error()
+                    );
+                    return;
+                }
+                Some(SavedWindow { placement })
+            } else {
+                None
+            };
+
+            let fullscreen = match fullscreen::change_display_mode(&old_fullscreen, &fullscreen) {
+                DisplayTransition::Applied => fullscreen.clone(),
+                DisplayTransition::Unchanged => return,
+                DisplayTransition::Windowed => None,
+            };
+
+            {
+                let mut state = window_state.lock().unwrap();
+                state.fullscreen.clone_from(&fullscreen);
+                if let Some(saved_window) = saved_window {
+                    state.saved_window = Some(saved_window);
+                }
             }
 
             unsafe {
@@ -970,15 +944,6 @@ impl CoreWindow for Window {
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
-                    // Save window bounds before entering fullscreen
-                    let placement = unsafe {
-                        let mut placement = mem::zeroed();
-                        GetWindowPlacement(window.hwnd(), &mut placement);
-                        placement
-                    };
-
-                    window_state.lock().unwrap().saved_window = Some(SavedWindow { placement });
-
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(monitor, _)
                         | Fullscreen::Borderless(Some(monitor)) => {
@@ -1870,3 +1835,7 @@ unsafe fn force_window_active(handle: HWND) {
 
     unsafe { SetForegroundWindow(handle) };
 }
+
+#[cfg(test)]
+#[path = "window/fullscreen_test.rs"]
+mod fullscreen_test;
