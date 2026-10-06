@@ -40,6 +40,7 @@ impl Window {
         match attrs.window_type() {
             window::WindowType::Window => (),
             window::WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            window::WindowType::Dialog => return Err(CreateWindowError::DialogNotSupported),
             _ => panic!("Unknown WindowType"),
         }
 

@@ -21,10 +21,9 @@ use winit_core::window::{
 
 use super::ActiveEventLoop;
 use crate::WindowAttributesWayland;
-use crate::window::Handles;
 use crate::window::common::WindowCommon;
-use crate::window::handles::WindowRequests;
 use crate::window::state::{WindowState, WindowType};
+use crate::window::{Handles, finish_window_setup};
 
 #[derive(Debug)]
 pub struct Popup {
@@ -65,7 +64,7 @@ impl Popup {
         } = attributes.positioner.unwrap_or_default();
         let grab_keyboard = attributes.active;
 
-        let mut parent_window_state = parent_window_state.lock().unwrap();
+        let parent_window_state = parent_window_state.lock().unwrap();
 
         // Use the scale factor and xdg geometry of the parent.
         let scale_factor = parent_window_state.scale_factor();
@@ -131,7 +130,6 @@ impl Popup {
             &state.xdg_shell,
         )
         .map_err(|e| os_error!(e))?;
-        parent_window_state.add_child(super::make_wid(popup.wl_surface()));
         drop(parent_window_state);
         drop(window_states);
 
@@ -199,44 +197,25 @@ impl Popup {
 
         let popup_state = Arc::new(Mutex::new(popup_state));
 
-        let window_id = super::make_wid(popup.wl_surface());
-        state.windows.get_mut().insert(window_id, popup_state.clone());
-
-        let window_requests = WindowRequests {
-            redraw_requested: AtomicBool::new(true),
-            closed: AtomicBool::new(false),
-        };
-        let window_requests = Arc::new(window_requests);
-        state.window_requests.get_mut().insert(window_id, window_requests.clone());
-
         // Setup the event sync to insert `WindowEvents` right from the window.
         let window_events_sink = state.window_events_sink.clone();
 
-        let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
-        let event_queue = wayland_source.queue();
-        // Do a roundtrip.
-        event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
+        let (window_id, window_requests) = finish_window_setup(
+            event_loop_window_target,
+            &mut state,
+            popup.wl_surface(),
+            &popup_state,
+            Some("Popup was dismissed by the compositor before configure"),
+        )?;
 
-        // XXX Wait for the initial configure to arrive.
-        while !popup_state.lock().unwrap().is_configured() {
-            event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
-            // The compositor may dismiss a popup (e.g. invalid grab serial) by sending
-            // popup_done before configure. Detect that and bail out instead of looping forever.
-            if state
-                .window_compositor_updates
-                .iter()
-                .any(|u| u.window_id == window_id && u.close_window)
-            {
-                return Err(os_error!(PopupError(
-                    "Popup was dismissed by the compositor before configure"
-                ))
-                .into());
-            }
-        }
-
-        // Wake-up event loop, so it'll send initial redraw requested.
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
-        event_loop_awakener.ping();
+
+        let windows = state.windows.borrow();
+        if let Some(parent_window_state) = windows.get(&parent_window_id) {
+            let mut parent_window_state = parent_window_state.lock().unwrap();
+            parent_window_state.add_child(super::make_wid(popup.wl_surface()));
+            drop(parent_window_state);
+        };
 
         Ok(Self {
             common: WindowCommon {
@@ -652,7 +631,7 @@ fn from_constraint_adjustment(
     ConstraintAdjustment::from_bits_retain(value.bits())
 }
 
-/// Constructing a popup failed: dismissed by OS
+/// A request on a popup failed because the popup is gone or not yet configured.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct PopupError(&'static str);
 

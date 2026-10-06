@@ -56,8 +56,8 @@ impl WindowState {
     /// Creates (or drops) the CSD frame per `configure`'s decoration mode, and computes the
     /// surface size to apply, accounting for borders, configure bounds, and resize increments.
     ///
-    /// Shared between `configure_window` and `configure_dialog`, since both configure an
-    /// `xdg_toplevel`-based surface from the same [`WindowConfigure`] event shape.
+    /// Used by [`Self::configure_xdg_toplevel`] to configure the `xdg_toplevel`-based `Window`
+    /// and `Dialog` surfaces from the same [`WindowConfigure`] event shape.
     fn configure_frame_and_size(
         &mut self,
         configure: &WindowConfigure,
@@ -178,7 +178,12 @@ impl WindowState {
         new_size
     }
 
-    pub fn configure_window(
+    /// Update the last-received configure and resize if necessary.
+    ///
+    /// Used for both `Window` and `Dialog`, since both are backed by an `xdg_toplevel` and
+    /// receive the same [`WindowConfigure`] event shape (unlike `Popup`, handled by
+    /// [`Self::configure_popup`]).
+    pub fn configure_xdg_toplevel(
         &mut self,
         configure: WindowConfigure,
         shm: &Shm,
@@ -187,33 +192,37 @@ impl WindowState {
         let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
 
         let new_state = configure.state;
-        if let WindowType::Window { last_configure, .. } = &mut self.window {
-            let old_state = last_configure.as_ref().map(|configure| configure.state);
+        let last_configure = match &mut self.window {
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => {
+                tracing::error!(
+                    "configure_xdg_toplevel called for a `Popup`. This should never happen, \
+                     because popups are configured through `configure_popup`"
+                );
+                return false;
+            },
+        };
 
-            let state_change_requires_resize = old_state
-                .map(|old_state| {
-                    !old_state
-                        .symmetric_difference(new_state)
-                        .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
-                        .is_empty()
-                })
-                // NOTE: `None` is present for the initial configure, thus we must always resize.
-                .unwrap_or(true);
+        let old_state = last_configure.as_ref().map(|configure| configure.state);
 
-            // NOTE: Set the configure before doing a resize, since we query it during it.
-            *last_configure = Some(configure);
+        let state_change_requires_resize = old_state
+            .map(|old_state| {
+                !old_state
+                    .symmetric_difference(new_state)
+                    .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
+                    .is_empty()
+            })
+            // NOTE: `None` is present for the initial configure, thus we must always resize.
+            .unwrap_or(true);
 
-            if state_change_requires_resize || new_size != self.surface_size() {
-                self.resize(new_size);
-                true
-            } else {
-                false
-            }
+        // NOTE: Set the configure before doing a resize, since we query it during it.
+        *last_configure = Some(configure);
+
+        if state_change_requires_resize || new_size != self.surface_size() {
+            self.resize(new_size);
+            true
         } else {
-            tracing::error!(
-                "configure_window called for window type unequal of `Window`. This should never \
-                 happen, because we start configuring with a `Window`"
-            );
             false
         }
     }

@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `WindowType::Dialog` and `WindowAttributes::with_modal()`, implemented on Wayland, Windows and macOS.
+
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
