@@ -127,7 +127,7 @@ impl<T> EventLoopBuilder<T> {
         })
     }
 
-    #[cfg(web_platform)]
+    #[cfg(any(web_platform, android_platform))]
     pub(crate) fn allow_event_loop_recreation() {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }

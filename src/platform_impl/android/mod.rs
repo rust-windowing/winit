@@ -157,6 +157,13 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+impl<T: 'static> Drop for EventLoop<T> {
+    fn drop(&mut self) {
+        // One activity, one loop: the next activity of this process builds its own.
+        crate::event_loop::EventLoopBuilder::<()>::allow_event_loop_recreation();
+    }
+}
+
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -287,13 +294,21 @@ impl<T: 'static> EventLoop<T> {
                     warn!("TODO: forward onStop notification to application");
                 },
                 MainEvent::Destroy => {
-                    // XXX: maybe exit mainloop to drop things before being
-                    // killed by the OS?
-                    warn!("TODO: forward onDestroy notification to application");
+                    // The activity is gone: end the loop so `android_main` returns. The glue's
+                    // `onDestroy` waits for that on the Java main thread, and a new activity of
+                    // the same process (a configuration change Android relaunches for) gets its
+                    // own `android_main`, which builds a new event loop.
+                    debug!("App Destroyed - exiting the event loop");
+                    self.window_target.p.exit();
                 },
                 MainEvent::InsetsChanged { .. } => {
-                    // XXX: how to forward this state to applications?
-                    warn!("TODO: handle Android InsetsChanged notification");
+                    // The safe area changed (system bars, display cutout, keyboard). There is no
+                    // event for it; iOS reports a safe-area change as `Resized` too, so the app
+                    // hears of it the same way (the size may stay the same). Not before the
+                    // window exists: its size would be zero.
+                    if self.android_app.native_window().is_some() {
+                        resized = true;
+                    }
                 },
                 unknown => {
                     trace!("Unknown MainEvent {unknown:?} (ignored)");
