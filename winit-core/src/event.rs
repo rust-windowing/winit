@@ -14,7 +14,7 @@ use crate::data_transfer::{DataTransferId, TypedData};
 use crate::error::InternalError;
 use crate::event_loop::{AsyncRequestSerial, DndAction};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
-#[cfg(doc)]
+#[allow(unused, reason = "used in docs only")]
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme};
 
@@ -634,7 +634,7 @@ pub enum ButtonSource {
     /// [`Left`](MouseButton::Left) clicks as secondary when
     /// [<kbd>CTRL</kbd>](ModifiersState::CONTROL) is held and their internal logic deems it
     /// appropriate for the content under the pointer.
-    /// See also https://github.com/rust-windowing/winit/issues/4469.
+    /// See also <https://github.com/rust-windowing/winit/issues/4469>.
     Mouse(MouseButton),
     /// See [`PointerSource::Touch`] for more details.
     ///
