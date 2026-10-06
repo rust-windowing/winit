@@ -9,8 +9,8 @@ use std::{fmt, ptr};
 
 use dispatch2::MainThreadBound;
 use dpi::PhysicalSize;
-use objc2::MainThreadMarker;
 use objc2::rc::Retained;
+use objc2::{MainThreadMarker, available};
 use objc2_core_foundation::{
     CFAbsoluteTimeGetCurrent, CFRetained, CFRunLoop, CFRunLoopTimer, CGRect, CGSize,
     kCFRunLoopCommonModes,
@@ -83,6 +83,7 @@ pub(crate) struct AppState {
     event_loop_proxy: Arc<EventLoopProxy>,
     queued_events: Cell<Vec<EventWrapper>>,
     queued_gpu_redraws: Cell<HashSet<Retained<WinitUIWindow>>>,
+    awaiting_scene: Cell<bool>,
 }
 
 impl fmt::Debug for AppState {
@@ -116,6 +117,7 @@ impl AppState {
                 event_loop_proxy,
                 queued_events: Cell::new(Vec::new()),
                 queued_gpu_redraws: Cell::new(HashSet::new()),
+                awaiting_scene: Cell::new(false),
             })
             .is_ok()
     }
@@ -268,8 +270,23 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
     this.did_finish_launching_transition();
 
     get_handler(mtm).handle(|app| app.new_events(&ActiveEventLoop { mtm }, StartCause::Init));
-    get_handler(mtm).handle(|app| app.can_create_surfaces(&ActiveEventLoop { mtm }));
+    // Apps that adopt the scene life cycle get their first scene after launching, and windows
+    // need one to be shown.
+    if available!(ios = 13.0, tvos = 13.0, visionos = 1.0)
+        && UIApplication::sharedApplication(mtm).connectedScenes().is_empty()
+    {
+        this.awaiting_scene.set(true);
+    } else {
+        get_handler(mtm).handle(|app| app.can_create_surfaces(&ActiveEventLoop { mtm }));
+    }
     handle_nonuser_events(mtm, []);
+}
+
+pub(crate) fn scene_will_connect(mtm: MainThreadMarker) {
+    if AppState::get(mtm).awaiting_scene.replace(false) {
+        get_handler(mtm).handle(|app| app.can_create_surfaces(&ActiveEventLoop { mtm }));
+        handle_nonuser_events(mtm, []);
+    }
 }
 
 // AppState::did_finish_launching handles the special transition `Init`
