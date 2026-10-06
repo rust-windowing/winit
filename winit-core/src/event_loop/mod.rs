@@ -1,4 +1,5 @@
 pub mod never_return;
+pub mod primary_selection;
 pub mod pump_events;
 pub mod register;
 pub mod run_on_demand;
@@ -322,6 +323,47 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         let _ = actions;
         let _ = icon;
         Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Get the current clipboard contents as a [data transfer](crate::data_transfer), or `None`
+    /// if the clipboard is empty.
+    ///
+    /// The returned ID can be used with [`data_transfer`](Self::data_transfer) to inspect the
+    /// available types, and with [`fetch_data_transfer`](Self::fetch_data_transfer) to read the
+    /// data.
+    ///
+    /// As the clipboard is not tied to a window, the resulting
+    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
+    ///  event is delivered to the focused window, or to an unspecified
+    ///  window if focus could not be determined.
+    ///
+    /// The ID is only valid until the clipboard contents change.
+    fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Set the clipboard contents.
+    ///
+    /// See [`DataTransferSendBuilder`](crate::data_transfer::DataTransferSendBuilder) for how to
+    /// create a new cross-platform data transfer.
+    ///
+    /// The data is sent lazily where supported by the platform: it is only encoded when another
+    /// application requests one of the advertised types, and otherwise dropped once another
+    /// application takes over the clipboard.
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
+        let _ = send_data;
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Access the primary selection platform extension, where available.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:*x* Available if supported by compositor.
+    /// - **X11:** Always available.
+    /// - **Others:** Unsupported.
+    fn primary_selection_ext(&self) -> Option<&dyn primary_selection::PrimarySelectionExt> {
+        None
     }
 }
 
