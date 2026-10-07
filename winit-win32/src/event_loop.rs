@@ -62,7 +62,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 use windows_sys::core::BOOL;
-use winit_common::event_handler::TimeStampExtender;
+use winit_common::timestamp_handler::TimeStampExtender;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
@@ -131,16 +131,17 @@ impl WindowData {
     }
 
     fn event_time_to_duration(&self, event_time: u32) -> Duration {
-        unimplemented!("TODO. Use timestamp_extender");
-        Duration::from_millis(event_time as u64)
+        let mut timestamp_extender = self.timestamp_extender.get();
+        let duration = timestamp_extender.extend_timestamp_millisecond(event_time);
+        self.timestamp_extender.set(timestamp_extender);
+        duration
     }
 
     fn message_time(&self) -> Option<Duration> {
-        unimplemented!("TODO. Use timestamp_extender");
         // SAFETY: `GetMessageTime` has no preconditions.
         let time = unsafe { GetMessageTime() };
         // The time is a 32-bit millisecond tick count that is returned as a signed integer.
-        Some(Duration::from_millis(time as u32 as u64))
+        Some(self.event_time_to_duration(time as u32))
     }
 }
 
@@ -2097,7 +2098,7 @@ unsafe fn public_window_callback_inner(
 
                     let finger_id = FingerId::from_raw(input.dwID as usize);
                     let primary = util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY);
-                    let event_time = userdata.event_time_to_duration(intput.dwTime);
+                    let event_time = Some(userdata.event_time_to_duration(input.dwTime));
 
                     if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
                         userdata.send_window_event(window, WindowEvent::PointerEntered {

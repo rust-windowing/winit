@@ -114,7 +114,7 @@ impl PointerHandler for WinitState {
                         pressed,
                         seat,
                         serial,
-                        self.timestamp_extender.extend_timestamp(time),
+                        self.timestamp_extender.extend_timestamp_millisecond(time),
                         window_id,
                         &mut self.window_compositor_updates,
                     );
@@ -161,7 +161,9 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerMoved {
                             primary: true,
                             device_id: None,
-                            event_time: Some(self.timestamp_extender.extend_timestamp(time)),
+                            event_time: Some(
+                                self.timestamp_extender.extend_timestamp_millisecond(time),
+                            ),
                             position,
                             source: PointerSource::Mouse,
                             history: Vec::new(),
@@ -190,7 +192,9 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerButton {
                             primary: true,
                             device_id: None,
-                            event_time: Some(self.timestamp_extender.extend_timestamp(time)),
+                            event_time: Some(
+                                self.timestamp_extender.extend_timestamp_millisecond(time),
+                            ),
                             state,
                             position,
                             button,
@@ -249,7 +253,9 @@ impl PointerHandler for WinitState {
                     self.events_sink.push_window_event(
                         WindowEvent::MouseWheel {
                             device_id: None,
-                            event_time: Some(self.timestamp_extender.extend_timestamp(time)),
+                            event_time: Some(
+                                self.timestamp_extender.extend_timestamp_millisecond(time),
+                            ),
                             delta,
                             phase,
                         },

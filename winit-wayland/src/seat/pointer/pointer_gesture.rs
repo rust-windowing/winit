@@ -1,6 +1,5 @@
 use std::ops::Deref;
 use std::sync::Mutex;
-use std::time::Duration;
 
 use dpi::{LogicalPosition, PhysicalPosition};
 use sctk::compositor::SurfaceData;
@@ -114,7 +113,7 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
         state.events_sink.push_window_event(
             WindowEvent::HoldGesture {
                 device_id: None,
-                event_time: Some(state.timestamp_extender.extend_timestamp(time)),
+                event_time: Some(state.timestamp_extender.extend_timestamp_millisecond(time)),
                 phase,
             },
             window_id,
@@ -189,7 +188,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
             },
             _ => unreachable!("Unknown event {event:?}"),
         };
-        let event_time = Some(state.timestamp_extender.extend_timestamp(time));
+        let event_time = Some(state.timestamp_extender.extend_timestamp_millisecond(time));
 
         // The chance of only one of these events being necessary is extremely small,
         // so it is easier to just send all three

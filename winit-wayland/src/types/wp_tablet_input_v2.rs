@@ -1,7 +1,6 @@
 //! Handling of wp_tablet_input_v2.
 
 use std::sync::Mutex;
-use std::time::Duration;
 
 use dpi::LogicalPosition;
 use sctk::compositor::SurfaceData;
@@ -175,7 +174,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
             ToolEvent::Frame { time } => {
                 // TODO: instead of creating single events we should use also the history vector on
                 // move
-                let event_time = Some(state.timestamp_extender.extend_timestamp(time));
+                let event_time = Some(state.timestamp_extender.extend_timestamp_millisecond(time));
                 let kind = data.ty;
                 for event in std::mem::take(&mut data.pending) {
                     if let TabletEvent::Enter { surface, serial } = &event {

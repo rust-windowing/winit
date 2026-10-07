@@ -134,7 +134,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
             {
                 seat_state.latest_input_serial.set(Some(serial));
                 let key = key + 8;
-                let event_time = state.timestamp_extender.extend_timestamp(time);
+                let event_time = state.timestamp_extender.extend_timestamp_millisecond(time);
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
@@ -229,7 +229,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     keyboard_state,
                     &mut state.events_sink,
                     data,
-                    Some(state.timestamp_extender.extend_timestamp(time)),
+                    Some(state.timestamp_extender.extend_timestamp_millisecond(time)),
                     key,
                     ElementState::Released,
                     false,

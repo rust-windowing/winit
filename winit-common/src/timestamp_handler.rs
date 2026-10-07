@@ -7,7 +7,7 @@ pub struct TimeStampExtender {
 
 impl TimeStampExtender {
     /// Convert a timestamp from u32 to duration by preventing also the wrap
-    pub fn extend_timestamp(&mut self, timestamp_millis: u32) -> Duration {
+    pub fn extend_timestamp_millisecond(&mut self, timestamp_millis: u32) -> Duration {
         let Some(last) = self.last else {
             self.last = Some(timestamp_millis as u64);
             return Duration::from_millis(timestamp_millis as u64);
@@ -30,7 +30,7 @@ mod tests {
     use crate::timestamp_handler::TimeStampExtender;
 
     #[test]
-    fn test_extend_timestamp() {
+    fn test_extend_timestamp_millisecond() {
         const TEST_CASES: &[(u32, u32, Duration)] = &[
             (10, 20, Duration::from_millis(20)),
             (u32::MAX - 100, u32::MAX, Duration::from_millis(u32::MAX as u64)),
@@ -45,10 +45,10 @@ mod tests {
 
         for (index, (start_value, new_timestamp, expected)) in TEST_CASES.iter().enumerate() {
             let mut timestamp_extender = TimeStampExtender::default();
-            timestamp_extender.extend_timestamp(*start_value);
+            timestamp_extender.extend_timestamp_millisecond(*start_value);
 
             assert_eq!(
-                timestamp_extender.extend_timestamp(*new_timestamp).as_nanos(),
+                timestamp_extender.extend_timestamp_millisecond(*new_timestamp).as_nanos(),
                 expected.as_nanos(),
                 "Failed index: {index}"
             );

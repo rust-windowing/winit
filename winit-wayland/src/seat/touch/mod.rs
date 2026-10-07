@@ -1,7 +1,5 @@
 //! Touch handling.
 
-use std::time::Duration;
-
 use dpi::LogicalPosition;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -57,7 +55,7 @@ impl TouchHandler for WinitState {
 
         let position = location.to_physical(scale_factor);
         let finger_id = FingerId::from_raw(id as usize);
-        let event_time = Some(self.timestamp_extender.extend_timestamp(time));
+        let event_time = Some(self.timestamp_extender.extend_timestamp_millisecond(time));
 
         self.events_sink.push_window_event(
             WindowEvent::PointerEntered {
@@ -130,7 +128,7 @@ impl TouchHandler for WinitState {
 
         let position = touch_point.location.to_physical(scale_factor);
         let finger_id = FingerId::from_raw(id as usize);
-        let event_time = Some(self.timestamp_extender.extend_timestamp(time));
+        let event_time = Some(self.timestamp_extender.extend_timestamp_millisecond(time));
 
         self.events_sink.push_window_event(
             WindowEvent::PointerButton {
@@ -165,7 +163,7 @@ impl TouchHandler for WinitState {
         id: i32,
         position: (f64, f64),
     ) {
-        let event_time = Some(self.timestamp_extender.extend_timestamp(time));
+        let event_time = Some(self.timestamp_extender.extend_timestamp_millisecond(time));
         let seat_state = match self.seats.get_mut(&touch.seat().id()) {
             Some(seat_state) => seat_state,
             None => {
