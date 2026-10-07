@@ -33,6 +33,7 @@ use super::event::{
 };
 use super::window::window_id;
 use crate::OptionAsAlt;
+use crate::ime_startup::ImeStartup;
 
 #[derive(Debug)]
 struct CursorState {
@@ -127,6 +128,7 @@ pub struct ViewState {
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     ime_state: Cell<ImeState>,
+    ime_startup: RefCell<ImeStartup>,
     input_source: RefCell<String>,
 
     /// True if this view was in a preedit session that will result in a commit.
@@ -269,6 +271,7 @@ define_class!(
         ) {
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             let _entered = debug_span!("setMarkedText:selectedRange:replacementRange:").entered();
+            self.ivars().ime_startup.borrow_mut().other_callback();
 
             let (marked_text, string) = if let Some(string) =
                 string.downcast_ref::<NSAttributedString>()
@@ -323,6 +326,7 @@ define_class!(
         #[unsafe(method(unmarkText))]
         fn unmark_text(&self) {
             let _entered = debug_span!("unmarkText").entered();
+            self.ivars().ime_startup.borrow_mut().other_callback();
             *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
 
             let input_context = self.inputContext().expect("input context");
@@ -395,6 +399,7 @@ define_class!(
                 panic!("unexpected text {string:?}")
             };
 
+            self.ivars().ime_startup.borrow_mut().insert(&string);
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
             let has_marked = self.hasMarkedText();
             let pending_commit = self.ivars().pending_commit.get();
@@ -420,6 +425,7 @@ define_class!(
         #[unsafe(method(doCommandBySelector:))]
         fn do_command_by_selector(&self, command: Sel) {
             let _entered = debug_span!("doCommandBySelector:").entered();
+            self.ivars().ime_startup.borrow_mut().other_callback();
 
             // We shouldn't forward any character from just committed text, since we'll end up
             // sending it twice with some IMEs like Korean one. We'll also always send
@@ -475,6 +481,21 @@ define_class!(
             self.ivars().forward_key_to_app.set(false);
             let event = replace_event(event, self.option_as_alt());
 
+            let source = self.current_input_source();
+            let characters = event.characters().map(|s| s.to_string()).unwrap_or_default();
+            let modifiers = event_mods(&event).state();
+            let eligible = self.ivars().ime_capabilities.get().is_some()
+                && old_ime_state == ImeState::Disabled
+                && !self.ivars().pending_commit.get()
+                && !self.hasMarkedText()
+                && !event.isARepeat()
+                && !modifiers.intersects(
+                    ModifiersState::META | ModifiersState::CONTROL | ModifiersState::ALT,
+                )
+                && self.ime_retry_has_focus();
+            let serial =
+                self.ivars().ime_startup.borrow_mut().begin(&source, &characters, eligible);
+
             // The `interpretKeyEvents` function might call
             // `setMarkedText`, `insertText`, and `doCommandBySelector`.
             // It's important that we call this before queuing the KeyboardInput, because
@@ -484,6 +505,21 @@ define_class!(
             if self.ivars().ime_capabilities.get().is_some() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
                 self.interpretKeyEvents(&events_for_nsview);
+
+                // On the first Korean key AppKit can call insertText with a raw jamo instead
+                // of starting preedit (winit#3095). That callback emits no app event here.
+                // Retry the SAME retained event once, only for that exact fallback batch.
+                // No timer, key queue, synthetic composition, or borrow across AppKit calls.
+                let same_context = self.ivars().ime_capabilities.get().is_some()
+                    && self.ivars().ime_state.get() == ImeState::Disabled
+                    && !self.ivars().pending_commit.get()
+                    && !self.hasMarkedText()
+                    && self.current_input_source() == source
+                    && self.ime_retry_has_focus();
+                let retry = self.ivars().ime_startup.borrow_mut().finish(serial, same_context);
+                if retry {
+                    self.interpretKeyEvents(&events_for_nsview);
+                }
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -832,6 +868,7 @@ impl WinitView {
             modifiers: Default::default(),
             phys_modifiers: Default::default(),
             ime_state: Default::default(),
+            ime_startup: RefCell::new(ImeStartup::default()),
             input_source: Default::default(),
             pending_commit: Default::default(),
             ime_capabilities: Default::default(),
@@ -945,6 +982,14 @@ impl WinitView {
         !matches!(self.ivars().ime_state.get(), ImeState::Disabled)
     }
 
+    fn ime_retry_has_focus(&self) -> bool {
+        let Some(window) = (**self).window() else {
+            return false;
+        };
+        window.isKeyWindow()
+            && window.firstResponder().is_some_and(|responder| *responder == ***self)
+    }
+
     fn current_input_source(&self) -> String {
         self.inputContext()
             .expect("input context")
@@ -975,6 +1020,7 @@ impl WinitView {
         }
     }
     pub(super) fn enable_ime(&self, capabilities: ImeCapabilities) {
+        self.ivars().ime_startup.borrow_mut().reset();
         // This seems reasonable but the prior behavior of `set_ime_allowed` doesn't do this
         // (it was also broken but let's not break things worse)
 
@@ -993,6 +1039,7 @@ impl WinitView {
         self.ivars().pending_commit.set(false);
     }
     pub(super) fn disable_ime(&self) {
+        self.ivars().ime_startup.borrow_mut().reset();
         // see above
         self.ivars().ime_capabilities.set(None);
         if self.ivars().ime_state.get() != ImeState::Disabled {
