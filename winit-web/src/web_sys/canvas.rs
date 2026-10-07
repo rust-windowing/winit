@@ -2,7 +2,6 @@ use std::cell::{Cell, RefCell};
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use smol_str::SmolStr;
@@ -14,7 +13,7 @@ use web_sys::{
 };
 use winit_core::error::CreateWindowError;
 use winit_core::event::{
-    ButtonSource, DeviceId, ElementState, MouseScrollDelta, PointerKind, PointerSource,
+    ButtonSource, DeviceId, ElementState, EventTime, MouseScrollDelta, PointerKind, PointerSource,
     SurfaceSizeWriter, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
@@ -296,7 +295,7 @@ impl Canvas {
                 KeyLocation,
                 bool,
                 ModifiersState,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
@@ -329,7 +328,7 @@ impl Canvas {
                 KeyLocation,
                 bool,
                 ModifiersState,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
@@ -361,7 +360,7 @@ impl Canvas {
                 bool,
                 PhysicalPosition<f64>,
                 PointerKind,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_leave(&self.common, handler)
@@ -376,7 +375,7 @@ impl Canvas {
                 bool,
                 PhysicalPosition<f64>,
                 PointerKind,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_enter(&self.common, handler)
@@ -391,7 +390,7 @@ impl Canvas {
                 bool,
                 PhysicalPosition<f64>,
                 ButtonSource,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_release(&self.common, handler)
@@ -406,7 +405,7 @@ impl Canvas {
                 bool,
                 PhysicalPosition<f64>,
                 ButtonSource,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_press(
@@ -427,7 +426,7 @@ impl Canvas {
                         bool,
                         PhysicalPosition<f64>,
                         PointerSource,
-                        Option<Duration>,
+                        Option<EventTime>,
                     ),
                 >,
             ),
@@ -439,7 +438,7 @@ impl Canvas {
                 PhysicalPosition<f64>,
                 ElementState,
                 ButtonSource,
-                Option<Duration>,
+                Option<EventTime>,
             ),
     {
         self.handlers.borrow_mut().pointer_handler.on_pointer_move(
@@ -452,7 +451,7 @@ impl Canvas {
 
     pub fn on_mouse_wheel<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(MouseScrollDelta, ModifiersState, Option<Duration>),
+        F: 'static + FnMut(MouseScrollDelta, ModifiersState, Option<EventTime>),
     {
         let window = self.common.window.clone();
         let prevent_default = Rc::clone(&self.prevent_default);
