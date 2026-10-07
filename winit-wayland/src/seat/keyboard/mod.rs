@@ -12,7 +12,7 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
 use tracing::warn;
 use winit_common::xkb::Context;
-use winit_core::event::{ElementState, WindowEvent};
+use winit_core::event::{ElementState, EventTime, WindowEvent};
 use winit_core::keyboard::ModifiersState;
 
 use crate::WindowId;
@@ -134,7 +134,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
             {
                 seat_state.latest_input_serial.set(Some(serial));
                 let key = key + 8;
-                let event_time = Duration::from_millis(time as u64);
+                let event_time = state.timestamp_extender.extend_timestamp(time);
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
@@ -229,7 +229,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     keyboard_state,
                     &mut state.events_sink,
                     data,
-                    Some(Duration::from_millis(time as u64)),
+                    Some(state.timestamp_extender.extend_timestamp(time)),
                     key,
                     ElementState::Released,
                     false,

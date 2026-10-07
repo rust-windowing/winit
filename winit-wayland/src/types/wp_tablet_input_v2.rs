@@ -175,7 +175,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
             ToolEvent::Frame { time } => {
                 // TODO: instead of creating single events we should use also the history vector on
                 // move
-                let event_time = Some(Duration::from_millis(time as u64));
+                let event_time = Some(state.timestamp_extender.extend_timestamp(time));
                 let kind = data.ty;
                 for event in std::mem::take(&mut data.pending) {
                     if let TabletEvent::Enter { surface, serial } = &event {

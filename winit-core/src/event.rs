@@ -51,7 +51,7 @@ pub enum StartCause {
 ///
 /// The value is only meaningful relative to other event times from the same event loop,
 /// because the origin is unknown
-type EventTime = Duration;
+pub type EventTime = Duration;
 
 /// Describes an event from a [`Window`].
 #[derive(Debug, Clone, PartialEq)]

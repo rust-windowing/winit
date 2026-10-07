@@ -11,7 +11,7 @@ use tracing::warn;
 use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
-    ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
+    ButtonSource, DeviceEvent, DeviceId, ElementState, EventTime, FingerId, Ime, MouseButton,
     MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
     WindowEvent,
 };

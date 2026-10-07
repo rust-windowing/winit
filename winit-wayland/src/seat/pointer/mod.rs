@@ -114,7 +114,7 @@ impl PointerHandler for WinitState {
                         pressed,
                         seat,
                         serial,
-                        Duration::from_millis(time as u64),
+                        self.timestamp_extender.extend_timestamp(time),
                         window_id,
                         &mut self.window_compositor_updates,
                     );
@@ -161,7 +161,7 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerMoved {
                             primary: true,
                             device_id: None,
-                            event_time: Some(Duration::from_millis(time as u64)),
+                            event_time: Some(self.timestamp_extender.extend_timestamp(time)),
                             position,
                             source: PointerSource::Mouse,
                             history: Vec::new(),
@@ -190,7 +190,7 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerButton {
                             primary: true,
                             device_id: None,
-                            event_time: Some(Duration::from_millis(time as u64)),
+                            event_time: Some(self.timestamp_extender.extend_timestamp(time)),
                             state,
                             position,
                             button,
@@ -249,7 +249,7 @@ impl PointerHandler for WinitState {
                     self.events_sink.push_window_event(
                         WindowEvent::MouseWheel {
                             device_id: None,
-                            event_time: Some(Duration::from_millis(time as u64)),
+                            event_time: Some(self.timestamp_extender.extend_timestamp(time)),
                             delta,
                             phase,
                         },

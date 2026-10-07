@@ -9,8 +9,10 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
+default = ["timestamp-handler"]
 # Event Handler
 event-handler = []
+timestamp-handler = []
 
 # Positioner
 positioner = ["dep:dpi"]

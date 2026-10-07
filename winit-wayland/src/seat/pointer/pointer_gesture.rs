@@ -114,7 +114,7 @@ impl Dispatch<ZwpPointerGestureHoldV1, PointerGestureData, WinitState> for Point
         state.events_sink.push_window_event(
             WindowEvent::HoldGesture {
                 device_id: None,
-                event_time: Some(Duration::from_millis(time as u64)),
+                event_time: Some(state.timestamp_extender.extend_timestamp(time)),
                 phase,
             },
             window_id,
@@ -189,7 +189,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, PointerGestureData, WinitState> for Poin
             },
             _ => unreachable!("Unknown event {event:?}"),
         };
-        let event_time = Some(Duration::from_millis(time as u64));
+        let event_time = Some(state.timestamp_extender.extend_timestamp(time));
 
         // The chance of only one of these events being necessary is extremely small,
         // so it is easier to just send all three
