@@ -382,7 +382,7 @@ fn key_input(
     keyboard_state: &mut KeyboardState,
     event_sink: &mut EventSink,
     data: &KeyboardData,
-    event_time: Option<Duration>,
+    event_time: Option<EventTime>,
     keycode: u32,
     state: ElementState,
     repeat: bool,

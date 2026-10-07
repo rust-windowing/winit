@@ -44,6 +44,15 @@ pub enum StartCause {
     Init,
 }
 
+/// The time at which the input that generated this event occurred.
+///
+/// Returns `None` for events that are not caused by user input (e.g.
+/// [`WindowEvent::RedrawRequested`]), and when the platform doesn't provide a timestamp.
+///
+/// The value is only meaningful relative to other event times from the same event loop,
+/// because the origin is unknown
+type EventTime = Duration;
+
 /// Describes an event from a [`Window`].
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -194,7 +203,7 @@ pub enum WindowEvent {
     /// - **iOS:** Unsupported.
     KeyboardInput {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         event: KeyEvent,
 
         /// If `true`, the event was generated synthetically by winit
@@ -226,7 +235,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerMoved {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
 
         /// (x,y) coordinates in pixels relative to the top-left corner of the window. Because the
         /// range of this data is limited by the display area and it may have been
@@ -259,7 +268,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerEntered {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
 
         /// The position of the pointer when it entered the window.
         ///
@@ -287,7 +296,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerLeft {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
 
         /// The position of the pointer when it left the window. The position reported can be
         /// outside the bounds of the window.
@@ -314,7 +323,7 @@ pub enum WindowEvent {
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         delta: MouseScrollDelta,
         phase: TouchPhase,
     },
@@ -322,7 +331,7 @@ pub enum WindowEvent {
     /// An mouse button press has been received.
     PointerButton {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         state: ElementState,
 
         /// The position of the pointer when the button was pressed.
@@ -377,7 +386,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **Wayland**.
-    HoldGesture { device_id: Option<DeviceId>, event_time: Option<Duration>, phase: TouchPhase },
+    HoldGesture { device_id: Option<DeviceId>, event_time: Option<EventTime>, phase: TouchPhase },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -387,7 +396,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         /// Positive values indicate magnification (zooming in) and  negative
         /// values indicate shrinking (zooming out).
         ///
@@ -404,7 +413,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PanGesture {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         /// Change in pixels of pan gesture from last update.
         delta: PhysicalPosition<f32>,
         phase: TouchPhase,
@@ -428,7 +437,7 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    DoubleTapGesture { device_id: Option<DeviceId>, event_time: Option<Duration> },
+    DoubleTapGesture { device_id: Option<DeviceId>, event_time: Option<EventTime> },
 
     /// Two-finger rotation gesture.
     ///
@@ -441,7 +450,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
@@ -455,7 +464,7 @@ pub enum WindowEvent {
     /// - **Android / iOS / Wayland / X11 / Windows / Orbital / Web:** Unsupported.
     TouchpadPressure {
         device_id: Option<DeviceId>,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         /// Value between 0 and 1 representing how hard the touchpad is being
         /// pressed.
         pressure: f32,
@@ -549,20 +558,8 @@ impl WindowEvent {
     /// Returns `None` for events that are not caused by user input (e.g.
     /// [`WindowEvent::RedrawRequested`]), and when the platform doesn't provide a timestamp.
     ///
-    /// The value is only meaningful relative to other event times from the same event loop,
-    /// because the origin is unknown
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **X11 / Wayland:** Milliseconds of server / compositor time. This is a 32-bit counter, so
-    ///   it wraps around after ~49.7 days.
-    /// - **Windows:** Milliseconds since system start. This is a 32-bit counter, so it wraps around
-    ///   after ~49.7 days.
-    /// - **macOS / iOS:** Time since system start-up.
-    /// - **Android:** Time since system boot, not counting deep sleep.
-    /// - **Web:** Time since the page's time origin.
-    /// - **Orbital:** Unsupported.
-    pub fn event_time(&self) -> Option<Duration> {
+    /// For further information see the `EventTime` type
+    pub fn event_time(&self) -> Option<EventTime> {
         match self {
             WindowEvent::KeyboardInput { event_time, .. }
             | WindowEvent::PointerMoved { event_time, .. }

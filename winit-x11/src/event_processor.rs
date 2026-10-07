@@ -1904,7 +1904,7 @@ impl EventProcessor {
     fn handle_pressed_keys(
         target: &ActiveEventLoop,
         window_id: winit_core::window::WindowId,
-        event_time: Option<Duration>,
+        event_time: Option<EventTime>,
         state: ElementState,
         xkb_context: &mut Context,
         app: &mut dyn ApplicationHandler,
