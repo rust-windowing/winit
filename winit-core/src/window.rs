@@ -1073,7 +1073,15 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: Must enable the `private-apple-apis` Cargo feature.
+    /// - **macOS:** Renders a translucent system material behind the window's contents, which is
+    ///   tinted and follows the window's appearance, rather than a blur of a specific radius. Which
+    ///   material is used can be chosen with `WindowAttributesMacOS::with_blur_material` and
+    ///   `WindowExtMacOS::set_blur_material`. The window's `contentView` is a container holding the
+    ///   view returned by `raw-window-handle`, and the material is a sibling behind it. With the
+    ///   `private-apple-apis` Cargo feature enabled, a private API is used instead to apply an
+    ///   untinted backdrop blur of a fixed radius; this can cause App Store rejection. On macOS
+    ///   10.12 and older, enabling blur makes the window's views layer-backed, which may break the
+    ///   association with an attached `NSOpenGLContext`.
     /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
     /// - **Wayland:** Only works with `org_kde_kwin_blur_manager` or
     ///   `ext_background_effect_manager_v1` protocol.
@@ -1561,7 +1569,7 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **X11:** Un-grabs the cursor.
-    /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
+    /// - **Wayland:** Requires a pointer button or touch point to be down inside the window.
     /// - **macOS:** May prevent the button release event to be triggered.
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_window(&self) -> Result<(), RequestError>;
@@ -1573,6 +1581,7 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Wayland:** Requires a pointer button or touch point to be down inside the window.
     /// - **macOS:** Always returns an [`RequestError::NotSupported`]
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError>;

@@ -68,7 +68,9 @@ use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+};
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
     TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
@@ -555,7 +557,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -589,19 +591,17 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
-            _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
-            },
+            _ => return Err(CustomCursorError::UnsupportedSource),
         };
 
         Ok(CustomCursor(Arc::new(WinCursor::new(&cursor)?)))
@@ -655,14 +655,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
+    ) -> Result<AsyncRequestSerial, TransferError> {
         let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
-        let hint = type_.hint().ok_or(RequestError::Ignored)?;
+        let hint = type_.hint().ok_or(TransferError::Failed)?;
         let typed_data = WinTypedData::new(state.data.clone(), hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
-            .ok_or(RequestError::Ignored)?;
+            .ok_or(TransferError::Failed)?;
 
         let serial = AsyncRequestSerial::get();
 
@@ -674,9 +674,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
 
         Ok(Box::new(WinDataTransfer::new(state.data.clone())))
@@ -686,10 +686,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
+    ) -> Result<(), TransferError> {
         let mut state = self.0.drag_state.borrow_mut();
         let Some(state) = state.as_mut().filter(|s| s.id == id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(TransferError::UnknownTransfer(id));
         };
         state.actions = actions.to_vec();
         Ok(())
@@ -701,7 +701,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         allowed_actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         let allowed_effects = crate::dnd::dnd_actions_to_dropeffect_mask(allowed_actions);
         // Win32 would happily run a modal `DoDragDrop` with `allowed_effects == 0`, but every
         // target would see "no action allowed" and the drag would end in a guaranteed cancel
@@ -757,19 +757,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 #[derive(Clone)]
 pub(crate) struct OwnedDisplayHandle;
@@ -1250,7 +1237,16 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
 /// has to be done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
 unsafe fn reposition_owned_windows(parent: HWND) {
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        use windows_sys::Win32::UI::WindowsAndMessaging::GWL_WNDPROC;
+
         if unsafe { GetWindow(hwnd, GW_OWNER) } != lparam as HWND {
+            return true.into(); // continue enumeration
+        }
+
+        // Only winit's own windows keep a `WindowData` pointer in `GWL_USERDATA`, so skip any
+        // owned window that runs a different window procedure (dialogs, tooltips, helpers)
+        let window_proc = unsafe { util::get_window_long(hwnd, GWL_WNDPROC) };
+        if window_proc != public_window_callback as *const () as isize {
             return true.into(); // continue enumeration
         }
 
@@ -2024,7 +2020,7 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::MouseScrollDelta::LineDelta;
 
             let value = (wparam >> 16) as i16;
-            let value = -value as f32 / WHEEL_DELTA as f32; // NOTE: inverted! See https://github.com/rust-windowing/winit/pull/2105/
+            let value = inverted_wheel_delta(value); // NOTE: inverted! See https://github.com/rust-windowing/winit/pull/2105/
 
             update_modifiers(window, userdata);
 
@@ -2813,7 +2809,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         }
         if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
             let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
-            let delta = -button_data as f32 / WHEEL_DELTA as f32;
+            let delta = inverted_wheel_delta(button_data);
             userdata.send_device_event(device_id, MouseWheel { delta: LineDelta(delta, 0.0) });
         }
 
@@ -3032,5 +3028,21 @@ fn pen_flags_to_button(flags: u32) -> TabletToolButton {
         TabletToolButton::Other(PEN_FLAG_ERASER as u16)
     } else {
         TabletToolButton::Contact
+    }
+}
+
+fn inverted_wheel_delta(value: i16) -> f32 {
+    -(value as f32) / WHEEL_DELTA as f32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inverted_wheel_delta_handles_minimum_value() {
+        assert_eq!(inverted_wheel_delta(i16::MIN), 32768.0 / WHEEL_DELTA as f32);
+        assert_eq!(inverted_wheel_delta(120), -1.0);
+        assert_eq!(inverted_wheel_delta(-120), 1.0);
     }
 }

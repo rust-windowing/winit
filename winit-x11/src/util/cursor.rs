@@ -4,7 +4,7 @@ use std::iter;
 use std::sync::Arc;
 
 use winit_core::cursor::{CursorIcon, CustomCursorProvider, CustomCursorSource};
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::CustomCursorError;
 use x11rb::connection::Connection;
 use x11rb::protocol::render::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
@@ -196,11 +196,11 @@ impl CustomCursor {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         let mut cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
+                return Err(CustomCursorError::UnsupportedSource);
             },
         };
 

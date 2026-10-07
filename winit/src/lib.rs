@@ -15,7 +15,10 @@
 //! }
 //! ```
 //!
-//! Then you create a [`Window`] with [`create_window`].
+//! Then you launch the event loop with [`EventLoop::run_app()`], which gives your
+//! [`ApplicationHandler`] callbacks an [`ActiveEventLoop`]. Use that active event loop to create a
+//! [`Window`] with [`create_window`]; the example below does this in
+//! [`ApplicationHandler::can_create_surfaces`], after the platform is ready for surface creation.
 //!
 //! # Event handling
 //!
@@ -196,8 +199,9 @@
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //! * `private-apple-apis`: Enables private APIs whose usage might cause rejections from the App
-//!   Store. Currently enables the use of `CGSSetWindowBackgroundBlurRadius`, commonly used for
-//!   terminal emulators.
+//!   Store. Currently switches `Window::set_blur` on macOS to use
+//!   `CGSSetWindowBackgroundBlurRadius`, which applies an untinted blur of a fixed radius and is
+//!   commonly used by terminal emulators, instead of the default `NSVisualEffectView` material.
 //!
 //! See the [`platform`] module for documentation on platform-specific cargo
 //! features.
@@ -260,7 +264,10 @@
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
-//! [`EventLoop::run_app()`]: event_loop::EventLoopProvider::run_app
+//! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
+//! [`ActiveEventLoop`]: event_loop::ActiveEventLoop
+//! [`ApplicationHandler`]: application::ApplicationHandler
+//! [`ApplicationHandler::can_create_surfaces`]: application::ApplicationHandler::can_create_surfaces
 //! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId

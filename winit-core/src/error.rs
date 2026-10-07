@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt::{self, Display};
 
+use crate::data_transfer::DataTransferId;
+
 /// A general error that may occur while running or creating
 /// the event loop.
 #[derive(Debug)]
@@ -51,14 +53,131 @@ impl From<NotSupportedError> for EventLoopError {
     }
 }
 
+/// Window creation failure
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum CreateWindowError {
+    /// [`WindowType::Popup`] is not supported.
+    PopupNotSupported,
+    /// Invalid input attribute
+    InvalidAttribute(InvalidInput),
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for CreateWindowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PopupNotSupported => write!(f, "WindowType::Popup is not supported"),
+            Self::InvalidAttribute(InvalidInput { reason }) => {
+                write!(f, "Invalid WindowAttributes: {reason}")
+            },
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for CreateWindowError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+
+impl From<InvalidInput> for CreateWindowError {
+    fn from(value: InvalidInput) -> Self {
+        Self::InvalidAttribute(value)
+    }
+}
+
+impl From<OsError> for CreateWindowError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
+/// A data transfer / drag-and-drop error.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum TransferError {
+    /// The request is not supported.
+    NotSupported(NotSupportedError),
+    /// Unknown [`DataTransferId`]
+    UnknownTransfer(DataTransferId),
+    /// The transfer (request) failed.
+    Failed,
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for TransferError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotSupported(err) => err.fmt(f),
+            Self::UnknownTransfer(id) => {
+                write!(f, "Unknown data transfer with ID {}", id.into_raw())
+            },
+            Self::Failed => write!(f, "Transfer request failed"),
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for TransferError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+impl From<NotSupportedError> for TransferError {
+    fn from(value: NotSupportedError) -> Self {
+        Self::NotSupported(value)
+    }
+}
+
+impl From<OsError> for TransferError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
+/// An error from `create_custom_cursor`.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum CustomCursorError {
+    /// Custom cursors are not supported.
+    NotSupported,
+    /// The [`CustomCursorSource`] variant is not supported.
+    UnsupportedSource,
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for CustomCursorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotSupported => write!(f, "create_custom_cursor is not supported"),
+            Self::UnsupportedSource => {
+                write!(f, "the provided CustomCursorSource is not supported")
+            },
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for CustomCursorError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+
+impl From<OsError> for CustomCursorError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
 /// A general error that may occur during a request to the windowing system.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum RequestError {
     /// The request is not supported.
     NotSupported(NotSupportedError),
-    /// The request was ignored by the operating system.
-    Ignored,
     /// Got unspecified OS specific error during the request.
     Os(OsError),
 }
@@ -67,7 +186,6 @@ impl Display for RequestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSupported(err) => err.fmt(f),
-            Self::Ignored => write!(f, "The request was ignored"),
             Self::Os(err) => err.fmt(f),
         }
     }
@@ -90,6 +208,26 @@ impl From<OsError> for RequestError {
     }
 }
 
+/// An input attribute or parameter was not valid
+#[derive(Debug)]
+pub struct InvalidInput {
+    /// The reason why a certain operation is not supported.
+    reason: &'static str,
+}
+
+impl InvalidInput {
+    pub const fn new(reason: &'static str) -> Self {
+        Self { reason }
+    }
+}
+
+impl fmt::Display for InvalidInput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Invalid input: {}", self.reason)
+    }
+}
+impl Error for InvalidInput {}
+
 /// The requested operation is not supported.
 #[derive(Debug)]
 pub struct NotSupportedError {
@@ -98,7 +236,7 @@ pub struct NotSupportedError {
 }
 
 impl NotSupportedError {
-    pub fn new(reason: &'static str) -> Self {
+    pub const fn new(reason: &'static str) -> Self {
         Self { reason }
     }
 }
@@ -109,6 +247,25 @@ impl fmt::Display for NotSupportedError {
     }
 }
 impl Error for NotSupportedError {}
+
+/// An internal failure occurred
+#[derive(Debug)]
+pub struct InternalError {
+    source: &'static str,
+}
+
+impl InternalError {
+    pub const fn new(source: &'static str) -> Self {
+        Self { source }
+    }
+}
+
+impl fmt::Display for InternalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Internal error: {}", self.source)
+    }
+}
+impl Error for InternalError {}
 
 /// Unclassified error from the OS.
 #[derive(Debug)]

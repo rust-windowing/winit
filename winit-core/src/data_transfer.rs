@@ -101,7 +101,6 @@
 
 use std::any::Any;
 use std::ops::ControlFlow;
-use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
 /// Unique identifier for a data transfer.
@@ -217,30 +216,6 @@ impl TransferType for TypeHint {
 
 impl_dyn_casting!(TransferType);
 
-// Replicates the cfg for `url::Url::parse`
-#[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
-fn default_try_as_file_paths<T: TypedData + ?Sized>(data: &T) -> io::Result<Vec<PathBuf>> {
-    data.try_as_uris().and_then(|uris| {
-        uris.into_iter()
-            .map(|uri_string| {
-                Ok(url::Url::parse(&uri_string)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-                    .to_file_path()
-                    .map_err(|()| io::ErrorKind::InvalidData)?)
-            })
-            .collect()
-    })
-}
-
-// Replicates the cfg for `url::Url::parse`
-//
-// It doesn't matter that this is unimplemented on the web, as we don't currently support
-// drag-and-drop for web targets and the web platform can't directly access paths anyway.
-#[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
-fn default_try_as_file_paths<T: TypedData + ?Sized>(_: &T) -> io::Result<Vec<PathBuf>> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
 /// Data that has been fetched from a data transfer
 ///
 /// ### Blocking
@@ -289,21 +264,6 @@ pub trait TypedData: Any + fmt::Debug + Send + Sync {
     /// again upon next receiving
     /// [`WindowEvent::DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
     fn try_as_uris(&self) -> io::Result<Vec<String>>;
-
-    /// Read this value as a list of paths.
-    ///
-    /// This is provided as a convenience method to avoid the need for the user to manually parse
-    /// the result of [`try_as_uris`](TypedData::try_as_uris). `try_as_uris` should be preferred
-    /// when the extra complexity is acceptable, as it is more generic.
-    ///
-    /// If this value is not readable as URIs, return an error.
-    ///
-    /// If this returns [`WouldBlock`](std::io::ErrorKind::WouldBlock), then it should be called
-    /// again upon next receiving
-    /// [`WindowEvent::DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
-    fn try_as_file_paths(&self) -> io::Result<Vec<PathBuf>> {
-        default_try_as_file_paths(self)
-    }
 
     /// Read this value as a plain text string.
     ///
@@ -385,13 +345,13 @@ impl_dyn_casting!(DataTransfer);
 pub enum SendData {
     /// List of URIs.
     ///
-    /// These should conform to [RFC 3986](https://www.rfc-editor.org/info/rfc3986/).
-    /// If you just want to send file paths, see [`SendData::from_file_paths`].
+    /// These should conform to [RFC 3986](https://www.rfc-editor.org/info/rfc3986/). To send file
+    /// paths, convert them to `file:` URIs (for example with the [`url`](https://docs.rs/url/2)
+    /// crate) and pass the resulting strings here.
     ///
     /// Note that `SendData` implements `From<String>` and `From<Vec<u8>>`, but _not_
     /// `From<Vec<String>>`, as it is not necessarily obvious to a reader that `Vec<String>`
-    /// will be interpreted as a URI list. However, it _does_ implement [`From<Url>`](url::Url),
-    /// if you are using the [`url`](https://docs.rs/url/2) crate.
+    /// will be interpreted as a URI list.
     Uris(Vec<String>),
     /// String
     ///
@@ -401,52 +361,6 @@ pub enum SendData {
     ///
     /// This can also be constructed with the [`From<Vec<u8>>`](std::vec::Vec) implementation.
     Bytes(Vec<u8>),
-}
-
-impl SendData {
-    /// Create [`SendData::Uris`] from an iterator of [`Path`]s.
-    ///
-    /// All paths must be absolute, and on Windows must include either a drive prefix (e.g. `C:\`)
-    /// or a UNC prefix (`\\`). See documentation for [`url::Url::from_file_path`].
-    pub fn from_file_paths<I>(paths: I) -> Option<Self>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<Path>,
-    {
-        // Replicates the cfg for `url::Url::from_file_path`
-        #[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
-        fn from_file_paths_impl<I>(paths: I) -> Option<SendData>
-        where
-            I: IntoIterator,
-            I::Item: AsRef<Path>,
-        {
-            paths
-                .into_iter()
-                .map(url::Url::from_file_path)
-                .map(|result| result.map(String::from))
-                .collect::<Result<Vec<_>, ()>>()
-                .map(SendData::Uris)
-                .ok()
-        }
-
-        // Replicates the cfg for `url::Url::from_file_path`
-        //
-        // It doesn't matter that this is unimplemented on the web, as we don't currently support
-        // drag-and-drop for web targets and the web platform can't directly access paths
-        // anyway.
-        #[cfg(not(any(
-            unix,
-            windows,
-            target_os = "redox",
-            target_os = "wasi",
-            target_os = "hermit"
-        )))]
-        fn from_file_paths_impl<I>(_: I) -> Option<SendData> {
-            None
-        }
-
-        from_file_paths_impl(paths)
-    }
 }
 
 // We monomorphize these `From` implementations instead of making them generic, in order to
@@ -460,12 +374,6 @@ impl From<String> for SendData {
 impl From<Vec<u8>> for SendData {
     fn from(value: Vec<u8>) -> Self {
         Self::Bytes(value)
-    }
-}
-
-impl From<Vec<url::Url>> for SendData {
-    fn from(value: Vec<url::Url>) -> Self {
-        Self::Uris(value.into_iter().map(Into::into).collect())
     }
 }
 

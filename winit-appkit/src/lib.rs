@@ -208,6 +208,17 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_fullscreen_auxiliary`].
     fn fullscreen_auxiliary(&self) -> bool;
+
+    /// Sets the material drawn behind the window when it is blurred.
+    ///
+    /// Takes effect the next time the window is blurred, and immediately if it already is. See
+    /// [`Window::set_blur`].
+    ///
+    /// [`Window::set_blur`]: winit_core::window::Window::set_blur
+    fn set_blur_material(&self, blur_material: BlurMaterial);
+
+    /// Getter for the [`WindowExtMacOS::set_blur_material`].
+    fn blur_material(&self) -> BlurMaterial;
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -330,6 +341,18 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.fullscreen_auxiliary())
     }
+
+    #[inline]
+    fn set_blur_material(&self, blur_material: BlurMaterial) {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_blur_material(blur_material))
+    }
+
+    #[inline]
+    fn blur_material(&self) -> BlurMaterial {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.blur_material())
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -375,6 +398,7 @@ pub struct WindowAttributesMacOS {
     pub(crate) unified_titlebar: bool,
     pub(crate) panel: bool,
     pub(crate) fullscreen_auxiliary: bool,
+    pub(crate) blur_material: BlurMaterial,
 }
 
 impl WindowAttributesMacOS {
@@ -382,6 +406,17 @@ impl WindowAttributesMacOS {
     #[inline]
     pub fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
         self.movable_by_window_background = movable_by_window_background;
+        self
+    }
+
+    /// Sets the material drawn behind the window when it is blurred.
+    ///
+    /// Has no effect unless the window is blurred, see [`Window::set_blur`].
+    ///
+    /// [`Window::set_blur`]: winit_core::window::Window::set_blur
+    #[inline]
+    pub fn with_blur_material(mut self, blur_material: BlurMaterial) -> Self {
+        self.blur_material = blur_material;
         self
     }
 
@@ -506,6 +541,7 @@ impl Default for WindowAttributesMacOS {
             unified_titlebar: false,
             panel: false,
             fullscreen_auxiliary: false,
+            blur_material: Default::default(),
         }
     }
 }
@@ -647,4 +683,60 @@ pub enum OptionAsAlt {
     /// No special handling is applied for `Option` key.
     #[default]
     None,
+}
+
+/// The material drawn behind a blurred window, corresponding to `NSVisualEffectMaterial`.
+///
+/// Only the materials that AppKit renders behind the window are listed. The remaining
+/// `NSVisualEffectMaterial` values are meant for opaque backgrounds, and draw a placeholder
+/// rather than a blur when used this way.
+///
+/// The material determines the tint and translucency of the blur, so the result is not an
+/// untinted blur of a chosen radius; AppKit exposes no public API for that. Enable the
+/// `private-apple-apis` Cargo feature for the private one, which this setting then no longer
+/// affects.
+///
+/// See [`Window::set_blur`] for the blur itself.
+///
+/// [`Window::set_blur`]: winit_core::window::Window::set_blur
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub enum BlurMaterial {
+    /// Corresponds to `NSVisualEffectMaterialFullScreenUI`.
+    ///
+    /// Tints the least of the available materials, making it the closest to a plain backdrop
+    /// blur. This is the default.
+    #[default]
+    FullScreenUI,
+
+    /// Corresponds to `NSVisualEffectMaterialHUDWindow`.
+    HudWindow,
+
+    /// Corresponds to `NSVisualEffectMaterialMenu`.
+    Menu,
+
+    /// Corresponds to `NSVisualEffectMaterialPopover`.
+    Popover,
+
+    /// Corresponds to `NSVisualEffectMaterialSidebar`.
+    Sidebar,
+
+    /// Corresponds to `NSVisualEffectMaterialSelection`.
+    Selection,
+
+    /// Corresponds to `NSVisualEffectMaterialTitlebar`.
+    Titlebar,
+
+    /// Corresponds to `NSVisualEffectMaterialHeaderView`.
+    HeaderView,
+
+    /// Corresponds to `NSVisualEffectMaterialToolTip`.
+    ToolTip,
+
+    /// Corresponds to `NSVisualEffectMaterialUnderWindowBackground`.
+    ///
+    /// Tints heavily towards the window's background colour, which can leave the blur barely
+    /// visible over light content.
+    UnderWindowBackground,
 }

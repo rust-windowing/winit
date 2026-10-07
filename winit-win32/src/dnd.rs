@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString, c_void};
@@ -5,13 +6,14 @@ use std::io;
 use std::num::NonZeroU32;
 use std::ops::{BitOr, ControlFlow};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf, Prefix};
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicI64, AtomicUsize, Ordering};
 
 use dpi::PhysicalPosition;
+use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, percent_encode};
 use windows_sys::Win32::Foundation::{
     DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, DV_E_FORMATETC, E_ABORT,
     E_FAIL, E_NOINTERFACE, E_NOTIMPL, E_UNEXPECTED, GlobalFree, HGLOBAL, HWND,
@@ -142,6 +144,102 @@ unsafe fn read_unicode_text(data_obj: *const IDataObject) -> Option<String> {
     Some(text)
 }
 
+/// Characters that must be percent-encoded inside a `file:` URI path segment.
+///
+/// Covers the control and reserved characters that are not allowed unescaped in a path, plus `%`
+/// so that a literal percent sign in a file name round-trips. Segment separators are added
+/// structurally, so `/` never appears here.
+const URI_SEGMENT: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'%')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
+    .add(b'`')
+    .add(b'{')
+    .add(b'}');
+
+/// Convert an absolute Windows path into a percent-encoded `file:` URI.
+///
+/// Disk paths become `file:///C:/dir/file`, UNC paths become `file://server/share/file`. Returns
+/// `None` for anything that cannot be expressed as a `file:` URI: relative paths or components that
+/// are not valid Unicode.
+fn file_path_to_uri(path: &Path) -> Option<String> {
+    let mut components = path.components();
+    let mut uri = String::from("file://");
+
+    match components.next()? {
+        Component::Prefix(prefix) => match prefix.kind() {
+            Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+                uri.push('/');
+                uri.push(letter.to_ascii_uppercase() as char);
+                uri.push(':');
+            },
+            Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+                uri.extend(percent_encode(server.to_str()?.as_bytes(), URI_SEGMENT));
+                uri.push('/');
+                uri.extend(percent_encode(share.to_str()?.as_bytes(), URI_SEGMENT));
+            },
+            _ => return None,
+        },
+        _ => return None,
+    }
+
+    // The prefix is followed by the root separator and then the path segments.
+    if !matches!(components.next(), Some(Component::RootDir)) {
+        return None;
+    }
+    for component in components {
+        let Component::Normal(segment) = component else { return None };
+        uri.push('/');
+        uri.extend(percent_encode(segment.to_str()?.as_bytes(), URI_SEGMENT));
+    }
+
+    Some(uri)
+}
+
+/// Convert a `file:` URI back into a Windows path, percent-decoding each segment.
+///
+/// Inverse of [`file_path_to_uri`]. Returns `None` if the string is not a `file:` URI describing an
+/// absolute Windows path.
+fn uri_to_file_path(uri: &str) -> Option<PathBuf> {
+    fn decode(segment: &str) -> Option<Cow<'_, str>> {
+        percent_decode_str(segment).decode_utf8().ok()
+    }
+
+    let rest = uri.strip_prefix("file://")?;
+    // `split_once` drops the separator, so `path` never keeps a leading slash.
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+
+    let mut out = String::new();
+    if host.is_empty() {
+        // Local path serialized as `/C:/dir/file`.
+        let mut segments = path.split('/');
+        let drive = decode(segments.next()?)?;
+        let bytes = drive.as_bytes();
+        if bytes.len() != 2 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' {
+            return None;
+        }
+        out.push_str(&drive);
+        for segment in segments {
+            out.push('\\');
+            out.push_str(&decode(segment)?);
+        }
+    } else {
+        // UNC path serialized as `//server/share/file`.
+        out.push_str("\\\\");
+        out.push_str(&decode(host)?);
+        for segment in path.split('/').filter(|s| !s.is_empty()) {
+            out.push('\\');
+            out.push_str(&decode(segment)?);
+        }
+    }
+
+    Some(PathBuf::from(out))
+}
+
 unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<String>> {
     let medium = unsafe { StgMedium::get(data_obj, CF_HDROP) }?;
     let hdrop = medium.hglobal() as HDROP;
@@ -164,11 +262,7 @@ unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<String>> {
 
         let path = PathBuf::from(OsString::from_wide(&path_buf));
 
-        paths.push(
-            url::Url::from_file_path(&path)
-                .map(String::from)
-                .unwrap_or_else(|_| path.to_string_lossy().into_owned()),
-        );
+        paths.push(file_path_to_uri(&path).unwrap_or_else(|| path.to_string_lossy().into_owned()));
     }
 
     Some(paths)
@@ -883,9 +977,7 @@ unsafe fn send_data_to_stgmedium(data: SendData, hint: TypeHint) -> Option<STGME
             let mut wide: Vec<u16> = Vec::new();
             for path in paths {
                 let path_from_uri_owned;
-                let encoded = if let Some(path_from_uri) =
-                    url::Url::parse(&path).ok().and_then(|url| url.to_file_path().ok())
-                {
+                let encoded = if let Some(path_from_uri) = uri_to_file_path(&path) {
                     path_from_uri_owned = path_from_uri;
                     OsStr::new(&path_from_uri_owned).encode_wide()
                 } else {
@@ -1601,6 +1693,32 @@ mod tests {
         let end_fragment = parse_offset(&buf, "EndFragment");
         let fragment = std::str::from_utf8(&buf[start_fragment..end_fragment]).unwrap();
         assert_eq!(fragment, html);
+    }
+
+    #[test]
+    fn disk_path_round_trips_through_uri() {
+        let uri = file_path_to_uri(Path::new(r"C:\Users\me\my file.txt")).unwrap();
+        assert_eq!(uri, "file:///C:/Users/me/my%20file.txt");
+        assert_eq!(uri_to_file_path(&uri).unwrap(), PathBuf::from(r"C:\Users\me\my file.txt"));
+    }
+
+    #[test]
+    fn unc_path_round_trips_through_uri() {
+        let uri = file_path_to_uri(Path::new(r"\\server\share\dir\file.txt")).unwrap();
+        assert_eq!(uri, "file://server/share/dir/file.txt");
+        assert_eq!(uri_to_file_path(&uri).unwrap(), PathBuf::from(r"\\server\share\dir\file.txt"));
+    }
+
+    #[test]
+    fn relative_path_has_no_uri() {
+        assert_eq!(file_path_to_uri(Path::new(r"me\file.txt")), None);
+    }
+
+    #[test]
+    fn percent_and_unicode_round_trip() {
+        let uri = file_path_to_uri(Path::new(r"C:\100% café")).unwrap();
+        assert_eq!(uri, "file:///C:/100%25%20caf%C3%A9");
+        assert_eq!(uri_to_file_path(&uri).unwrap(), PathBuf::from(r"C:\100% café"));
     }
 
     #[test]

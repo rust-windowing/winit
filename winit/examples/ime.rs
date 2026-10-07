@@ -248,7 +248,6 @@ impl App {
                 }
             },
             Ime::Disabled => info!("IME disabled for Window={:?}", surface.window().id()),
-            _ => (),
         }
     }
 
