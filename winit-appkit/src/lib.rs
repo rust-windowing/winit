@@ -76,6 +76,7 @@ mod dnd;
 mod event;
 mod event_loop;
 mod ffi;
+mod ime_startup;
 mod menu;
 mod monitor;
 mod observer;

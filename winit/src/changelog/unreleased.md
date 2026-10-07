@@ -42,6 +42,9 @@ changelog entry.
 
 ### Fixed
 
+- On macOS, recover the first Apple Korean IME key when it falls back to a raw
+  compatibility jamo instead of starting preedit.
+
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
 - On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
