@@ -524,8 +524,18 @@ impl CoreWindow for Window {
     }
 
     fn request_redraw(&self) {
-        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
-        self.window_state.lock().unwrap().redraw_requested = true;
+        // Mark requests made during `WM_PAINT` so they can be re-armed after it is validated.
+        // If this window was already serviced by the current message-dispatch batch, defer the
+        // native request as well so it cannot jump ahead of the other pending windows.
+        let redraw_deferred = {
+            let mut state = self.window_state.lock().unwrap();
+            state.redraw_requested = true;
+            state.redraw_deferred
+        };
+        if redraw_deferred {
+            return;
+        }
+
         unsafe {
             RedrawWindow(self.hwnd(), ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT);
         }

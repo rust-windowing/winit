@@ -76,6 +76,9 @@ pub(crate) struct WindowState {
     // Flag whether redraw was requested.
     pub redraw_requested: bool,
 
+    // Whether redraw requests must be re-armed after the current message-dispatch batch.
+    pub redraw_deferred: bool,
+
     pub dragging: bool,
 
     pub skip_taskbar: bool,
@@ -218,7 +221,7 @@ impl WindowState {
             is_active: false,
             is_focused: false,
             redraw_requested: false,
-
+            redraw_deferred: false,
             dragging: false,
 
             skip_taskbar: false,
