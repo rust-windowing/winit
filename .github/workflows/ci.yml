@@ -187,6 +187,9 @@ jobs:
       if: contains(matrix.platform.target, 'android')
       run: cargo $CMD test -p winit-android --features native-activity --no-run
 
+    - name: Test winit Common
+      run: cargo $CMD test -p winit-common --features positioner,timestamp-handler
+
     - name: Test winit Common (EventHandler)
       run: cargo $CMD test -p winit-common --features event-handler --no-run
 

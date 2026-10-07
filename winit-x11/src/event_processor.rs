@@ -4,10 +4,10 @@ use std::mem::MaybeUninit;
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use tracing::warn;
+use winit_common::timestamp_handler::TimeStampExtender;
 use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
@@ -79,6 +79,7 @@ pub struct EventProcessor {
     pub xfiltered_modifiers: VecDeque<u8>,
     pub xmodmap: util::ModifierKeymap,
     pub is_composing: bool,
+    pub timestamp_extender: Cell<TimeStampExtender>,
 }
 
 impl EventProcessor {
@@ -959,12 +960,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         let keycode = xev.keycode as _;
-        #[allow(
-            clippy::unnecessary_cast,
-            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                      64-bit on others"
-        )]
-        let event_time = Some(Duration::from_millis(xev.time as u64));
+        let event_time = self.event_time(xev.time);
 
         // Update state to track key repeats and determine whether this key was a repeat.
         //
@@ -1111,12 +1107,7 @@ impl EventProcessor {
         }
 
         let position = PhysicalPosition::new(event.event_x, event.event_y);
-        #[allow(
-            clippy::unnecessary_cast,
-            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                      64-bit on others"
-        )]
-        let event_time = Some(Duration::from_millis(event.time as u64));
+        let event_time = self.event_time(event.time);
 
         let event = match event.detail as u32 {
             xlib::Button1 => WindowEvent::PointerButton {
@@ -1211,12 +1202,7 @@ impl EventProcessor {
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
-        #[allow(
-            clippy::unnecessary_cast,
-            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                      64-bit on others."
-        )]
-        let event_time = Some(Duration::from_millis(event.time as u64));
+        let event_time = self.event_time(event.time);
 
         let cursor_moved = self.with_window(window, |window| {
             let mut shared_state_lock = window.shared_state_lock();
@@ -1316,12 +1302,7 @@ impl EventProcessor {
         if self.window_exists(window) {
             let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
-            #[allow(
-                clippy::unnecessary_cast,
-                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                          64-bit on others."
-            )]
-            let event_time = Some(Duration::from_millis(event.time as u64));
+            let event_time = self.event_time(event.time);
 
             let event = WindowEvent::PointerEntered {
                 device_id,
@@ -1344,12 +1325,7 @@ impl EventProcessor {
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
             let window_id = mkwid(window);
-            #[allow(
-                clippy::unnecessary_cast,
-                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                          64-bit on others."
-            )]
-            let event_time = Some(Duration::from_millis(event.time as u64));
+            let event_time = self.event_time(event.time);
             let event = WindowEvent::PointerLeft {
                 device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
                 event_time,
@@ -1388,12 +1364,7 @@ impl EventProcessor {
 
         app.window_event(&self.target, window_id, WindowEvent::Focused(true));
 
-        #[allow(
-            clippy::unnecessary_cast,
-            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                      64-bit on others"
-        )]
-        let event_time = Some(Duration::from_millis(xev.time as u64));
+        let event_time = self.event_time(xev.time);
 
         // Issue key press events for all pressed keys
         Self::handle_pressed_keys(
@@ -1452,12 +1423,7 @@ impl EventProcessor {
                 self.send_modifiers(window_id, mods.into(), true, app);
             }
 
-            #[allow(
-                clippy::unnecessary_cast,
-                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                          64-bit on others"
-            )]
-            let event_time = Some(Duration::from_millis(xev.time as u64));
+            let event_time = self.event_time(xev.time);
 
             // Issue key release events for all pressed keys
             Self::handle_pressed_keys(
@@ -1490,12 +1456,7 @@ impl EventProcessor {
             let window_id = mkwid(window);
             let id = xev.detail as u32;
             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
-            #[allow(
-                clippy::unnecessary_cast,
-                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                          64-bit on others."
-            )]
-            let event_time = Some(Duration::from_millis(xev.time as u64));
+            let event_time = self.event_time(xev.time);
 
             // Mouse cursor position changes when touch events are received.
             // Only the first concurrently active touch ID moves the mouse cursor.
@@ -1975,6 +1936,15 @@ impl EventProcessor {
 
     fn window_exists(&self, window_id: xproto::Window) -> bool {
         self.with_window(window_id, |_| ()).is_some()
+    }
+
+    fn event_time(&self, time: xlib::Time) -> Option<EventTime> {
+        // X server timestamps are 32-bit (CARD32) and wrap around after ~49.7 days, even though
+        // Xlib stores them in a `c_ulong`.
+        let mut timestamp_extender = self.timestamp_extender.get();
+        let event_time = timestamp_extender.extend_timestamp_millisecond(time as xproto::Timestamp);
+        self.timestamp_extender.set(timestamp_extender);
+        Some(event_time)
     }
 }
 
