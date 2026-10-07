@@ -19,7 +19,7 @@ use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, Trans
 use crate::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
-use crate::event::PointerSource;
+use crate::event::{EventTime, PointerSource};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
@@ -414,14 +414,14 @@ pub enum DndAction {
 #[non_exhaustive]
 pub struct HistoricalMoveEvent {
     /// Event time
-    pub event_time: Duration,
+    pub event_time: EventTime,
     pub source: PointerSource,
     pub position: PhysicalPosition<f64>,
 }
 
 impl HistoricalMoveEvent {
     pub fn new(
-        event_time: Duration,
+        event_time: EventTime,
         position: PhysicalPosition<f64>,
         source: PointerSource,
     ) -> Self {
