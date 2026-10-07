@@ -46,9 +46,6 @@ pub enum StartCause {
 
 /// The time at which the input that generated this event occurred.
 ///
-/// Returns `None` for events that are not caused by user input (e.g.
-/// [`WindowEvent::RedrawRequested`]), and when the platform doesn't provide a timestamp.
-///
 /// The value is only meaningful relative to other event times from the same event loop,
 /// because the origin is unknown
 pub type EventTime = Duration;
