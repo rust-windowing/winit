@@ -510,6 +510,7 @@ define_class!(
                 let key_event = create_key_event(&event, true, event.isARepeat());
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
+                    event_time: Some(Duration::from_secs_f64(event.timestamp())),
                     event: key_event,
                     is_synthetic: false,
                 });
@@ -527,6 +528,7 @@ define_class!(
             if matches!(self.ivars().ime_state.get(), ImeState::Ground | ImeState::Disabled) {
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
+                    event_time: Some(Duration::from_secs_f64(event.timestamp())),
                     event: create_key_event(&event, false, false),
                     is_synthetic: false,
                 });
@@ -574,10 +576,12 @@ define_class!(
                 .expect("could not find current event");
 
             self.update_modifiers(&event, false);
+            let event_time = Some(Duration::from_secs_f64(event.timestamp()));
             let event = create_key_event(&event, true, event.isARepeat());
 
             self.queue_event(WindowEvent::KeyboardInput {
                 device_id: None,
+                event_time,
                 event,
                 is_synthetic: false,
             });
@@ -1097,6 +1101,7 @@ impl WinitView {
                     phys_mod_state.entry(logical_key).or_insert(ModLocationMask::empty());
 
                 let is_active = current_modifiers.state().contains(event_modifier);
+                let event_time = Some(Duration::from_secs_f64(ns_event.timestamp()));
                 let mut events = VecDeque::with_capacity(2);
 
                 // There is no API for getting whether the button was pressed or released
@@ -1112,6 +1117,7 @@ impl WinitView {
                         event.physical_key = get_left_modifier_code(&event.logical_key).into();
                         events.push_back(WindowEvent::KeyboardInput {
                             device_id: None,
+                            event_time,
                             event,
                             is_synthetic: false,
                         });
@@ -1121,6 +1127,7 @@ impl WinitView {
                         event.physical_key = get_right_modifier_code(&event.logical_key).into();
                         events.push_back(WindowEvent::KeyboardInput {
                             device_id: None,
+                            event_time,
                             event,
                             is_synthetic: false,
                         });
@@ -1152,6 +1159,7 @@ impl WinitView {
 
                     events.push_back(WindowEvent::KeyboardInput {
                         device_id: None,
+                        event_time,
                         event,
                         is_synthetic: false,
                     });

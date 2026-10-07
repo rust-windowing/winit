@@ -288,7 +288,16 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static
+            + FnMut(
+                PhysicalKey,
+                Key,
+                Option<SmolStr>,
+                KeyLocation,
+                bool,
+                ModifiersState,
+                Option<Duration>,
+            ),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
         self.handlers.borrow_mut().on_keyboard_release =
@@ -305,13 +314,23 @@ impl Canvas {
                     event::key_location(&event),
                     event.repeat(),
                     modifiers,
+                    event::event_time(&event),
                 );
             }));
     }
 
     pub fn on_keyboard_press<F>(&self, mut handler: F)
     where
-        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static
+            + FnMut(
+                PhysicalKey,
+                Key,
+                Option<SmolStr>,
+                KeyLocation,
+                bool,
+                ModifiersState,
+                Option<Duration>,
+            ),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
         self.handlers.borrow_mut().on_keyboard_press =
@@ -328,6 +347,7 @@ impl Canvas {
                     event::key_location(&event),
                     event.repeat(),
                     modifiers,
+                    event::event_time(&event),
                 );
             }));
     }

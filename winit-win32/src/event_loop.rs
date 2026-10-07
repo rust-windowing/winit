@@ -1055,6 +1055,13 @@ unsafe fn release_mouse(mut window_state: MutexGuard<'_, WindowState>) {
     }
 }
 
+fn message_time() -> Option<Duration> {
+    // SAFETY: `GetMessageTime` has no preconditions.
+    let time = unsafe { GetMessageTime() };
+    // The time is a 32-bit millisecond tick count that is returned as a signed integer.
+    Some(Duration::from_millis(time as u32 as u64))
+}
+
 fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     match pressure {
         1..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
@@ -1225,9 +1232,11 @@ unsafe fn public_window_callback_inner(
         use winit_core::event::WindowEvent::KeyboardInput;
         let events =
             userdata.key_event_builder.process_message(window, msg, wparam, lparam, &mut result);
+        let event_time = message_time();
         for event in events {
             userdata.send_window_event(window, KeyboardInput {
                 device_id: None,
+                event_time,
                 event: event.event,
                 is_synthetic: event.is_synthetic,
             });
@@ -1737,7 +1746,7 @@ unsafe fn public_window_callback_inner(
             let x = util::get_x_lparam(lparam as u32) as i32;
             let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
-            let event_time = Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64));
+            let event_time = message_time();
 
             let cursor_moved;
             {
@@ -1822,7 +1831,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerLeft {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 primary: true,
                 position: None,
                 kind: Mouse,
@@ -1860,7 +1869,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
             });
@@ -1894,7 +1903,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
             });
@@ -1931,7 +1940,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 primary: true,
                 state: Pressed,
                 position,
@@ -1962,7 +1971,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 primary: true,
                 state: Released,
                 position,
@@ -1997,7 +2006,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 primary: true,
                 state: Pressed,
                 position,
@@ -2028,7 +2037,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
-                event_time: Some(Duration::from_millis(unsafe { GetMessageTime() } as u32 as u64)),
+                event_time: message_time(),
                 primary: true,
                 state: Released,
                 position,

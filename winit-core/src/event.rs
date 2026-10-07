@@ -194,6 +194,7 @@ pub enum WindowEvent {
     /// - **iOS:** Unsupported.
     KeyboardInput {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
         event: KeyEvent,
 
         /// If `true`, the event was generated synthetically by winit
@@ -313,16 +314,16 @@ pub enum WindowEvent {
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
         device_id: Option<DeviceId>,
+        event_time: Option<Duration>,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        event_time: Option<Duration>,
     },
 
     /// An mouse button press has been received.
     PointerButton {
         device_id: Option<DeviceId>,
-        state: ElementState,
         event_time: Option<Duration>,
+        state: ElementState,
 
         /// The position of the pointer when the button was pressed.
         ///
@@ -376,7 +377,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **Wayland**.
-    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase, event_time: Option<Duration> },
+    HoldGesture { device_id: Option<DeviceId>, event_time: Option<Duration>, phase: TouchPhase },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -540,6 +541,62 @@ pub enum WindowEvent {
     ///
     /// [the safe area]: crate::window::Window::safe_area
     RedrawRequested,
+}
+
+impl WindowEvent {
+    /// The time at which the input that generated this event occurred.
+    ///
+    /// Returns `None` for events that are not caused by user input (e.g.
+    /// [`WindowEvent::RedrawRequested`]), and when the platform doesn't provide a timestamp.
+    ///
+    /// The value is only meaningful relative to other event times from the same event loop,
+    /// because the origin is unknown
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Wayland:** Milliseconds of server / compositor time. This is a 32-bit counter, so
+    ///   it wraps around after ~49.7 days.
+    /// - **Windows:** Milliseconds since system start. This is a 32-bit counter, so it wraps around
+    ///   after ~49.7 days.
+    /// - **macOS / iOS:** Time since system start-up.
+    /// - **Android:** Time since system boot, not counting deep sleep.
+    /// - **Web:** Time since the page's time origin.
+    /// - **Orbital:** Unsupported.
+    pub fn event_time(&self) -> Option<Duration> {
+        match self {
+            WindowEvent::KeyboardInput { event_time, .. }
+            | WindowEvent::PointerMoved { event_time, .. }
+            | WindowEvent::PointerEntered { event_time, .. }
+            | WindowEvent::PointerLeft { event_time, .. }
+            | WindowEvent::MouseWheel { event_time, .. }
+            | WindowEvent::PointerButton { event_time, .. }
+            | WindowEvent::HoldGesture { event_time, .. }
+            | WindowEvent::PinchGesture { event_time, .. }
+            | WindowEvent::PanGesture { event_time, .. }
+            | WindowEvent::DoubleTapGesture { event_time, .. }
+            | WindowEvent::RotationGesture { event_time, .. }
+            | WindowEvent::TouchpadPressure { event_time, .. } => *event_time,
+            WindowEvent::ActivationTokenDone { .. }
+            | WindowEvent::SurfaceResized(_)
+            | WindowEvent::Moved(_)
+            | WindowEvent::CloseRequested
+            | WindowEvent::Destroyed
+            | WindowEvent::DragEntered { .. }
+            | WindowEvent::DragPosition { .. }
+            | WindowEvent::DragDropped { .. }
+            | WindowEvent::DragLeft { .. }
+            | WindowEvent::DataTransferReceived { .. }
+            | WindowEvent::OutgoingDragDropped { .. }
+            | WindowEvent::OutgoingDragCanceled { .. }
+            | WindowEvent::Focused(_)
+            | WindowEvent::ModifiersChanged(_)
+            | WindowEvent::Ime(_)
+            | WindowEvent::ScaleFactorChanged { .. }
+            | WindowEvent::ThemeChanged(_)
+            | WindowEvent::Occluded(_)
+            | WindowEvent::RedrawRequested => None,
+        }
+    }
 }
 
 /// Represents the kind type of a pointer event.

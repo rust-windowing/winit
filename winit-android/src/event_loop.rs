@@ -510,6 +510,7 @@ impl EventLoop {
 
                         let event = event::WindowEvent::KeyboardInput {
                             device_id: Some(DeviceId::from_raw(key.device_id() as i64)),
+                            event_time: Some(Duration::from_nanos(key.event_time() as u64)),
                             event: event::KeyEvent {
                                 state,
                                 physical_key: keycodes::to_physical_key(keycode),

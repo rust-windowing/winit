@@ -124,7 +124,13 @@ impl ActiveEventLoop {
         let runner = self.runner.clone();
         let modifiers = self.modifiers.clone();
         canvas.on_keyboard_press(
-            move |physical_key, logical_key, text, location, repeat, active_modifiers| {
+            move |physical_key,
+                  logical_key,
+                  text,
+                  location,
+                  repeat,
+                  active_modifiers,
+                  event_time| {
                 let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
@@ -138,6 +144,7 @@ impl ActiveEventLoop {
                         window_id,
                         event: WindowEvent::KeyboardInput {
                             device_id: None,
+                            event_time,
                             event: KeyEvent {
                                 physical_key,
                                 logical_key: logical_key.clone(),
@@ -159,7 +166,13 @@ impl ActiveEventLoop {
         let runner = self.runner.clone();
         let modifiers = self.modifiers.clone();
         canvas.on_keyboard_release(
-            move |physical_key, logical_key, text, location, repeat, active_modifiers| {
+            move |physical_key,
+                  logical_key,
+                  text,
+                  location,
+                  repeat,
+                  active_modifiers,
+                  event_time| {
                 let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
@@ -173,6 +186,7 @@ impl ActiveEventLoop {
                         window_id,
                         event: WindowEvent::KeyboardInput {
                             device_id: None,
+                            event_time,
                             event: KeyEvent {
                                 physical_key,
                                 logical_key: logical_key.clone(),

@@ -959,6 +959,12 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         let keycode = xev.keycode as _;
+        #[allow(
+            clippy::unnecessary_cast,
+            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                      64-bit on others"
+        )]
+        let event_time = Some(Duration::from_millis(xev.time as u64));
 
         // Update state to track key repeats and determine whether this key was a repeat.
         //
@@ -1018,8 +1024,12 @@ impl EventProcessor {
 
             if let Some(mut key_processor) = self.xkb_context.key_context() {
                 let event = key_processor.process_key_event(keycode, state, repeat);
-                let event =
-                    WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
+                let event = WindowEvent::KeyboardInput {
+                    device_id: None,
+                    event_time,
+                    event,
+                    is_synthetic: false,
+                };
                 app.window_event(&self.target, window_id, event);
             }
 
@@ -1378,10 +1388,18 @@ impl EventProcessor {
 
         app.window_event(&self.target, window_id, WindowEvent::Focused(true));
 
+        #[allow(
+            clippy::unnecessary_cast,
+            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                      64-bit on others"
+        )]
+        let event_time = Some(Duration::from_millis(xev.time as u64));
+
         // Issue key press events for all pressed keys
         Self::handle_pressed_keys(
             &self.target,
             window_id,
+            event_time,
             ElementState::Pressed,
             &mut self.xkb_context,
             app,
@@ -1396,13 +1414,6 @@ impl EventProcessor {
             .borrow()
             .get(&mkdid(xev.deviceid as xinput::DeviceId))
             .map(|device| mkdid(device.attachment as xinput::DeviceId));
-
-        #[allow(
-            clippy::unnecessary_cast,
-            reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
-                      64-bit on others."
-        )]
-        let event_time = Some(Duration::from_millis(xev.time as u64));
 
         let event = WindowEvent::PointerMoved {
             device_id,
@@ -1441,10 +1452,18 @@ impl EventProcessor {
                 self.send_modifiers(window_id, mods.into(), true, app);
             }
 
+            #[allow(
+                clippy::unnecessary_cast,
+                reason = "`Time` is `c_ulong`, which is 32-bit on some platforms (e.g. x86) and \
+                          64-bit on others"
+            )]
+            let event_time = Some(Duration::from_millis(xev.time as u64));
+
             // Issue key release events for all pressed keys
             Self::handle_pressed_keys(
                 &self.target,
                 window_id,
+                event_time,
                 ElementState::Released,
                 &mut self.xkb_context,
                 app,
@@ -1885,6 +1904,7 @@ impl EventProcessor {
     fn handle_pressed_keys(
         target: &ActiveEventLoop,
         window_id: winit_core::window::WindowId,
+        event_time: Option<Duration>,
         state: ElementState,
         xkb_context: &mut Context,
         app: &mut dyn ApplicationHandler,
@@ -1909,7 +1929,12 @@ impl EventProcessor {
 
         for keycode in target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
             let event = key_processor.process_key_event(keycode as u32, state, false);
-            let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true };
+            let event = WindowEvent::KeyboardInput {
+                device_id: None,
+                event_time,
+                event,
+                is_synthetic: true,
+            };
             app.window_event(target, window_id, event);
         }
     }

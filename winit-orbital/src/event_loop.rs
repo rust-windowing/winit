@@ -411,6 +411,7 @@ impl EventLoop {
 
                 let event = event::WindowEvent::KeyboardInput {
                     device_id: None,
+                    event_time: None,
                     event: event::KeyEvent {
                         logical_key,
                         physical_key,

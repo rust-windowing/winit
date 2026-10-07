@@ -129,15 +129,17 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     state.events_sink.push_window_event(WindowEvent::Focused(false), window_id);
                 }
             },
-            WlKeyboardEvent::Key { serial, key, state: WEnum::Value(key_state), .. }
+            WlKeyboardEvent::Key { serial, time, key, state: WEnum::Value(key_state) }
                 if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
             {
                 seat_state.latest_input_serial.set(Some(serial));
                 let key = key + 8;
+                let event_time = Duration::from_millis(time as u64);
                 key_input(
                     keyboard_state,
                     &mut state.events_sink,
                     data,
+                    Some(event_time),
                     key,
                     ElementState::Pressed,
                     key_state == WlKeyState::Repeated,
@@ -164,6 +166,10 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                 let timer = Timer::from_duration(delay);
                 let wl_keyboard = wl_keyboard.clone();
+                // Repeats are generated on our side, so extrapolate their time from the original
+                // key press to stay on the compositor's clock.
+                let mut repeat_time = event_time;
+                let mut repeat_interval = delay;
                 keyboard_state.repeat_token = keyboard_state
                     .loop_handle
                     .insert_source(timer, move |_, _, state| {
@@ -188,10 +194,12 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                             None => return TimeoutAction::Drop,
                         };
 
+                        repeat_time += repeat_interval;
                         key_input(
                             keyboard_state,
                             &mut state.events_sink,
                             data,
+                            Some(repeat_time),
                             repeat_keycode,
                             ElementState::Pressed,
                             true,
@@ -199,14 +207,20 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                         // NOTE: the gap could change dynamically while repeat is going.
                         match keyboard_state.repeat_info {
-                            RepeatInfo::Repeat { gap, .. } => TimeoutAction::ToDuration(gap),
+                            RepeatInfo::Repeat { gap, .. } => {
+                                repeat_interval = gap;
+                                TimeoutAction::ToDuration(gap)
+                            },
                             RepeatInfo::Disable => TimeoutAction::Drop,
                         }
                     })
                     .ok();
             },
             WlKeyboardEvent::Key {
-                serial, key, state: WEnum::Value(WlKeyState::Released), ..
+                serial,
+                time,
+                key,
+                state: WEnum::Value(WlKeyState::Released),
             } => {
                 seat_state.latest_input_serial.set(Some(serial));
                 let key = key + 8;
@@ -215,6 +229,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     keyboard_state,
                     &mut state.events_sink,
                     data,
+                    Some(Duration::from_millis(time as u64)),
                     key,
                     ElementState::Released,
                     false,
@@ -367,6 +382,7 @@ fn key_input(
     keyboard_state: &mut KeyboardState,
     event_sink: &mut EventSink,
     data: &KeyboardData,
+    event_time: Option<Duration>,
     keycode: u32,
     state: ElementState,
     repeat: bool,
@@ -378,7 +394,8 @@ fn key_input(
 
     if let Some(mut key_context) = keyboard_state.xkb_context.key_context() {
         let event = key_context.process_key_event(keycode, state, repeat);
-        let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
+        let event =
+            WindowEvent::KeyboardInput { device_id: None, event_time, event, is_synthetic: false };
         event_sink.push_window_event(event, window_id);
     }
 }

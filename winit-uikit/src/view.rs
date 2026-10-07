@@ -163,8 +163,7 @@ define_class!(
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let _entered = debug_span!("pinchGesture:").entered();
             let window = self.window().unwrap();
-            let event_time =
-                Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
+            let event_time = current_event_time();
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -207,8 +206,7 @@ define_class!(
             let window = self.window().unwrap();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
-                let event_time =
-                    Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
+                let event_time = current_event_time();
                 let gesture_event = EventWrapper::Window {
                     window_id: window.id(),
                     event: WindowEvent::DoubleTapGesture { device_id: None, event_time },
@@ -223,8 +221,7 @@ define_class!(
         fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
             let _entered = debug_span!("rotationGesture:").entered();
             let window = self.window().unwrap();
-            let event_time =
-                Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
+            let event_time = current_event_time();
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -271,8 +268,7 @@ define_class!(
         fn pan_gesture(&self, recognizer: &UIPanGestureRecognizer) {
             let _entered = debug_span!("panGesture:").entered();
             let window = self.window().unwrap();
-            let event_time =
-                Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()));
+            let event_time = current_event_time();
 
             let translation = recognizer.translationInView(Some(self));
 
@@ -749,6 +745,7 @@ impl WinitView {
         let window = self.window().unwrap();
         let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
+        let event_time = current_event_time();
         // send individual events for each character
         app_state::handle_nonuser_events(
             mtm,
@@ -759,6 +756,7 @@ impl WinitView {
                     window_id,
                     event: WindowEvent::KeyboardInput {
                         device_id: None,
+                        event_time,
                         event: KeyEvent {
                             text: if state == ElementState::Pressed {
                                 Some(text.clone())
@@ -788,12 +786,14 @@ impl WinitView {
         let window = self.window().unwrap();
         let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
+        let event_time = current_event_time();
         app_state::handle_nonuser_events(
             mtm,
             [ElementState::Pressed, ElementState::Released].map(|state| EventWrapper::Window {
                 window_id,
                 event: WindowEvent::KeyboardInput {
                     device_id: None,
+                    event_time,
                     event: KeyEvent {
                         state,
                         logical_key: Key::Named(NamedKey::Backspace),
@@ -809,4 +809,11 @@ impl WinitView {
             }),
         );
     }
+}
+
+/// The current time, for events where UIKit doesn't provide a timestamp.
+///
+/// This is on the same clock as `UIEvent.timestamp` and `UITouch.timestamp`.
+fn current_event_time() -> Option<Duration> {
+    Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()))
 }
