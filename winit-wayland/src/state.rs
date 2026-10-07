@@ -22,6 +22,7 @@ use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
+use winit_common::timestamp_handler::TimeStampExtender;
 use winit_core::error::OsError;
 
 use crate::WindowId;
@@ -138,6 +139,8 @@ pub struct WinitState {
 
     /// Whether the user initiated a wake up.
     pub proxy_wake_up: bool,
+
+    pub(crate) timestamp_extender: TimeStampExtender,
 }
 
 impl WinitState {
@@ -235,6 +238,7 @@ impl WinitState {
             // Make it true by default.
             dispatched_events: true,
             proxy_wake_up: false,
+            timestamp_extender: TimeStampExtender::default(),
         })
     }
 

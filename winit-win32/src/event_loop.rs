@@ -42,15 +42,15 @@ use windows_sys::Win32::UI::Input::{
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     EnumThreadWindows, GW_OWNER, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu,
-    GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
-    MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
-    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
-    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
-    RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
-    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage, WHEEL_DELTA,
-    WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
-    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    GetMessageTime, GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG,
+    MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL,
+    PEN_FLAG_ERASER, PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y,
+    PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL,
+    RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE,
+    SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage,
+    WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
+    WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP,
     WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR,
     WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE,
@@ -62,6 +62,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 use windows_sys::core::BOOL;
+use winit_common::timestamp_handler::TimeStampExtender;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
@@ -116,6 +117,7 @@ pub(crate) struct WindowData {
     pub userdata_removed: Cell<bool>,
     pub last_tablet_down_button_state: Cell<u32>,
     pub recurse_depth: Cell<u32>,
+    pub timestamp_extender: Cell<TimeStampExtender>,
 }
 
 impl WindowData {
@@ -126,6 +128,20 @@ impl WindowData {
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
+    }
+
+    fn event_time_to_duration(&self, event_time: u32) -> Duration {
+        let mut timestamp_extender = self.timestamp_extender.get();
+        let duration = timestamp_extender.extend_timestamp_millisecond(event_time);
+        self.timestamp_extender.set(timestamp_extender);
+        duration
+    }
+
+    fn message_time(&self) -> Option<Duration> {
+        // SAFETY: `GetMessageTime` has no preconditions.
+        let time = unsafe { GetMessageTime() };
+        // The time is a 32-bit millisecond tick count that is returned as a signed integer.
+        Some(self.event_time_to_duration(time as u32))
     }
 }
 
@@ -1225,9 +1241,11 @@ unsafe fn public_window_callback_inner(
         use winit_core::event::WindowEvent::KeyboardInput;
         let events =
             userdata.key_event_builder.process_message(window, msg, wparam, lparam, &mut result);
+        let event_time = userdata.message_time();
         for event in events {
             userdata.send_window_event(window, KeyboardInput {
                 device_id: None,
+                event_time,
                 event: event.event,
                 is_synthetic: event.is_synthetic,
             });
@@ -1737,6 +1755,7 @@ unsafe fn public_window_callback_inner(
             let x = util::get_x_lparam(lparam as u32) as i32;
             let y = util::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
+            let event_time = userdata.message_time();
 
             let cursor_moved;
             {
@@ -1753,6 +1772,7 @@ unsafe fn public_window_callback_inner(
                         drop(w);
                         userdata.send_window_event(window, PointerEntered {
                             device_id: None,
+                            event_time,
                             primary: true,
                             position,
                             kind: PointerKind::Mouse,
@@ -1776,6 +1796,7 @@ unsafe fn public_window_callback_inner(
                         drop(w);
                         userdata.send_window_event(window, PointerLeft {
                             device_id: None,
+                            event_time,
                             primary: true,
                             position: Some(position),
                             kind: PointerKind::Mouse,
@@ -1797,9 +1818,11 @@ unsafe fn public_window_callback_inner(
 
                 userdata.send_window_event(window, PointerMoved {
                     device_id: None,
+                    event_time,
                     primary: true,
                     position,
                     source: PointerSource::Mouse,
+                    history: Vec::new(),
                 });
             }
 
@@ -1817,6 +1840,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerLeft {
                 device_id: None,
+                event_time: userdata.message_time(),
                 primary: true,
                 position: None,
                 kind: Mouse,
@@ -1854,6 +1878,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
+                event_time: userdata.message_time(),
                 delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
             });
@@ -1887,6 +1912,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, WindowEvent::MouseWheel {
                 device_id: None,
+                event_time: userdata.message_time(),
                 delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
             });
@@ -1923,6 +1949,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
+                event_time: userdata.message_time(),
                 primary: true,
                 state: Pressed,
                 position,
@@ -1953,6 +1980,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
+                event_time: userdata.message_time(),
                 primary: true,
                 state: Released,
                 position,
@@ -1987,6 +2015,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
+                event_time: userdata.message_time(),
                 primary: true,
                 state: Pressed,
                 position,
@@ -2017,6 +2046,7 @@ unsafe fn public_window_callback_inner(
 
             userdata.send_window_event(window, PointerButton {
                 device_id: None,
+                event_time: userdata.message_time(),
                 primary: true,
                 state: Released,
                 position,
@@ -2068,16 +2098,19 @@ unsafe fn public_window_callback_inner(
 
                     let finger_id = FingerId::from_raw(input.dwID as usize);
                     let primary = util::has_flag(input.dwFlags, TOUCHEVENTF_PRIMARY);
+                    let event_time = Some(userdata.event_time_to_duration(input.dwTime));
 
                     if util::has_flag(input.dwFlags, TOUCHEVENTF_DOWN) {
                         userdata.send_window_event(window, WindowEvent::PointerEntered {
                             device_id: None,
+                            event_time,
                             primary,
                             position,
                             kind: PointerKind::Touch(finger_id),
                         });
                         userdata.send_window_event(window, WindowEvent::PointerButton {
                             device_id: None,
+                            event_time,
                             primary,
                             state: Pressed,
                             position,
@@ -2087,6 +2120,7 @@ unsafe fn public_window_callback_inner(
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_UP) {
                         userdata.send_window_event(window, WindowEvent::PointerButton {
                             device_id: None,
+                            event_time,
                             primary,
                             state: Released,
                             position,
@@ -2095,6 +2129,7 @@ unsafe fn public_window_callback_inner(
                         });
                         userdata.send_window_event(window, WindowEvent::PointerLeft {
                             device_id: None,
+                            event_time,
                             primary,
                             position: Some(position),
                             kind: PointerKind::Touch(finger_id),
@@ -2102,9 +2137,11 @@ unsafe fn public_window_callback_inner(
                     } else if util::has_flag(input.dwFlags, TOUCHEVENTF_MOVE) {
                         userdata.send_window_event(window, WindowEvent::PointerMoved {
                             device_id: None,
+                            event_time,
                             primary,
                             position,
                             source: PointerSource::Touch { finger_id, force: None },
+                            history: Vec::new(),
                         });
                     } else {
                         continue;
@@ -2209,6 +2246,7 @@ unsafe fn public_window_callback_inner(
 
                     let finger_id = FingerId::from_raw(pointer_info.pointerId as usize);
                     let primary = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY);
+                    let event_time = Some(userdata.event_time_to_duration(pointer_info.dwTime));
 
                     let is_down = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN);
                     if is_down || util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
@@ -2242,6 +2280,7 @@ unsafe fn public_window_callback_inner(
                         if is_down {
                             userdata.send_window_event(window, WindowEvent::PointerEntered {
                                 device_id: None,
+                                event_time,
                                 primary,
                                 position,
                                 kind,
@@ -2249,6 +2288,7 @@ unsafe fn public_window_callback_inner(
 
                             userdata.send_window_event(window, WindowEvent::PointerButton {
                                 device_id: None,
+                                event_time,
                                 primary,
                                 state: Pressed,
                                 position,
@@ -2258,6 +2298,7 @@ unsafe fn public_window_callback_inner(
                         } else {
                             userdata.send_window_event(window, WindowEvent::PointerButton {
                                 device_id: None,
+                                event_time,
                                 primary,
                                 state: Released,
                                 position,
@@ -2266,6 +2307,7 @@ unsafe fn public_window_callback_inner(
                             });
                             userdata.send_window_event(window, WindowEvent::PointerLeft {
                                 device_id: None,
+                                event_time,
                                 primary,
                                 position: Some(position),
                                 kind,
@@ -2286,9 +2328,11 @@ unsafe fn public_window_callback_inner(
 
                         userdata.send_window_event(window, WindowEvent::PointerMoved {
                             device_id: None,
+                            event_time,
                             primary,
                             position,
                             source,
+                            history: Vec::new(),
                         });
                     } else {
                         continue;

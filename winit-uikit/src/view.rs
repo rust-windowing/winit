@@ -1,12 +1,13 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
+use std::time::Duration;
 
 use dpi::PhysicalPosition;
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{DefinedClass, MainThreadMarker, available, define_class, msg_send, sel};
 use objc2_core_foundation::{CGFloat, CGPoint, CGRect};
-use objc2_foundation::{NSObject, NSSet, NSString};
+use objc2_foundation::{NSObject, NSProcessInfo, NSSet, NSString};
 use objc2_ui_kit::{
     UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
     UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer, UIPinchGestureRecognizer,
@@ -15,9 +16,10 @@ use objc2_ui_kit::{
 };
 use tracing::{debug, debug_span, trace_span};
 use winit_core::event::{
-    ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    ButtonSource, ElementState, EventTime, FingerId, Force, KeyEvent, PointerKind, PointerSource,
     TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TouchPhase, WindowEvent,
 };
+use winit_core::event_loop::HistoricalMoveEvent;
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
 
 use super::app_state::{self, EventWrapper};
@@ -134,33 +136,34 @@ define_class!(
         }
 
         #[unsafe(method(touchesBegan:withEvent:))]
-        fn touches_began(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_began(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesBegan:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(touchesMoved:withEvent:))]
-        fn touches_moved(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_moved(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesMoved:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(touchesEnded:withEvent:))]
-        fn touches_ended(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_ended(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesEnded:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(touchesCancelled:withEvent:))]
-        fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
+        fn touches_cancelled(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
             let _entered = debug_span!("touchesCancelled:withEvent:").entered();
-            self.handle_touches(touches)
+            self.handle_touches(touches, event)
         }
 
         #[unsafe(method(pinchGesture:))]
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let _entered = debug_span!("pinchGesture:").entered();
             let window = self.window().unwrap();
+            let event_time = current_event_time();
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -185,7 +188,12 @@ define_class!(
 
             let gesture_event = EventWrapper::Window {
                 window_id: window.id(),
-                event: WindowEvent::PinchGesture { device_id: None, delta: delta as f64, phase },
+                event: WindowEvent::PinchGesture {
+                    device_id: None,
+                    delta: delta as f64,
+                    phase,
+                    event_time,
+                },
             };
 
             let mtm = MainThreadMarker::new().unwrap();
@@ -198,9 +206,10 @@ define_class!(
             let window = self.window().unwrap();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
+                let event_time = current_event_time();
                 let gesture_event = EventWrapper::Window {
                     window_id: window.id(),
-                    event: WindowEvent::DoubleTapGesture { device_id: None },
+                    event: WindowEvent::DoubleTapGesture { device_id: None, event_time },
                 };
 
                 let mtm = MainThreadMarker::new().unwrap();
@@ -212,6 +221,7 @@ define_class!(
         fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
             let _entered = debug_span!("rotationGesture:").entered();
             let window = self.window().unwrap();
+            let event_time = current_event_time();
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -244,6 +254,7 @@ define_class!(
                 window_id: window.id(),
                 event: WindowEvent::RotationGesture {
                     device_id: None,
+                    event_time,
                     delta: -delta.to_degrees() as _,
                     phase,
                 },
@@ -257,6 +268,7 @@ define_class!(
         fn pan_gesture(&self, recognizer: &UIPanGestureRecognizer) {
             let _entered = debug_span!("panGesture:").entered();
             let window = self.window().unwrap();
+            let event_time = current_event_time();
 
             let translation = recognizer.translationInView(Some(self));
 
@@ -297,6 +309,7 @@ define_class!(
                 window_id: window.id(),
                 event: WindowEvent::PanGesture {
                     device_id: None,
+                    event_time,
                     delta: PhysicalPosition::new(dx as _, dy as _),
                     phase,
                 },
@@ -477,44 +490,54 @@ impl WinitView {
         }
     }
 
-    fn handle_touches(&self, touches: &NSSet<UITouch>) {
+    fn determine_force(&self, touch: &Retained<UITouch>) -> Option<Force> {
+        let touch_type = touch.r#type();
+        if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
+            let use_force = match touch_type {
+                UITouchType::Pencil => true,
+                _ => {
+                    let trait_collection = self.traitCollection();
+                    trait_collection.forceTouchCapability() == UIForceTouchCapability::Available
+                },
+            };
+
+            if use_force {
+                let force = touch.force();
+                let max_possible_force = touch.maximumPossibleForce();
+                Some(Force::Calibrated {
+                    force: force as _,
+                    max_possible_force: max_possible_force as _,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn determine_position(&self, touch: &Retained<UITouch>) -> PhysicalPosition<f64> {
+        let logical_location = touch.locationInView(None);
+
+        let scale_factor = self.contentScaleFactor();
+        PhysicalPosition::from_logical::<(f64, f64), f64>(
+            (logical_location.x as _, logical_location.y as _),
+            scale_factor as f64,
+        )
+    }
+
+    fn handle_touches(&self, touches: &NSSet<UITouch>, event: Option<&UIEvent>) {
         let window = self.window().unwrap();
         let mut touch_events = Vec::new();
         for touch in touches {
-            let logical_location = touch.locationInView(None);
+            let event_time = Some(Duration::from_secs_f64(touch.timestamp()));
             let touch_type = touch.r#type();
-            let force = if available!(ios = 9.0, tvos = 9.0, visionos = 1.0) {
-                let use_force = match touch_type {
-                    UITouchType::Pencil => true,
-                    _ => {
-                        let trait_collection = self.traitCollection();
-                        trait_collection.forceTouchCapability() == UIForceTouchCapability::Available
-                    },
-                };
-
-                if use_force {
-                    let force = touch.force();
-                    let max_possible_force = touch.maximumPossibleForce();
-                    Some(Force::Calibrated {
-                        force: force as _,
-                        max_possible_force: max_possible_force as _,
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            let touch_id = Retained::as_ptr(&touch) as usize;
+            let force = self.determine_force(&touch);
             let phase = touch.phase();
-            let position = {
-                let scale_factor = self.contentScaleFactor();
-                PhysicalPosition::from_logical::<(f64, f64), f64>(
-                    (logical_location.x as _, logical_location.y as _),
-                    scale_factor as f64,
-                )
-            };
+
+            let position = self.determine_position(&touch);
             let window_id = window.id();
+            let touch_id = Retained::as_ptr(&touch) as usize;
             let finger_id = FingerId::from_raw(touch_id);
 
             let ivars = self.ivars();
@@ -545,6 +568,7 @@ impl WinitView {
                         window_id,
                         event: WindowEvent::PointerEntered {
                             device_id: None,
+                            event_time,
                             primary,
                             position,
                             kind: if let UITouchType::Pencil = touch_type {
@@ -558,6 +582,7 @@ impl WinitView {
                         window_id,
                         event: WindowEvent::PointerButton {
                             device_id: None,
+                            event_time,
                             primary,
                             state: ElementState::Pressed,
                             position,
@@ -576,26 +601,58 @@ impl WinitView {
                     });
                 },
                 UITouchPhase::Moved => {
-                    let (primary, source) = if let UITouchType::Pencil = touch_type {
-                        let tool_data = self.tablet_tool_data_for_pencil(&touch);
-                        (true, PointerSource::TabletTool {
-                            kind: TabletToolKind::Pencil,
-                            data: tool_data,
+                    fn primary_source(
+                        _self: &WinitView,
+                        touch: &Retained<UITouch>,
+                        force: Option<Force>,
+                    ) -> (bool, PointerSource) {
+                        let touch_type = touch.r#type();
+                        let touch_id = Retained::as_ptr(touch) as usize;
+                        let finger_id = FingerId::from_raw(touch_id);
+                        if let UITouchType::Pencil = touch_type {
+                            let tool_data = _self.tablet_tool_data_for_pencil(touch);
+                            (true, PointerSource::TabletTool {
+                                kind: TabletToolKind::Pencil,
+                                data: tool_data,
+                            })
+                        } else {
+                            (
+                                _self.ivars().primary_finger.get().unwrap() == finger_id,
+                                PointerSource::Touch { finger_id, force },
+                            )
+                        }
+                    }
+
+                    let (primary, source) = primary_source(self, &touch, force);
+
+                    let historical_events = event
+                        .and_then(|event| {
+                            event.coalescedTouchesForTouch(&touch).map(|touch_events| {
+                                let mut vec = Vec::with_capacity(touch_events.len());
+                                for touch in touch_events {
+                                    let event_time = Duration::from_secs_f64(touch.timestamp());
+                                    let (_, source) =
+                                        primary_source(self, &touch, self.determine_force(&touch));
+                                    vec.push(HistoricalMoveEvent::new(
+                                        event_time,
+                                        self.determine_position(&touch),
+                                        source,
+                                    ));
+                                }
+                                vec
+                            })
                         })
-                    } else {
-                        (ivars.primary_finger.get().unwrap() == finger_id, PointerSource::Touch {
-                            finger_id,
-                            force,
-                        })
-                    };
+                        .unwrap_or_default();
 
                     touch_events.push(EventWrapper::Window {
                         window_id,
                         event: WindowEvent::PointerMoved {
                             device_id: None,
+                            event_time,
                             primary,
                             position,
                             source,
+                            history: historical_events,
                         },
                     });
                 },
@@ -617,6 +674,7 @@ impl WinitView {
                             window_id,
                             event: WindowEvent::PointerButton {
                                 device_id: None,
+                                event_time,
                                 primary,
                                 state: ElementState::Released,
                                 position,
@@ -639,6 +697,7 @@ impl WinitView {
                         window_id,
                         event: WindowEvent::PointerLeft {
                             device_id: None,
+                            event_time,
                             primary,
                             position: Some(position),
                             kind: if let UITouchType::Pencil = touch_type {
@@ -686,6 +745,7 @@ impl WinitView {
         let window = self.window().unwrap();
         let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
+        let event_time = current_event_time();
         // send individual events for each character
         app_state::handle_nonuser_events(
             mtm,
@@ -696,6 +756,7 @@ impl WinitView {
                     window_id,
                     event: WindowEvent::KeyboardInput {
                         device_id: None,
+                        event_time,
                         event: KeyEvent {
                             text: if state == ElementState::Pressed {
                                 Some(text.clone())
@@ -725,12 +786,14 @@ impl WinitView {
         let window = self.window().unwrap();
         let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
+        let event_time = current_event_time();
         app_state::handle_nonuser_events(
             mtm,
             [ElementState::Pressed, ElementState::Released].map(|state| EventWrapper::Window {
                 window_id,
                 event: WindowEvent::KeyboardInput {
                     device_id: None,
+                    event_time,
                     event: KeyEvent {
                         state,
                         logical_key: Key::Named(NamedKey::Backspace),
@@ -746,4 +809,11 @@ impl WinitView {
             }),
         );
     }
+}
+
+/// The current time, for events where UIKit doesn't provide a timestamp.
+///
+/// This is on the same clock as `UIEvent.timestamp` and `UITouch.timestamp`.
+fn current_event_time() -> Option<EventTime> {
+    Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()))
 }

@@ -3,6 +3,7 @@ use std::cell::LazyCell;
 use std::cmp::Ordering;
 use std::f64;
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
 
 use dpi::{PhysicalPosition, PhysicalSize};
 #[cfg(feature = "serde")]
@@ -12,7 +13,7 @@ use smol_str::SmolStr;
 use crate::Instant;
 use crate::data_transfer::{DataTransferId, TypedData};
 use crate::error::InternalError;
-use crate::event_loop::{AsyncRequestSerial, DndAction};
+use crate::event_loop::{AsyncRequestSerial, DndAction, HistoricalMoveEvent};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
@@ -42,6 +43,12 @@ pub enum StartCause {
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
     Init,
 }
+
+/// The time at which the input that generated this event occurred.
+///
+/// The value is only meaningful relative to other event times from the same event loop,
+/// because the origin is unknown
+pub type EventTime = Duration;
 
 /// Describes an event from a [`Window`].
 #[derive(Debug, Clone, PartialEq)]
@@ -193,6 +200,7 @@ pub enum WindowEvent {
     /// - **iOS:** Unsupported.
     KeyboardInput {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
         event: KeyEvent,
 
         /// If `true`, the event was generated synthetically by winit
@@ -224,6 +232,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerMoved {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
 
         /// (x,y) coordinates in pixels relative to the top-left corner of the window. Because the
         /// range of this data is limited by the display area and it may have been
@@ -247,6 +256,8 @@ pub enum WindowEvent {
         primary: bool,
 
         source: PointerSource,
+        /// Historical move events between this event and the previous event
+        history: Vec<HistoricalMoveEvent>,
     },
 
     /// The pointer has entered the window.
@@ -254,6 +265,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerEntered {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
 
         /// The position of the pointer when it entered the window.
         ///
@@ -281,6 +293,7 @@ pub enum WindowEvent {
     /// Should be emitted regardless of window focus.
     PointerLeft {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
 
         /// The position of the pointer when it left the window. The position reported can be
         /// outside the bounds of the window.
@@ -305,11 +318,17 @@ pub enum WindowEvent {
     },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: Option<DeviceId>, delta: MouseScrollDelta, phase: TouchPhase },
+    MouseWheel {
+        device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+    },
 
     /// An mouse button press has been received.
     PointerButton {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
         state: ElementState,
 
         /// The position of the pointer when the button was pressed.
@@ -364,7 +383,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **Wayland**.
-    HoldGesture { device_id: Option<DeviceId>, phase: TouchPhase },
+    HoldGesture { device_id: Option<DeviceId>, event_time: Option<EventTime>, phase: TouchPhase },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -374,6 +393,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
         /// Positive values indicate magnification (zooming in) and  negative
         /// values indicate shrinking (zooming out).
         ///
@@ -390,6 +410,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PanGesture {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
         /// Change in pixels of pan gesture from last update.
         delta: PhysicalPosition<f32>,
         phase: TouchPhase,
@@ -413,7 +434,7 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    DoubleTapGesture { device_id: Option<DeviceId> },
+    DoubleTapGesture { device_id: Option<DeviceId>, event_time: Option<EventTime> },
 
     /// Two-finger rotation gesture.
     ///
@@ -426,6 +447,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
         /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
@@ -439,6 +461,7 @@ pub enum WindowEvent {
     /// - **Android / iOS / Wayland / X11 / Windows / Orbital / Web:** Unsupported.
     TouchpadPressure {
         device_id: Option<DeviceId>,
+        event_time: Option<EventTime>,
         /// Value between 0 and 1 representing how hard the touchpad is being
         /// pressed.
         pressure: f32,
@@ -524,6 +547,50 @@ pub enum WindowEvent {
     ///
     /// [the safe area]: crate::window::Window::safe_area
     RedrawRequested,
+}
+
+impl WindowEvent {
+    /// The time at which the input that generated this event occurred.
+    ///
+    /// Returns `None` for events that are not caused by user input (e.g.
+    /// [`WindowEvent::RedrawRequested`]), and when the platform doesn't provide a timestamp.
+    ///
+    /// For further information see the `EventTime` type
+    pub fn event_time(&self) -> Option<EventTime> {
+        match self {
+            WindowEvent::KeyboardInput { event_time, .. }
+            | WindowEvent::PointerMoved { event_time, .. }
+            | WindowEvent::PointerEntered { event_time, .. }
+            | WindowEvent::PointerLeft { event_time, .. }
+            | WindowEvent::MouseWheel { event_time, .. }
+            | WindowEvent::PointerButton { event_time, .. }
+            | WindowEvent::HoldGesture { event_time, .. }
+            | WindowEvent::PinchGesture { event_time, .. }
+            | WindowEvent::PanGesture { event_time, .. }
+            | WindowEvent::DoubleTapGesture { event_time, .. }
+            | WindowEvent::RotationGesture { event_time, .. }
+            | WindowEvent::TouchpadPressure { event_time, .. } => *event_time,
+            WindowEvent::ActivationTokenDone { .. }
+            | WindowEvent::SurfaceResized(_)
+            | WindowEvent::Moved(_)
+            | WindowEvent::CloseRequested
+            | WindowEvent::Destroyed
+            | WindowEvent::DragEntered { .. }
+            | WindowEvent::DragPosition { .. }
+            | WindowEvent::DragDropped { .. }
+            | WindowEvent::DragLeft { .. }
+            | WindowEvent::DataTransferReceived { .. }
+            | WindowEvent::OutgoingDragDropped { .. }
+            | WindowEvent::OutgoingDragCanceled { .. }
+            | WindowEvent::Focused(_)
+            | WindowEvent::ModifiersChanged(_)
+            | WindowEvent::Ime(_)
+            | WindowEvent::ScaleFactorChanged { .. }
+            | WindowEvent::ThemeChanged(_)
+            | WindowEvent::Occluded(_)
+            | WindowEvent::RedrawRequested => None,
+        }
+    }
 }
 
 /// Represents the kind type of a pointer event.
@@ -1691,13 +1758,16 @@ mod tests {
             with_window_event(Ime(Enabled));
             with_window_event(PointerMoved {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 position: (0, 0).into(),
                 source: PointerSource::Mouse,
+                history: Default::default(),
             });
             with_window_event(ModifiersChanged(event::Modifiers::default()));
             with_window_event(PointerEntered {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 position: (0, 0).into(),
                 kind: PointerKind::Mouse,
@@ -1705,16 +1775,19 @@ mod tests {
             with_window_event(PointerLeft {
                 primary: true,
                 device_id: None,
+                event_time: None,
                 position: Some((0, 0).into()),
                 kind: PointerKind::Mouse,
             });
             with_window_event(MouseWheel {
                 device_id: None,
+                event_time: None,
                 delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 phase: event::TouchPhase::Started,
             });
             with_window_event(PointerButton {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 state: event::ElementState::Pressed,
                 position: (0, 0).into(),
@@ -1723,6 +1796,7 @@ mod tests {
             });
             with_window_event(PointerButton {
                 device_id: None,
+                event_time: None,
                 primary: true,
                 state: event::ElementState::Released,
                 position: (0, 0).into(),
@@ -1734,21 +1808,24 @@ mod tests {
             });
             with_window_event(PinchGesture {
                 device_id: None,
+                event_time: None,
                 delta: 0.0,
                 phase: event::TouchPhase::Started,
             });
-            with_window_event(DoubleTapGesture { device_id: None });
+            with_window_event(DoubleTapGesture { device_id: None, event_time: None, });
             with_window_event(RotationGesture {
                 device_id: None,
+                event_time: None,
                 delta: 0.0,
                 phase: event::TouchPhase::Started,
             });
             with_window_event(PanGesture {
                 device_id: None,
+                event_time: None,
                 delta: PhysicalPosition::<f32>::new(0.0, 0.0),
                 phase: event::TouchPhase::Started,
             });
-            with_window_event(TouchpadPressure { device_id: None, pressure: 0.0, stage: 0 });
+            with_window_event(TouchpadPressure { event_time: None, device_id: None, pressure: 0.0, stage: 0 });
             with_window_event(ThemeChanged(crate::window::Theme::Light));
             with_window_event(Occluded(true));
         }};
