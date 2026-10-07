@@ -1201,7 +1201,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///   The dock and the menu bar are disabled in exclusive fullscreen mode.
     /// - **Orbital / Wayland:** Does not support exclusive fullscreen mode and will no-op a
     ///   request.
-    /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode. Leaving fullscreen restores the
+    ///   previous position and size in a later message, after this call returns.
     /// - **Web:** Passing a [`MonitorHandle`] or [`VideoMode`] that was not created with detailed
     ///   monitor permissions or calling without a [transient activation] does nothing.
     ///

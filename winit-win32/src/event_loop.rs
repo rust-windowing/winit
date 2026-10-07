@@ -86,7 +86,7 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 
 pub(super) use self::runner::{Event, EventLoopRunner};
 use super::SelectedCursor;
-use super::window::set_skip_taskbar;
+use super::window::{restore_windowed_placement, set_skip_taskbar};
 use crate::dark_mode::try_theme;
 use crate::dnd::{DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData};
 use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
@@ -965,6 +965,10 @@ pub(crate) static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::Des
 // documentation in the `window_state` module for more information.
 pub(crate) static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
     LazyMessageId::new("Winit::SetRetainMaximized\0");
+// Posted by `Window::set_fullscreen(None)` to move the window back to its windowed placement in
+// a later message than the one that restored its style. WPARAM and LPARAM are unused.
+pub(crate) static RESTORE_WINDOWED_MSG_ID: LazyMessageId =
+    LazyMessageId::new("Winit::RestoreWindowed\0");
 static THREAD_EVENT_TARGET_WINDOW_CLASS: LazyLock<Vec<u16>> =
     LazyLock::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then
@@ -2528,6 +2532,9 @@ unsafe fn public_window_callback_inner(
                 window_state.set_window_flags_in_place(|f| {
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
+                result = ProcResult::Value(0);
+            } else if msg == RESTORE_WINDOWED_MSG_ID.get() {
+                restore_windowed_placement(window, &userdata.window_state);
                 result = ProcResult::Value(0);
             } else if msg == TASKBAR_CREATED.get() {
                 let skip_taskbar = userdata.window_state_lock().skip_taskbar;
