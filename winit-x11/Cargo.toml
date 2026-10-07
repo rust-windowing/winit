@@ -27,7 +27,7 @@ calloop.workspace = true
 libc.workspace = true
 percent-encoding.workspace = true
 rustix = { workspace = true, features = ["std", "system", "thread", "process"] }
-winit-common = { workspace = true, features = ["xkb", "x11",  "timestamp-handler"] }
+winit-common = { workspace = true, features = ["xkb", "x11", "timestamp-handler"] }
 x11-dl.workspace = true
 x11rb = { workspace = true, features = [
     "allow-unsafe-code",
