@@ -16,7 +16,7 @@ use objc2_ui_kit::{
 };
 use tracing::{debug, debug_span, trace_span};
 use winit_core::event::{
-    ButtonSource, ElementState, FingerId, Force, KeyEvent, PointerKind, PointerSource,
+    ButtonSource, ElementState, EventTime, FingerId, Force, KeyEvent, PointerKind, PointerSource,
     TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::HistoricalMoveEvent;
@@ -814,6 +814,6 @@ impl WinitView {
 /// The current time, for events where UIKit doesn't provide a timestamp.
 ///
 /// This is on the same clock as `UIEvent.timestamp` and `UITouch.timestamp`.
-fn current_event_time() -> Option<Duration> {
+fn current_event_time() -> Option<EventTime> {
     Some(Duration::from_secs_f64(NSProcessInfo::processInfo().systemUptime()))
 }
