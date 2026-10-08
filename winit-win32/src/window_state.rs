@@ -161,6 +161,11 @@ bitflags! {
         /// `translate_outer_position`/`translate_outer_position_to_parent`.
         const ANCHORED = 1 << 23;
 
+        /// An explicit `WindowType::Popup`, as opposed to an ordinary window
+        /// which merely uses the native WS_POPUP style because it has an owner.
+        /// Only the explicit popup role suppresses decorations and activation.
+        const MARKER_POPUP = 1 << 24;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
@@ -306,6 +311,11 @@ impl WindowFlags {
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
+        }
+        // Win32 ownership sets POPUP even for normal decorated dialogs. Keep
+        // their caption, buttons, and normal activation behavior; only the
+        // explicit winit popup role requests the special popup presentation.
+        if self.contains(WindowFlags::MARKER_POPUP) {
             // Don't activate the popup (and thus don't deactivate the parent) when it is shown or
             // clicked, unless the caller requested activation via `WindowAttributes::active`.
             if !self.contains(WindowFlags::MARKER_ACTIVATE) {
@@ -600,5 +610,41 @@ impl CursorFlags {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owned_windows_keep_caption_and_buttons() {
+        let flags = WindowFlags::POPUP
+            | WindowFlags::MARKER_DECORATIONS
+            | WindowFlags::RESIZABLE
+            | WindowFlags::MINIMIZABLE
+            | WindowFlags::MAXIMIZABLE;
+        let (style, extended) = flags.to_window_styles();
+        let expected =
+            WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+        assert_eq!(style & expected, expected);
+        // `active: false` controls initial activation for ordinary windows;
+        // it must not make an owned dialog permanently non-activating.
+        assert_eq!(extended & WS_EX_NOACTIVATE, 0);
+    }
+
+    #[test]
+    fn explicit_popups_remain_borderless_and_respect_activation() {
+        for active in [false, true] {
+            let mut flags = WindowFlags::POPUP
+                | WindowFlags::MARKER_POPUP
+                | WindowFlags::MARKER_DECORATIONS
+                | WindowFlags::RESIZABLE;
+            flags.set(WindowFlags::MARKER_ACTIVATE, active);
+            let (style, extended) = flags.to_window_styles();
+            assert_ne!(style & WS_POPUP, 0);
+            assert_eq!(style & (WS_CAPTION | WS_SYSMENU | WS_SIZEBOX), 0);
+            assert_eq!(extended & WS_EX_NOACTIVATE != 0, !active);
+        }
     }
 }
