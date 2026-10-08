@@ -47,6 +47,7 @@ changelog entry.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
+- On macOS, discard the input method's marked text when IME is disabled, so an unfinished composition is not resumed (and committed again) when IME is re-enabled.
 
 ### Changed
 
