@@ -47,6 +47,7 @@ changelog entry.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
+- On Windows, fix the IME preedit cursor appearing before the composition with IMEs such as the Microsoft Korean IME that report neither a cursor position (`GCS_CURSORPOS`) nor a target clause; it is now placed at the end.
 
 ### Changed
 
