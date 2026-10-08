@@ -47,6 +47,8 @@ changelog entry.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
+- On macOS, fix text from the emoji picker and other sources outside a key press being dropped.
+- On macOS, fix dictation not starting by reporting a valid `selectedRange` while IME is allowed.
 
 ### Changed
 
