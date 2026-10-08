@@ -993,6 +993,13 @@ impl WinitView {
         self.ivars().pending_commit.set(false);
     }
     pub(super) fn disable_ime(&self) {
+        // Tell the input method to drop any composition in progress. Otherwise it keeps the
+        // marked text and continues composing it once IME is enabled again (e.g. when focus
+        // returns to a text input), even though the application has already ended it.
+        if self.ivars().marked_text.borrow().length() > 0 {
+            let input_context = self.inputContext().expect("input context");
+            input_context.discardMarkedText();
+        }
         // see above
         self.ivars().ime_capabilities.set(None);
         if self.ivars().ime_state.get() != ImeState::Disabled {
