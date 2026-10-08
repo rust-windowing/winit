@@ -52,6 +52,7 @@ changelog entry.
   updates are processed.
 - On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
 - On macOS, discard the input method's marked text when IME is disabled, so an unfinished composition is not resumed (and committed again) when IME is re-enabled.
+- On Windows, fix the IME preedit cursor appearing before the composition with IMEs such as the Microsoft Korean IME that report neither a cursor position (`GCS_CURSORPOS`) nor a target clause; it is now placed at the end.
 
 ### Added
 
