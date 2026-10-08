@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, fix text from the emoji picker and other sources outside a key press being dropped.
+- On macOS, fix dictation not starting by reporting a valid `selectedRange` while IME is allowed.
