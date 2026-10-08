@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Windows, preserve requested decorations and normal activation behavior for
+  ordinary owned windows, such as dialogs.
