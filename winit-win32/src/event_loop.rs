@@ -1642,7 +1642,7 @@ unsafe fn public_window_callback_inner(
                 // Next, receive preedit range for next composing if exist.
                 if (lparam as u32 & GCS_COMPSTR) != 0 {
                     if let Some((text, first, last)) =
-                        unsafe { ime_context.get_composing_text_and_cursor() }
+                        unsafe { ime_context.get_composing_text_and_cursor(lparam as u32) }
                     {
                         userdata.window_state_lock().ime_state = ImeState::Preedit;
                         let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
