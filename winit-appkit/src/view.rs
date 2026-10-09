@@ -596,6 +596,9 @@ define_class!(
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
             let _entered = debug_span!("mouseDown:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
@@ -603,6 +606,9 @@ define_class!(
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
             let _entered = debug_span!("mouseUp:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
@@ -610,6 +616,9 @@ define_class!(
         #[unsafe(method(rightMouseDown:))]
         fn right_mouse_down(&self, event: &NSEvent) {
             let _entered = debug_span!("rightMouseDown:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
@@ -617,6 +626,9 @@ define_class!(
         #[unsafe(method(rightMouseUp:))]
         fn right_mouse_up(&self, event: &NSEvent) {
             let _entered = debug_span!("rightMouseUp:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
@@ -624,6 +636,9 @@ define_class!(
         #[unsafe(method(otherMouseDown:))]
         fn other_mouse_down(&self, event: &NSEvent) {
             let _entered = debug_span!("otherMouseDown:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
@@ -631,6 +646,9 @@ define_class!(
         #[unsafe(method(otherMouseUp:))]
         fn other_mouse_up(&self, event: &NSEvent) {
             let _entered = debug_span!("otherMouseUp:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
@@ -638,24 +656,36 @@ define_class!(
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
             let _entered = debug_span!("mouseMoved:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
         }
 
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
             let _entered = debug_span!("mouseDragged:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
         }
 
         #[unsafe(method(rightMouseDragged:))]
         fn right_mouse_dragged(&self, event: &NSEvent) {
             let _entered = debug_span!("rightMouseDragged:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
         }
 
         #[unsafe(method(otherMouseDragged:))]
         fn other_mouse_dragged(&self, event: &NSEvent) {
             let _entered = debug_span!("otherMouseDragged:").entered();
+            if self.handle_event(event) {
+                return;
+            }
             self.mouse_motion(event);
         }
 
@@ -1179,6 +1209,16 @@ impl WinitView {
         dragging_session
             .take_if(|session| session.draggingSequenceNumber() == drag.draggingSequenceNumber())
             .is_some()
+    }
+
+    /// Returns true iff the event was consumed by the input context.
+    fn handle_event(&self, event: &NSEvent) -> bool {
+        if let Some(input_context) = self.inputContext() {
+            if input_context.handleEvent(event) {
+                return true;
+            }
+        }
+        false
     }
 
     fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
