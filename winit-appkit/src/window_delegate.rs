@@ -2129,6 +2129,10 @@ impl WindowDelegate {
                 self.view().disable_ime();
                 return Ok(());
             },
+            ImeRequest::Reset => {
+                self.view().reset_ime();
+                return Ok(());
+            },
             _ => return Err(ImeRequestError::NotSupported),
         };
 
