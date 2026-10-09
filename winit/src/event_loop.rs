@@ -75,7 +75,8 @@ impl EventLoopBuilder {
     /// - **Wayland/X11:** to prevent running under `Wayland` or `X11` unset `WAYLAND_DISPLAY` or
     ///   `DISPLAY` respectively when building the event loop.
     /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
-    ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
+    ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic. The loop ends
+    ///   when the `Activity` is destroyed, and a new one can be built once it has been dropped.
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(
