@@ -47,6 +47,7 @@ changelog entry.
 - On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
+- On macOS, only close windows created by Winit when the event loop exits. Closing every window of the application also closed the window behind an `NSStatusItem`, which left the menu bar item unable to receive clicks after `run_app_on_demand` returned.
 
 ### Changed
 
