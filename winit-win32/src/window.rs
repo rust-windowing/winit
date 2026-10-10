@@ -1606,6 +1606,7 @@ unsafe fn init(
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::POPUP, is_popup);
+    window_flags.set(WindowFlags::MARKER_POPUP, is_popup);
     window_flags.set(WindowFlags::ANCHORED, anchored);
     window_flags.set(WindowFlags::MARKER_UNDECORATED_SHADOW, win_attributes.decoration_shadow);
     window_flags
