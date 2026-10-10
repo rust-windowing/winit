@@ -38,6 +38,7 @@ use super::app_state::AppState;
 use super::cursor::CustomCursor;
 use super::event::dummy_event;
 use super::monitor;
+use super::window::{WinitPanel, WinitWindow};
 use crate::ActivationPolicy;
 use crate::cursor::image_from_icon;
 use crate::dnd::{PasteboardTypeSpec, PasteboardWriter, dnd_actions_to_ns_drag_operation};
@@ -601,8 +602,17 @@ pub(super) fn stop_app_immediately(app: &NSApplication) {
 ///
 /// This ensures that no windows linger on after the event loop has exited,
 /// see <https://github.com/rust-windowing/winit/issues/4135>.
+///
+/// Only windows created by Winit are closed. The application may own other
+/// windows that are meant to outlive the event loop, such as the window behind
+/// an `NSStatusItem`: closing that one leaves the menu bar item visible, but
+/// unable to receive clicks.
 pub(super) fn notify_windows_of_exit(app: &NSApplication) {
     for window in app.windows() {
-        window.close();
+        let created_by_winit = window.downcast_ref::<WinitWindow>().is_some()
+            || window.downcast_ref::<WinitPanel>().is_some();
+        if created_by_winit {
+            window.close();
+        }
     }
 }
