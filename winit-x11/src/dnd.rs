@@ -3,8 +3,9 @@ use std::io;
 use std::os::raw::*;
 use std::str::Utf8Error;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::Ordering;
 
+use portable_atomic::AtomicI64;
 use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType, TypeHint, TypedData};
 use winit_core::event_loop::AsyncRequestSerial;
 use x11rb::protocol::xproto::{self, ConnectionExt};
