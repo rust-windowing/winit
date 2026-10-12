@@ -3,7 +3,7 @@ use std::io;
 use std::os::raw::*;
 use std::str::Utf8Error;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType, TypeHint, TypedData};
 use winit_core::event_loop::AsyncRequestSerial;
@@ -123,11 +123,13 @@ pub struct DragState {
 
 impl Default for DragState {
     fn default() -> Self {
-        static DATA_TRANSFER_ID: AtomicI64 = AtomicI64::new(0);
+        static DATA_TRANSFER_ID: AtomicUsize = AtomicUsize::new(0);
 
         Self {
             version: Default::default(),
-            transfer_id: DataTransferId::from_raw(DATA_TRANSFER_ID.fetch_add(1, Ordering::Relaxed)),
+            transfer_id: DataTransferId::from_raw(
+                DATA_TRANSFER_ID.fetch_add(1, Ordering::Relaxed).try_into().unwrap(),
+            ),
             types: Default::default(),
             source_window: Default::default(),
             target_window: Default::default(),
