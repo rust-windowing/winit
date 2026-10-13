@@ -129,6 +129,11 @@ pub struct WindowState {
     max_inner_size: Option<LogicalSize<u32>>,
     resize_increments: Option<LogicalSize<u32>>,
 
+    /// The app's content margin (left, top, right, bottom) in logical points. The
+    /// xdg window geometry excludes it, so the compositor snaps and tiles against
+    /// the content, not a shadow margin drawn in the rest of the surface.
+    content_margin: (u32, u32, u32, u32),
+
     /// The size of the window when no states were applied to it. The primary use for it
     /// is to fallback to original window size, before it was maximized, if the compositor
     /// sends `None` for the new size in the configure.
@@ -204,6 +209,7 @@ impl WindowState {
             max_inner_size: None,
             min_inner_size: MIN_WINDOW_SIZE,
             resize_increments: None,
+            content_margin: (0, 0, 0, 0),
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
@@ -313,19 +319,34 @@ impl WindowState {
             // Configure the window states.
             frame.update_state(configure.state);
 
-            match configure.new_size {
-                (Some(width), Some(height)) => {
-                    let (width, height) = frame.subtract_borders(width, height);
-                    let width = width.map(|w| w.get()).unwrap_or(1);
-                    let height = height.map(|h| h.get()).unwrap_or(1);
-                    ((width, height).into(), false)
-                },
-                (..) if stateless => (self.stateless_size, true),
-                _ => (self.size, true),
+            // A hidden frame is like no frame at all. The app decorates itself,
+            // so the configure sizes its content and the surface adds the
+            // margin back.
+            if frame.is_hidden() {
+                match configure.new_size {
+                    (Some(width), Some(height)) => {
+                        (self.content_to_surface(width.get(), height.get()), false)
+                    },
+                    (..) if stateless => (self.stateless_size, true),
+                    _ => (self.size, true),
+                }
+            } else {
+                match configure.new_size {
+                    (Some(width), Some(height)) => {
+                        let (width, height) = frame.subtract_borders(width, height);
+                        let width = width.map(|w| w.get()).unwrap_or(1);
+                        let height = height.map(|h| h.get()).unwrap_or(1);
+                        ((width, height).into(), false)
+                    },
+                    (..) if stateless => (self.stateless_size, true),
+                    _ => (self.size, true),
+                }
             }
         } else {
             match configure.new_size {
-                (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
+                (Some(width), Some(height)) => {
+                    (self.content_to_surface(width.get(), height.get()), false)
+                },
                 _ if stateless => (self.stateless_size, true),
                 _ => (self.size, true),
             }
@@ -686,19 +707,18 @@ impl WindowState {
             self.stateless_size = inner_size;
         }
 
-        // Update the inner frame.
-        let ((x, y), outer_size) = if let Some(frame) = self.frame.as_mut() {
-            // Resize only visible frame.
-            if !frame.is_hidden() {
+        // Update the inner frame. A hidden frame is like no frame at all, since
+        // the app decorates itself then and its margin is the decoration to honor.
+        let ((x, y), outer_size) = match self.frame.as_mut().filter(|frame| !frame.is_hidden()) {
+            Some(frame) => {
                 frame.resize(
                     NonZeroU32::new(self.size.width).unwrap(),
                     NonZeroU32::new(self.size.height).unwrap(),
                 );
-            }
 
-            (frame.location(), frame.add_borders(self.size.width, self.size.height).into())
-        } else {
-            ((0, 0), self.size)
+                (frame.location(), frame.add_borders(self.size.width, self.size.height).into())
+            },
+            None => self.content_geometry(),
         };
 
         // Reload the hint.
@@ -717,6 +737,77 @@ impl WindowState {
             // Set inner size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
+    }
+
+    /// The window geometry for the current size, that is the content (the size
+    /// minus the margin).
+    fn content_geometry(&self) -> ((i32, i32), LogicalSize<u32>) {
+        let (left, top, right, bottom) = self.content_margin;
+        (
+            (left as i32, top as i32),
+            LogicalSize::new(
+                self.size.width.saturating_sub(left.saturating_add(right)),
+                self.size.height.saturating_sub(top.saturating_add(bottom)),
+            ),
+        )
+    }
+
+    /// The surface size making the content the given size. Compositors size
+    /// configures for the content (the window geometry), so the surface adds
+    /// the margins back.
+    fn content_to_surface(&self, width: u32, height: u32) -> LogicalSize<u32> {
+        let (left, top, right, bottom) = self.content_margin;
+        LogicalSize::new(
+            width.saturating_add(left).saturating_add(right),
+            height.saturating_add(top).saturating_add(bottom),
+        )
+    }
+
+    /// Sets the margin between the app's content and the surface's edge, for
+    /// apps drawing their own decorations and shadow rather than `sctk-adwaita`'s.
+    /// The margin becomes the xdg window geometry, which the compositor snaps
+    /// and tiles against.
+    ///
+    /// The content rect must stay put across the change. The compositor doesn't
+    /// re-configure a window over a geometry change, and `self.size` was derived
+    /// from the last configure under the *old* margin, so the surface is resized
+    /// to carry the same content under the new one, which also re-sends the
+    /// geometry.
+    ///
+    /// Returns the new surface size for the caller to relay to the app as a
+    /// `Resized`, since the change comes from the app's thread and no configure
+    /// follows it. Returns `None` if the margin didn't change, or a shown frame
+    /// owns the geometry, as the margin is a client-side-decorations thing.
+    pub fn set_content_margin(
+        &mut self,
+        left: u32,
+        top: u32,
+        right: u32,
+        bottom: u32,
+    ) -> Option<LogicalSize<u32>> {
+        let new_margin = (left, top, right, bottom);
+        if new_margin == self.content_margin {
+            return None;
+        }
+        let (old_left, old_top, old_right, old_bottom) =
+            std::mem::replace(&mut self.content_margin, new_margin);
+        if !self.frame.as_ref().is_none_or(|frame| frame.is_hidden()) {
+            // A shown frame manages the geometry itself, so leave the surface be.
+            return None;
+        }
+
+        // The content under the old margin, grown back out to a surface by the
+        // new one. `resize` re-sends the geometry for the same content.
+        let content = LogicalSize::new(
+            self.size.width.saturating_sub(old_left.saturating_add(old_right)),
+            self.size.height.saturating_sub(old_top.saturating_add(old_bottom)),
+        );
+        let surface = LogicalSize::new(
+            content.width.saturating_add(left.saturating_add(right)).max(1),
+            content.height.saturating_add(top.saturating_add(bottom)).max(1),
+        );
+        self.resize(surface);
+        Some(surface)
     }
 
     /// Get the scale factor of the window.
