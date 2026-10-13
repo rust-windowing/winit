@@ -506,6 +506,11 @@ impl EventLoop {
                         window_requests.get(&w).unwrap().take_closed();
                         mem::drop(window_requests.remove(&w));
                         mem::drop(state.windows.get_mut().remove(&w));
+                        // Creating a popup during an application callback can enqueue its
+                        // initial configure after this iteration has taken pending updates.
+                        // Remove updates for the destroyed window so the next iteration
+                        // cannot process them against the state we just removed.
+                        state.window_compositor_updates.retain(|update| update.window_id != w);
                     });
                     app.window_event(&self.active_event_loop, w, WindowEvent::Destroyed);
                 }

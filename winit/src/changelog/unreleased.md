@@ -48,6 +48,8 @@ changelog entry.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
 - On Wayland, fix the text input being destroyed whenever a seat capability changed. This made IME input stop working in already-running applications after the seat's capabilities were updated.
+- On Wayland, fix a panic when a popup is dropped before its queued compositor
+  updates are processed.
 
 ### Changed
 
