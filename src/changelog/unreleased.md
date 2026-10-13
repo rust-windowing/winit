@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, fix the first Apple Korean IME key falling back to a raw compatibility jamo instead of starting preedit.
