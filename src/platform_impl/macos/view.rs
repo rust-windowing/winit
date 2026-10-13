@@ -22,6 +22,7 @@ use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
     scancode_to_physicalkey, KeyEventExtra,
 };
+use super::ime_startup::ImeStartup;
 use super::window::WinitWindow;
 use super::DEVICE_ID;
 use crate::dpi::{LogicalPosition, LogicalSize};
@@ -120,6 +121,7 @@ pub struct ViewState {
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
     ime_state: Cell<ImeState>,
+    ime_startup: RefCell<ImeStartup>,
     input_source: RefCell<String>,
 
     /// True iff the application wants IME events.
@@ -275,6 +277,7 @@ declare_class!(
         ) {
             // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             trace_scope!("setMarkedText:selectedRange:replacementRange:");
+            self.ivars().ime_startup.borrow_mut().other_callback();
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
             let (marked_text, string) = if string.is_kind_of::<NSAttributedString>() {
@@ -337,6 +340,7 @@ declare_class!(
         #[method(unmarkText)]
         fn unmark_text(&self) {
             trace_scope!("unmarkText");
+            self.ivars().ime_startup.borrow_mut().other_callback();
             *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
 
             let input_context = self.inputContext().expect("input context");
@@ -405,6 +409,7 @@ declare_class!(
                 unsafe { &*string }.to_string()
             };
 
+            self.ivars().ime_startup.borrow_mut().insert(&string);
             let is_control = string.chars().next().is_some_and(|c| c.is_control());
 
             // Commit only if we have marked text.
@@ -420,6 +425,7 @@ declare_class!(
         #[method(doCommandBySelector:)]
         fn do_command_by_selector(&self, _command: Sel) {
             trace_scope!("doCommandBySelector:");
+            self.ivars().ime_startup.borrow_mut().other_callback();
             // We shouldn't forward any character from just committed text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
@@ -457,6 +463,21 @@ declare_class!(
             self.ivars().forward_key_to_app.set(false);
             let event = replace_event(event, self.option_as_alt());
 
+            let source = self.current_input_source();
+            let characters =
+                unsafe { event.characters() }.map(|s| s.to_string()).unwrap_or_default();
+            let modifiers = event_mods(&event).state();
+            let eligible = self.ivars().ime_allowed.get()
+                && old_ime_state == ImeState::Disabled
+                && !unsafe { self.hasMarkedText() }
+                && !unsafe { event.isARepeat() }
+                && !modifiers.intersects(
+                    ModifiersState::SUPER | ModifiersState::CONTROL | ModifiersState::ALT,
+                )
+                && self.ime_retry_has_focus();
+            let serial =
+                self.ivars().ime_startup.borrow_mut().begin(&source, &characters, eligible);
+
             // The `interpretKeyEvents` function might call
             // `setMarkedText`, `insertText`, and `doCommandBySelector`.
             // It's important that we call this before queuing the KeyboardInput, because
@@ -466,6 +487,22 @@ declare_class!(
             if self.ivars().ime_allowed.get() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
+
+                // On the first Korean key AppKit can call insertText with a raw jamo instead
+                // of starting preedit (winit#3095). That callback emits no app event here.
+                // Retry the SAME retained event once, only for that exact fallback batch.
+                // No timer, key queue, synthetic composition, or borrow across AppKit calls.
+                let same_context = self.ivars().ime_allowed.get()
+                    && self.ivars().ime_state.get() == ImeState::Disabled
+                    && !unsafe { self.hasMarkedText() }
+                    && self.current_input_source() == source
+                    && self.ime_retry_has_focus();
+                let retry = self.ivars().ime_startup.borrow_mut().finish(serial, same_context);
+                if retry {
+                    // SAFETY: Same call and array as above, on the main thread. The `finish`
+                    // borrow has ended, so re-entrant callbacks behave as for the first call.
+                    unsafe { self.interpretKeyEvents(&events_for_nsview) };
+                }
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -800,6 +837,7 @@ impl WinitView {
             phys_modifiers: Default::default(),
             tracking_rect: Default::default(),
             ime_state: Default::default(),
+            ime_startup: RefCell::new(ImeStartup::default()),
             input_source: Default::default(),
             ime_allowed: Default::default(),
             forward_key_to_app: Default::default(),
@@ -847,6 +885,12 @@ impl WinitView {
         !matches!(self.ivars().ime_state.get(), ImeState::Disabled)
     }
 
+    fn ime_retry_has_focus(&self) -> bool {
+        let window = self.window();
+        window.isKeyWindow()
+            && window.firstResponder().is_some_and(|responder| *responder == ***self)
+    }
+
     fn current_input_source(&self) -> String {
         self.inputContext()
             .expect("input context")
@@ -881,6 +925,7 @@ impl WinitView {
         if self.ivars().ime_allowed.get() == ime_allowed {
             return;
         }
+        self.ivars().ime_startup.borrow_mut().reset();
         self.ivars().ime_allowed.set(ime_allowed);
         if self.ivars().ime_allowed.get() {
             return;
