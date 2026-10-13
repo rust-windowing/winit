@@ -6,8 +6,10 @@ use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, mem, ptr};
 
-use windows_sys::Win32::Foundation::{HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT};
-use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
+use windows_sys::Win32::Foundation::{
+    GetLastError, HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT, SetLastError,
+};
+use windows_sys::Win32::Graphics::Gdi::{HMONITOR, MapWindowPoints};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
@@ -54,6 +56,29 @@ pub(crate) fn win_to_err(result: BOOL) -> Result<(), io::Error> {
     if result != false.into() { Ok(()) } else { Err(io::Error::last_os_error()) }
 }
 
+/// Convert between Win32 client coordinates and winit's left-to-right surface
+/// coordinates. This is its own inverse. Query the style and size each time so
+/// native layout changes and resizing do not leave a cached transform behind.
+pub(crate) fn client_to_surface(hwnd: HWND, mut point: POINT) -> Result<POINT, io::Error> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GWL_EXSTYLE, WS_EX_LAYOUTRTL};
+    if unsafe { get_window_long(hwnd, GWL_EXSTYLE) } as u32 & WS_EX_LAYOUTRTL != 0 {
+        let mut rect = RECT::default();
+        win_to_err(unsafe { GetClientRect(hwnd, &mut rect) })?;
+        point.x = rect.right - point.x;
+    }
+    Ok(point)
+}
+
+pub(crate) fn screen_to_surface(hwnd: HWND, point: POINT) -> Result<POINT, io::Error> {
+    let rect = WindowArea::Inner.get_rect(hwnd)?;
+    Ok(POINT { x: point.x - rect.left, y: point.y - rect.top })
+}
+
+pub(crate) fn surface_to_screen(hwnd: HWND, point: POINT) -> Result<POINT, io::Error> {
+    let rect = WindowArea::Inner.get_rect(hwnd)?;
+    Ok(POINT { x: point.x + rect.left, y: point.y + rect.top })
+}
+
 pub enum WindowArea {
     Outer,
     Inner,
@@ -68,14 +93,16 @@ impl WindowArea {
                 win_to_err(unsafe { GetWindowRect(hwnd, &mut rect) })?;
             },
             WindowArea::Inner => unsafe {
-                let mut top_left = mem::zeroed();
-
-                win_to_err(ClientToScreen(hwnd, &mut top_left))?;
                 win_to_err(GetClientRect(hwnd, &mut rect))?;
-                rect.left += top_left.x;
-                rect.top += top_left.y;
-                rect.right += top_left.x;
-                rect.bottom += top_left.y;
+                // With exactly two points MapWindowPoints normalizes the RECT's
+                // edges when mapping between mirrored and unmirrored windows.
+                SetLastError(0);
+                if MapWindowPoints(hwnd, ptr::null_mut(), &mut rect as *mut RECT as *mut POINT, 2)
+                    == 0
+                    && GetLastError() != 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
             },
         }
 
@@ -364,4 +391,91 @@ pub(crate) unsafe fn set_window_long(
         windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(hwnd, nindex, dwnewlong as i32)
             as isize
     };
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    use super::*;
+
+    struct TestWindow(HWND);
+
+    impl Drop for TestWindow {
+        fn drop(&mut self) {
+            unsafe {
+                DestroyWindow(self.0);
+            }
+        }
+    }
+
+    #[test]
+    fn mirrored_coordinates_follow_native_mapping_across_layout_and_size_changes() {
+        // A real HWND exercises Windows' mirroring rules, including the fact
+        // that points reflect around width, not width - 1 (RECT edges differ
+        // from pixel indices). No desktop input or GUI toolkit is required.
+        let class = encode_wide("STATIC");
+        let window = TestWindow(unsafe {
+            CreateWindowExW(
+                0,
+                class.as_ptr(),
+                ptr::null(),
+                WS_POPUP,
+                17,
+                29,
+                640,
+                360,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null(),
+            )
+        });
+        assert!(!window.0.is_null());
+        for (left, top, width) in
+            [(17, 29, 640), (17, 29, 801), (17, 29, 1), (-900, -500, 640), (0, 0, 640)]
+        {
+            for rtl in [false, true, false, true] {
+                unsafe {
+                    SetWindowLongW(
+                        window.0,
+                        GWL_EXSTYLE,
+                        if rtl { WS_EX_LAYOUTRTL as i32 } else { 0 },
+                    );
+                    assert_ne!(
+                        SetWindowPos(
+                            window.0,
+                            ptr::null_mut(),
+                            left,
+                            top,
+                            width,
+                            360,
+                            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+                        ),
+                        0
+                    );
+                }
+                let rect = WindowArea::Inner.get_rect(window.0).unwrap();
+                assert_eq!(
+                    (rect.left, rect.top, rect.right, rect.bottom),
+                    (left, top, left + width, top + 360)
+                );
+                for x in [-37, 0, 1, width - 1, width, width + 23] {
+                    let surface = POINT { x, y: -11 };
+                    let screen = surface_to_screen(window.0, surface).unwrap();
+                    assert_eq!((screen.x, screen.y), (left + x, top - 11));
+                    let back = screen_to_surface(window.0, screen).unwrap();
+                    assert_eq!((back.x, back.y), (surface.x, surface.y));
+                    let mut native = screen;
+                    unsafe {
+                        MapWindowPoints(ptr::null_mut(), window.0, &mut native, 1);
+                    }
+                    let normalized = client_to_surface(window.0, native).unwrap();
+                    assert_eq!((normalized.x, normalized.y), (surface.x, surface.y));
+                    let inverse = client_to_surface(window.0, surface).unwrap();
+                    assert_eq!((inverse.x, inverse.y), (native.x, native.y));
+                }
+            }
+        }
+    }
 }

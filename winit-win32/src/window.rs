@@ -21,9 +21,9 @@ use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DwmSetWindowAttribute,
 };
 use windows_sys::Win32::Graphics::Gdi::{
-    CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
+    CDS_FULLSCREEN, ChangeDisplaySettingsExW, CreateRectRgn, DISP_CHANGE_BADFLAGS,
     DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
+    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
@@ -146,9 +146,7 @@ impl Window {
         {
             let parent = unsafe { GetParent(self.hwnd()) };
             if !parent.is_null() {
-                unsafe {
-                    ScreenToClient(parent, &mut point);
-                }
+                point = util::screen_to_surface(parent, point).unwrap_or(point);
             }
         }
 
@@ -289,13 +287,13 @@ impl Window {
                 let (x, y) = position.to_physical::<i32>(scale_factor).into();
                 point.x = x;
                 point.y = y;
-                if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                let Ok(point) = util::surface_to_screen(self.hwnd(), point) else {
                     warn!(
                         "Can't convert client-area coordinates to screen coordinates when showing \
                          window menu."
                     );
                     return;
-                }
+                };
                 point
             };
 
@@ -760,9 +758,7 @@ impl CoreWindow for Window {
 
         let mut point = POINT { x, y };
         unsafe {
-            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                return Err(os_error!(io::Error::last_os_error()).into());
-            }
+            point = util::surface_to_screen(self.hwnd(), point).map_err(|err| os_error!(err))?;
             if SetCursorPos(point.x, point.y) == false.into() {
                 return Err(os_error!(io::Error::last_os_error()).into());
             }
@@ -1267,9 +1263,7 @@ fn translate_outer_position(
     if window_flags.contains(WindowFlags::ANCHORED) && !window_flags.contains(WindowFlags::CHILD) {
         let parent = unsafe { GetParent(hwnd) };
         if !parent.is_null() {
-            unsafe {
-                ClientToScreen(parent, &mut point);
-            }
+            point = util::surface_to_screen(parent, point).unwrap_or(point);
         }
     }
 
@@ -1312,7 +1306,7 @@ fn compute_anchored_placement(
     let parent = unsafe { GetParent(hwnd) };
     let mut parent_origin = POINT { x: 0, y: 0 };
     if !parent.is_null() {
-        unsafe { ClientToScreen(parent, &mut parent_origin) };
+        parent_origin = util::surface_to_screen(parent, parent_origin).unwrap_or(parent_origin);
     }
 
     let clip_position = PhysicalPosition::new(
