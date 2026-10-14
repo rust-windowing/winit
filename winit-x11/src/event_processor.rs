@@ -23,9 +23,8 @@ use x11_dl::xinput2::{
 };
 use x11_dl::xlib::{
     self, Display as XDisplay, Window as XWindow, XAnyEvent, XClientMessageEvent, XConfigureEvent,
-    XDestroyWindowEvent, XEvent, XExposeEvent, XKeyEvent, XMapEvent, XPropertyEvent,
-    XReparentEvent, XSelectionEvent, XSelectionRequestEvent, XVisibilityEvent, XkbAnyEvent,
-    XkbStateRec,
+    XDestroyWindowEvent, XEvent, XExposeEvent, XKeyEvent, XPropertyEvent, XReparentEvent,
+    XSelectionEvent, XSelectionRequestEvent, XVisibilityEvent, XkbAnyEvent, XkbStateRec,
 };
 use x11rb::CURRENT_TIME;
 use x11rb::protocol::sync::{ConnectionExt, Int64};
@@ -191,7 +190,30 @@ impl EventProcessor {
             xlib::SelectionClear => self.selection_clear(xev.as_ref()),
             xlib::ConfigureNotify => self.configure_notify(xev.as_ref(), app),
             xlib::ReparentNotify => self.reparent_notify(xev.as_ref()),
-            xlib::MapNotify => self.map_notify(xev.as_ref(), app),
+            // Mapping changes visibility, not keyboard focus. XI_FocusIn / XI_FocusOut below
+            // update has_focus and report the actual focus transitions.
+            //
+            // Historical context: #2585 (b457329, January 2023) deliberately added a replay of
+            // has_focus here to notify applications of each new window's initial focus state.
+            // It also changed X11's initial has_focus from true to false. MapNotify was chosen
+            // because CreateNotify was not being received, rather than to repair missing focus
+            // transitions. See the original discussion before reconsidering this behavior:
+            // https://github.com/rust-windowing/winit/pull/2585
+            // https://github.com/rust-windowing/winit/pull/2585#issuecomment-1397709162
+            //
+            // #3912 later removed the equivalent initial Focused(false) on macOS. The earlier
+            // notification had addressed ambiguity about the initial state; the API now
+            // explicitly documents windows as unfocused upon creation. This applies that
+            // reasoning to X11's remaining replay:
+            // https://github.com/rust-windowing/winit/pull/3912
+            // https://github.com/rust-windowing/winit/pull/3912#issuecomment-2343960105
+            //
+            // Replaying false here looks like a focus loss before any focus gain, causing
+            // menus that dismiss on blur to close immediately. Remapping can repeat a loss or
+            // duplicate a gain. The replay only reads the cache already maintained by the
+            // focus handlers, so it supplies no independent focus information. Applications
+            // needing an initial state should start with false or query Window::has_focus().
+            xlib::MapNotify => {},
             xlib::DestroyNotify => self.destroy_notify(xev.as_ref(), app),
             xlib::PropertyNotify => self.property_notify(xev.as_ref(), app),
             xlib::VisibilityNotify => self.visibility_notify(xev.as_ref(), app),
@@ -1024,19 +1046,6 @@ impl EventProcessor {
         self.with_window(xev.window as xproto::Window, |window| {
             window.invalidate_cached_frame_extents();
         });
-    }
-
-    fn map_notify(&self, xev: &XMapEvent, app: &mut dyn ApplicationHandler) {
-        let window = xev.window as xproto::Window;
-        let window_id = mkwid(window);
-
-        // NOTE: Re-issue the focus state when mapping the window.
-        //
-        // The purpose of it is to deliver initial focused state of the newly created
-        // window, given that we can't rely on `CreateNotify`, due to it being not
-        // sent.
-        let focus = self.with_window(window, |window| window.has_focus()).unwrap_or_default();
-        app.window_event(&self.target, window_id, WindowEvent::Focused(focus));
     }
 
     fn destroy_notify(&self, xev: &XDestroyWindowEvent, app: &mut dyn ApplicationHandler) {
