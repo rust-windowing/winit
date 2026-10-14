@@ -261,6 +261,13 @@ impl WindowState {
         }
     }
 
+    /// Whether the compositor has suspended the window, as of the last configure.
+    pub fn is_suspended(&self) -> bool {
+        self.last_configure
+            .as_ref()
+            .is_some_and(|configure| configure.state.contains(XdgWindowState::SUSPENDED))
+    }
+
     pub fn configure(
         &mut self,
         configure: WindowConfigure,
