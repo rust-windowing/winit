@@ -167,7 +167,8 @@ impl WinitState {
             }) {
                 None
             } else {
-                super::types::haiku_decoration::HaikuDecorationManager::bind(globals, queue_handle).ok()
+                super::types::haiku_decoration::HaikuDecorationManager::bind(globals, queue_handle)
+                    .ok()
             },
             registry_state,
             compositor_state: Arc::new(compositor_state),

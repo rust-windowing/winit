@@ -4,10 +4,8 @@ use crate::platform_impl::wayland::state::WinitState;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{delegate_noop, QueueHandle};
-use wayland_protocols_plasma::server_decoration::client::{
-    org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration,
-    org_kde_kwin_server_decoration_manager::OrgKdeKwinServerDecorationManager,
-};
+use wayland_protocols_plasma::server_decoration::client::org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration;
+use wayland_protocols_plasma::server_decoration::client::org_kde_kwin_server_decoration_manager::OrgKdeKwinServerDecorationManager;
 
 pub struct HaikuDecorationManager(OrgKdeKwinServerDecorationManager);
 
