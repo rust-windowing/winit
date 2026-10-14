@@ -48,6 +48,7 @@ changelog entry.
 - On Windows, avoid overflow when negating minimum mouse-wheel deltas.
 - On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
 - On Wayland, fix the text input being destroyed whenever a seat capability changed. This made IME input stop working in already-running applications after the seat's capabilities were updated.
+- On macOS, fix a dropped window staying on screen on Macs with a Touch Bar, where closing it made AppKit throw an `NSRangeException` in the next display cycle.
 
 ### Changed
 
