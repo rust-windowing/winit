@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, fix a dropped window staying on screen on Macs with a Touch Bar, where closing it made AppKit throw an `NSRangeException` in the next display cycle.

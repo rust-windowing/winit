@@ -1,7 +1,8 @@
 #![allow(clippy::unnecessary_cast)]
 
 use objc2::rc::{autoreleasepool, Retained};
-use objc2::{declare_class, mutability, ClassType, DeclaredClass};
+use objc2::runtime::AnyClass;
+use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSResponder, NSWindow};
 use objc2_foundation::{MainThreadBound, MainThreadMarker, NSObject};
 
@@ -18,7 +19,27 @@ pub(crate) struct Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        self.window.get_on_main(|window| autoreleasepool(|_| window.close()))
+        self.window.get_on_main(|window| {
+            autoreleasepool(|_| {
+                // Take the view out of the responder chain while it still exists. AppKit's
+                // Touch Bar machinery observes the window's responder chain, and on Touch Bar
+                // Macs it otherwise tries to stop observing the view during the next display
+                // cycle, after closing has already unregistered it, and throws an
+                // NSRangeException from that flush.
+                let _ = window.makeFirstResponder(None);
+
+                // Order the window out and commit that to the screen now, so that the window
+                // disappears even if something later in the display cycle throws and cuts the
+                // Core Animation transaction short (which left the closed window on screen).
+                window.orderOut(None);
+                if let Some(transaction) = AnyClass::get("CATransaction") {
+                    // SAFETY: `+[CATransaction flush]` takes no arguments and returns void.
+                    let _: () = unsafe { msg_send![transaction, flush] };
+                }
+
+                window.close()
+            })
+        })
     }
 }
 
