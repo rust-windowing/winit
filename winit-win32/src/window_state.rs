@@ -6,10 +6,10 @@ use dpi::{PhysicalPosition, PhysicalSize, Size};
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    AdjustWindowRectEx, EnableMenuItem, GWL_EXSTYLE, GWL_STYLE, GetMenu, GetSystemMenu,
-    GetWindowLongW, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED,
-    MF_ENABLED, SC_CLOSE, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW,
-    SW_SHOWNOACTIVATE, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+    AdjustWindowRectEx, EnableMenuItem, GA_PARENT, GW_OWNER, GWL_EXSTYLE, GWL_STYLE, GetAncestor,
+    GetMenu, GetSystemMenu, GetWindow, GetWindowLongW, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST,
+    MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE,
+    SW_SHOW, SW_SHOWNOACTIVATE, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
     SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongW, SetWindowPos,
     ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WINDOWPLACEMENT, WS_BORDER, WS_CAPTION, WS_CHILD,
     WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
@@ -124,8 +124,11 @@ bitflags! {
         const ALWAYS_ON_BOTTOM  = 1 << 7;
         const NO_BACK_BUFFER    = 1 << 8;
         const TRANSPARENT       = 1 << 9;
+        /// An embedded window whose native parent confines it to the parent's client area.
         const CHILD             = 1 << 10;
         const MAXIMIZED         = 1 << 11;
+        /// The explicit `WindowType::Popup` role, which requests popup decorations and
+        /// activation behavior independently of whether this window has a native owner.
         const POPUP             = 1 << 12;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
@@ -156,15 +159,15 @@ bitflags! {
         const CLIP_CHILDREN = 1 << 22;
 
         /// Whether this window is positioned relative to its parent via the anchor/gravity/
-        /// positioner system. Independent of `POPUP`, which only selects the OS window style --
+        /// positioner system. Independent of the `POPUP` role --
         /// a `WindowType::Window` can be `ANCHORED` too. Used to pick the coordinate frame in
         /// `translate_outer_position`/`translate_outer_position_to_parent`.
         const ANCHORED = 1 << 23;
 
-        /// An explicit `WindowType::Popup`, as opposed to an ordinary window
-        /// which merely uses the native WS_POPUP style because it has an owner.
-        /// Only the explicit popup role suppresses decorations and activation.
-        const MARKER_POPUP = 1 << 24;
+        /// A top-level window with a native owner, rather than an embedded `WS_CHILD`.
+        /// Both owned windows and explicit popups use `WS_POPUP`, but ownership alone
+        /// must not request a popup's borderless or non-activating behavior.
+        const OWNED = 1 << 24;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
@@ -305,17 +308,30 @@ impl WindowFlags {
         self
     }
 
+    /// Returns the embedded parent or top-level owner without depending on the popup style.
+    /// `GetParent` only returns an owner for `WS_POPUP` windows, even though overlapped
+    /// windows can also have owners. Conversely, `GA_PARENT` returns the desktop for a
+    /// top-level window, so it must only be used for actual embedded children.
+    pub fn parent_or_owner(self, window: HWND) -> HWND {
+        unsafe {
+            if self.contains(WindowFlags::CHILD) {
+                GetAncestor(window, GA_PARENT)
+            } else {
+                GetWindow(window, GW_OWNER)
+            }
+        }
+    }
+
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
         let mut style = WS_CLIPSIBLINGS;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
-        if self.contains(WindowFlags::POPUP) {
+        // Preserve the native popup style for owned dialogs without changing their role.
+        // Only an explicit winit popup suppresses decorations and normal activation.
+        if self.intersects(WindowFlags::POPUP | WindowFlags::OWNED) {
             style |= WS_POPUP;
         }
-        // Win32 ownership sets POPUP even for normal decorated dialogs. Keep
-        // their caption, buttons, and normal activation behavior; only the
-        // explicit winit popup role requests the special popup presentation.
-        if self.contains(WindowFlags::MARKER_POPUP) {
+        if self.contains(WindowFlags::POPUP) {
             // Don't activate the popup (and thus don't deactivate the parent) when it is shown or
             // clicked, unless the caller requested activation via `WindowAttributes::active`.
             if !self.contains(WindowFlags::MARKER_ACTIVATE) {
@@ -619,7 +635,7 @@ mod tests {
 
     #[test]
     fn owned_windows_keep_caption_and_buttons() {
-        let flags = WindowFlags::POPUP
+        let flags = WindowFlags::OWNED
             | WindowFlags::MARKER_DECORATIONS
             | WindowFlags::RESIZABLE
             | WindowFlags::MINIMIZABLE
@@ -628,6 +644,7 @@ mod tests {
         let expected =
             WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
         assert_eq!(style & expected, expected);
+        assert_eq!(style & WS_CHILD, 0);
         // `active: false` controls initial activation for ordinary windows;
         // it must not make an owned dialog permanently non-activating.
         assert_eq!(extended & WS_EX_NOACTIVATE, 0);
@@ -637,12 +654,13 @@ mod tests {
     fn explicit_popups_remain_borderless_and_respect_activation() {
         for active in [false, true] {
             let mut flags = WindowFlags::POPUP
-                | WindowFlags::MARKER_POPUP
+                | WindowFlags::OWNED
                 | WindowFlags::MARKER_DECORATIONS
                 | WindowFlags::RESIZABLE;
             flags.set(WindowFlags::MARKER_ACTIVATE, active);
             let (style, extended) = flags.to_window_styles();
             assert_ne!(style & WS_POPUP, 0);
+            assert_eq!(style & WS_CHILD, 0);
             assert_eq!(style & (WS_CAPTION | WS_SYSMENU | WS_SIZEBOX), 0);
             assert_eq!(extended & WS_EX_NOACTIVATE != 0, !active);
         }
