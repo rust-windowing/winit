@@ -493,7 +493,7 @@ impl WindowState {
         // Reload the hint.
         self.reload_transparency_hint();
 
-        // Set the window geometry (only meaningful for xdg surfaces).
+        // Set the surface geometry on whichever shell is active.
         match &self.window {
             WindowType::Window { window, .. } => {
                 window.xdg_surface().set_window_geometry(
@@ -511,7 +511,9 @@ impl WindowState {
                     outer_size.height as i32,
                 );
             },
-            WindowType::Layer { .. } => {},
+            WindowType::Layer { surface, .. } => {
+                surface.set_size(outer_size.width, outer_size.height);
+            },
         }
 
         // Update the target viewport, this is used if and only if fractional scaling is in use.
@@ -529,9 +531,23 @@ impl WindowState {
     }
 
     pub(crate) fn set_maximized(&self, maximized: bool) {
-        let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
-
-        if maximized { xdg_toplevel.set_maximized() } else { xdg_toplevel.unset_maximized() }
+        match &self.window {
+            WindowType::Window { window, .. } => {
+                let toplevel = window.xdg_toplevel();
+                if maximized {
+                    toplevel.set_maximized()
+                } else {
+                    toplevel.unset_maximized()
+                }
+            },
+            WindowType::Layer { .. } => {
+                warn!(
+                    "set_maximized is not supported on wlr_layer_shell surfaces; use \
+                     set_anchor / set_exclusive_zone directly"
+                );
+            },
+            WindowType::Popup { .. } => {},
+        }
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
@@ -540,7 +556,9 @@ impl WindowState {
                 .as_ref()
                 .map(|last_configure| last_configure.is_fullscreen())
                 .unwrap_or_default(),
-            _ => false,
+            // Fullscreen is an xdg_toplevel concept; wlr_layer_shell has no equivalent
+            // state we can read back, so always report false.
+            WindowType::Layer { .. } | WindowType::Popup { .. } => false,
         };
 
         if is_fullscreen {
@@ -552,27 +570,39 @@ impl WindowState {
     }
 
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        let Some(xdg_toplevel) = self.xdg_toplevel() else {
-            return;
-        };
-        match fullscreen {
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
-                });
-
-                xdg_toplevel.set_fullscreen(output)
+        match &self.window {
+            WindowType::Window { window, .. } => {
+                let toplevel = window.xdg_toplevel();
+                match fullscreen {
+                    Some(Fullscreen::Borderless(monitor)) => {
+                        let output = monitor.as_ref().and_then(|monitor| {
+                            monitor
+                                .cast_ref::<output::MonitorHandle>()
+                                .map(|handle| &handle.proxy)
+                        });
+                        toplevel.set_fullscreen(output)
+                    },
+                    Some(_) => {
+                        warn!("this fullscreen mode is ignored on Wayland");
+                    },
+                    None => toplevel.unset_fullscreen(),
+                }
             },
-            Some(_) => {
-                warn!("this fullscreen mode is ignored on Wayland");
+            WindowType::Layer { .. } => {
+                warn!(
+                    "set_fullscreen is not supported on wlr_layer_shell surfaces; use \
+                     set_anchor / set_exclusive_zone directly"
+                );
             },
-            None => xdg_toplevel.unset_fullscreen(),
+            WindowType::Popup { .. } => {},
         }
     }
 
     pub(crate) fn is_maximized(&self) -> bool {
         let last_configure = match &self.window {
             WindowType::Window { last_configure, .. } => last_configure,
+            // `maximized` is an xdg_toplevel state. There is no equivalent on
+            // wlr_layer_shell, so we always report false.
             WindowType::Popup { .. } | WindowType::Layer { .. } => return false,
         };
         last_configure

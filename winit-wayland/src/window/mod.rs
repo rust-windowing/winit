@@ -444,8 +444,15 @@ impl CoreWindow for Window {
             .into())
     }
 
-    fn set_outer_position(&self, _position: Position) {
-        // Not possible.
+    fn set_outer_position(&self, position: Position) {
+        if let Some(layer) = self.as_layer() {
+            let scale = self.common.scale_factor();
+            let logical = position.to_logical::<i32>(scale);
+            // Map (x, y) onto left/top margins. Layer surfaces have no absolute
+            // positioning, but anchoring + margins give the closest equivalent.
+            layer.set_margin(logical.y, 0, 0, logical.x);
+            self.window.commit();
+        }
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
@@ -570,7 +577,12 @@ impl CoreWindow for Window {
     }
 
     fn set_window_level(&self, level: WindowLevel) {
-        self.common.set_window_level(level);
+        if let Some(layer) = self.as_layer() {
+            layer.set_layer(layer_from_window_level(level));
+            self.window.commit();
+        } else {
+            self.common.set_window_level(level);
+        }
     }
 
     fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
