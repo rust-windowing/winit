@@ -380,19 +380,18 @@ impl WindowFlags {
     }
 
     /// Adjust the window client rectangle to the return value, if present.
-    fn apply_diff(mut self, window: HWND, mut new: WindowFlags) {
-        self = self.mask();
-        new = new.mask();
+    fn apply_diff(self, window: HWND, new: WindowFlags) {
+        let old = self.mask();
+        let new = new.mask();
 
-        let mut diff = self ^ new;
+        let mut diff = old ^ new;
 
         if diff == WindowFlags::empty() {
             return;
         }
 
         if new.contains(WindowFlags::VISIBLE) {
-            let flag = if !self.contains(WindowFlags::MARKER_ACTIVATE) {
-                self.set(WindowFlags::MARKER_ACTIVATE, true);
+            let flag = if !old.contains(WindowFlags::MARKER_ACTIVATE) {
                 SW_SHOWNOACTIVATE
             } else {
                 SW_SHOW
