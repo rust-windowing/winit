@@ -39,6 +39,8 @@ use crate::platform_impl::OsError;
 
 /// Winit's Wayland state.
 pub struct WinitState {
+    #[cfg(target_os = "haiku")]
+    pub haiku_decoration_manager: Option<super::types::haiku_decoration::HaikuDecorationManager>,
     /// The WlRegistry.
     pub registry_state: RegistryState,
 
@@ -159,6 +161,15 @@ impl WinitState {
         let custom_cursor_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
         Ok(Self {
+            #[cfg(target_os = "haiku")]
+            haiku_decoration_manager: if globals.contents().with_list(|globals| {
+                globals.iter().any(|global| global.interface == "zxdg_decoration_manager_v1")
+            }) {
+                None
+            } else {
+                super::types::haiku_decoration::HaikuDecorationManager::bind(globals, queue_handle)
+                    .ok()
+            },
             registry_state,
             compositor_state: Arc::new(compositor_state),
             subcompositor_state: subcompositor_state.map(Arc::new),

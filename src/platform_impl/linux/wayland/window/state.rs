@@ -54,6 +54,8 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 
 /// The state of the window which is being updated from the [`WinitState`].
 pub struct WindowState {
+    #[cfg(target_os = "haiku")]
+    haiku_decoration: Option<wayland_protocols_plasma::server_decoration::client::org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration>,
     /// The connection to Wayland server.
     pub connection: Connection,
 
@@ -184,6 +186,11 @@ impl WindowState {
             .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
         Self {
+            #[cfg(target_os = "haiku")]
+            haiku_decoration: winit_state
+                .haiku_decoration_manager
+                .as_ref()
+                .map(|manager| manager.create(window.wl_surface(), queue_handle)),
             blur: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
@@ -267,6 +274,15 @@ impl WindowState {
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
     ) -> bool {
+        #[cfg(target_os = "haiku")]
+        let configure = {
+            let mut configure = configure;
+            if self.haiku_decoration.is_some() {
+                configure.decoration_mode = DecorationMode::Server;
+            }
+            configure
+        };
+
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -586,6 +602,10 @@ impl WindowState {
 
     #[inline]
     pub fn is_decorated(&mut self) -> bool {
+        #[cfg(target_os = "haiku")]
+        if self.haiku_decoration.is_some() {
+            return self.decorate;
+        }
         let csd = self
             .last_configure
             .as_ref()
@@ -986,6 +1006,10 @@ impl WindowState {
         }
 
         self.decorate = decorate;
+        #[cfg(target_os = "haiku")]
+        if let Some(decoration) = &self.haiku_decoration {
+            decoration.request_mode(if decorate { 2 } else { 1 });
+        }
 
         match self.last_configure.as_ref().map(|configure| configure.decoration_mode) {
             Some(DecorationMode::Server) if !self.decorate => {
@@ -1149,6 +1173,10 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
+        #[cfg(target_os = "haiku")]
+        if let Some(decoration) = &self.haiku_decoration {
+            decoration.release();
+        }
         if let Some(blur) = self.blur.take() {
             blur.release();
         }

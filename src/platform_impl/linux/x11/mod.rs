@@ -5,7 +5,9 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::os::raw::*;
-use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
+#[cfg(not(target_os = "haiku"))]
+use std::os::unix::io::{AsFd, RawFd};
+use std::os::unix::io::{AsRawFd, BorrowedFd};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
@@ -618,12 +620,14 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsFd for EventLoop<T> {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
 }
 
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsRawFd for EventLoop<T> {
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()

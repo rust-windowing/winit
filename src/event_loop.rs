@@ -338,6 +338,7 @@ unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
 }
 
 #[cfg(any(x11_platform, wayland_platform))]
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsFd for EventLoop<T> {
     /// Get the underlying [EventLoop]'s `fd` which you can register
     /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
@@ -352,6 +353,7 @@ impl<T> AsFd for EventLoop<T> {
 }
 
 #[cfg(any(x11_platform, wayland_platform))]
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsRawFd for EventLoop<T> {
     /// Get the underlying [EventLoop]'s raw `fd` which you can register
     /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the

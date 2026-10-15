@@ -619,12 +619,14 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsFd for EventLoop<T> {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
 }
 
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsRawFd for EventLoop<T> {
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
@@ -749,7 +751,7 @@ impl PumpEventNotifier {
         let control = Arc::new((Mutex::new(PumpEventNotifierAction::Pause), Condvar::new()));
         let control_thread = Arc::clone(&control);
 
-        let (read, write) = match pipe::pipe_with(PipeFlags::CLOEXEC | PipeFlags::NONBLOCK) {
+        let (read, write) = match make_notifier_pipe() {
             Ok((read, write)) => (read, write),
             Err(_) => return Self { control, handle: None, worker_waker: None },
         };
@@ -807,4 +809,21 @@ enum PumpEventNotifierAction {
     Pause,
     /// Shutdown the thread.
     Shutdown,
+}
+
+#[cfg(not(target_os = "haiku"))]
+fn make_notifier_pipe() -> rustix::io::Result<(OwnedFd, OwnedFd)> {
+    pipe::pipe_with(PipeFlags::CLOEXEC | PipeFlags::NONBLOCK)
+}
+
+#[cfg(target_os = "haiku")]
+fn make_notifier_pipe() -> rustix::io::Result<(OwnedFd, OwnedFd)> {
+    use rustix::fs::{fcntl_getfl, fcntl_setfl, OFlags};
+    use rustix::io::{fcntl_getfd, fcntl_setfd, FdFlags};
+    let (read, write) = pipe::pipe()?;
+    for fd in [&read, &write] {
+        fcntl_setfd(fd, fcntl_getfd(fd)? | FdFlags::CLOEXEC)?;
+        fcntl_setfl(fd, fcntl_getfl(fd)? | OFlags::NONBLOCK)?;
+    }
+    Ok((read, write))
 }

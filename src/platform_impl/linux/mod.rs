@@ -832,12 +832,14 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsFd for EventLoop<T> {
     fn as_fd(&self) -> BorrowedFd<'_> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_fd())
     }
 }
 
+#[cfg(not(target_os = "haiku"))]
 impl<T> AsRawFd for EventLoop<T> {
     fn as_raw_fd(&self) -> RawFd {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
@@ -1041,4 +1043,9 @@ fn is_main_thread() -> bool {
 #[cfg(target_os = "netbsd")]
 fn is_main_thread() -> bool {
     std::thread::current().name() == Some("main")
+}
+
+#[cfg(target_os = "haiku")]
+fn is_main_thread() -> bool {
+    unsafe { libc::find_thread(std::ptr::null()) == libc::getpid() }
 }
