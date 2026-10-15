@@ -127,6 +127,29 @@ impl WindowData {
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
     }
+
+    /// Reports the new surface size from inside `WM_NCCALCSIZE`, ahead of `WM_SIZE`.
+    fn surface_size_calculated(&self, window: HWND, client: &RECT) {
+        let width = client.right.saturating_sub(client.left);
+        let height = client.bottom.saturating_sub(client.top);
+        // Ignore empty sizes and minimized windows, like `WM_SIZE`.
+        if width <= 0 || height <= 0 || util::is_minimized(window) {
+            return;
+        }
+        let size = PhysicalSize::new(width as u32, height as u32);
+
+        {
+            let mut state = self.window_state_lock();
+            if size == state.surface_size {
+                // Not a size change (e.g. a move).
+                return;
+            }
+            // Makes `WM_SIZE` skip this size, and `surface_size` correct for the event below.
+            state.surface_size = size;
+        }
+
+        self.send_window_event(window, WindowEvent::SurfaceResized(size));
+    }
 }
 
 struct ThreadMsgTargetData {
@@ -1244,8 +1267,17 @@ unsafe fn public_window_callback_inner(
     let callback = || match msg {
         WM_NCCALCSIZE => {
             let window_flags = userdata.window_state_lock().window_flags;
-            if wparam == 0 || window_flags.contains(WindowFlags::MARKER_DECORATIONS) {
+            if wparam == 0 {
                 result = ProcResult::DefWindowProc(wparam);
+                return;
+            }
+
+            if window_flags.contains(WindowFlags::MARKER_DECORATIONS) {
+                // The system writes the new client rectangle into `rgrc[0]`.
+                let res = unsafe { DefWindowProcW(window, msg, wparam, lparam) };
+                let params = unsafe { &*(lparam as *const NCCALCSIZE_PARAMS) };
+                userdata.surface_size_calculated(window, &params.rgrc[0]);
+                result = ProcResult::Value(res);
                 return;
             }
 
@@ -1278,6 +1310,7 @@ unsafe fn public_window_callback_inner(
                 params.rgrc[0].bottom += 1;
             }
 
+            userdata.surface_size_calculated(window, &params.rgrc[0]);
             result = ProcResult::Value(0);
         },
 

@@ -58,6 +58,14 @@ pub enum WindowEvent {
     /// This event will not necessarily be emitted upon window creation, query
     /// [`Window::surface_size`] if you need to determine the surface's initial size.
     ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Emitted while the system is still processing the resize (from
+    ///   `WM_NCCALCSIZE`), before the window has its new size. Only [`Window::surface_size`] is up
+    ///   to date at that point. An application that renders and presents a frame of the new size
+    ///   directly from this event, instead of waiting for [`WindowEvent::RedrawRequested`], avoids
+    ///   a stale, stretched frame during live resizing.
+    ///
     /// [`Window::surface_size`]: crate::window::Window::surface_size
     SurfaceResized(PhysicalSize<u32>),
 
