@@ -50,6 +50,7 @@ changelog entry.
 - On Wayland, fix the text input being destroyed whenever a seat capability changed. This made IME input stop working in already-running applications after the seat's capabilities were updated.
 - On Wayland, fix a panic when a popup is dropped before its queued compositor
   updates are processed.
+- On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
 
 ### Changed
 
