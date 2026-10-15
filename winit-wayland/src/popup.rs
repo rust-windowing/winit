@@ -121,18 +121,24 @@ impl Popup {
         xdg_positioner.set_offset(offset.x, offset.y);
         xdg_positioner.set_size(size.width, size.height);
 
-        let parent_surface = parent_window_state.window.xdg_surface().ok_or_else(|| {
-            os_error!("cannot create a popup with a non-xdg parent surface (e.g. layer-shell)")
-        })?;
+        let parent_xdg_surface = parent_window_state.window.xdg_surface();
+        let parent_layer = parent_window_state.window.as_layer().cloned();
         let surface = state.compositor_state.create_surface(&queue_handle);
         let popup = SctkPopup::from_surface(
-            Some(parent_surface),
+            parent_xdg_surface,
             &xdg_positioner,
             &queue_handle,
             surface.clone(),
             &state.xdg_shell,
         )
         .map_err(|e| os_error!(e))?;
+        // When the parent is a layer surface, attach the popup to it via the
+        // wlr_layer_shell_v1 `get_popup` request. The popup was created without an xdg
+        // parent above, so this is the only way the compositor learns of the layer
+        // parent.
+        if let Some(layer) = parent_layer {
+            layer.get_popup(popup.xdg_popup());
+        }
         parent_window_state.add_child(super::make_wid(popup.wl_surface()));
         drop(parent_window_state);
         drop(window_states);
