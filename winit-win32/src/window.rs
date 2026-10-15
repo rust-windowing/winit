@@ -12,7 +12,7 @@ use dpi::{
 };
 use tracing::warn;
 use windows_sys::Win32::Foundation::{
-    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
+    HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
 };
 use windows_sys::Win32::Graphics::Dwm::{
     DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_SYSTEMBACKDROP_TYPE,
@@ -270,14 +270,14 @@ impl Window {
                 unsafe { GetCursorPos(&mut pos) };
                 pos
             };
-            let points = POINTS { x: points.x as i16, y: points.y as i16 };
+            // WM_NCLBUTTONDOWN packs signed screen coordinates into the low and high words.
+            let position =
+                (u32::from(points.x as u16) | (u32::from(points.y as u16) << 16)) as LPARAM;
 
             // ReleaseCapture needs to execute on the main thread
             unsafe { ReleaseCapture() };
 
-            unsafe {
-                PostMessageW(window.hwnd(), WM_NCLBUTTONDOWN, wparam, &points as *const _ as LPARAM)
-            };
+            unsafe { PostMessageW(window.hwnd(), WM_NCLBUTTONDOWN, wparam, position) };
         });
     }
 
