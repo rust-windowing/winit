@@ -2024,6 +2024,8 @@ pub enum ImeRequest {
     ///
     /// **The disable request can not fail**.
     Disable,
+    /// Reset the IME.
+    Reset,
 }
 
 /// Initial IME request.

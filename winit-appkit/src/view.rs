@@ -1004,6 +1004,19 @@ impl WinitView {
         *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
         self.ivars().pending_commit.set(false);
     }
+    pub(super) fn reset_ime(&self) {
+        if self.ivars().ime_state.get() != ImeState::Preedit {
+            return;
+        }
+        let Some(input_context) = self.inputContext() else {
+            return;
+        };
+        *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
+        self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+        input_context.discardMarkedText();
+        self.ivars().ime_state.set(ImeState::Ground);
+        self.ivars().pending_commit.set(false);
+    }
 
     pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
         self.ivars().ime_capabilities.get()
