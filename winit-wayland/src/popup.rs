@@ -8,7 +8,7 @@ use dpi::{
 use rwh_06::RawWindowHandle;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
-use sctk::shell::xdg::{XdgPositioner, XdgSurface};
+use sctk::shell::xdg::XdgPositioner;
 use wayland_client::Proxy;
 use winit_core::cursor::Cursor;
 use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
@@ -121,7 +121,9 @@ impl Popup {
         xdg_positioner.set_offset(offset.x, offset.y);
         xdg_positioner.set_size(size.width, size.height);
 
-        let parent_surface = parent_window_state.window.xdg_surface();
+        let parent_surface = parent_window_state.window.xdg_surface().ok_or_else(|| {
+            os_error!("cannot create a popup with a non-xdg parent surface (e.g. layer-shell)")
+        })?;
         let surface = state.compositor_state.create_surface(&queue_handle);
         let popup = SctkPopup::from_surface(
             Some(parent_surface),

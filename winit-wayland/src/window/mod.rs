@@ -7,25 +7,28 @@ use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use rwh_06::RawWindowHandle;
+use sctk::compositor::Region;
 use sctk::reexports::client::Proxy;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shell::WaylandSurface;
+use sctk::shell::wlr_layer::LayerSurface;
 use sctk::shell::xdg::window::{Window as SctkWindow, WindowDecorations};
 use tracing::warn;
 use winit_core::cursor::Cursor;
 use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::event_loop::AsyncRequestSerial;
-use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
+use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle, MonitorHandleProvider};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
     UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
+use wayland_protocols::xdg::shell::client::xdg_toplevel::XdgToplevel;
 
 use super::ActiveEventLoop;
 use super::types::xdg_activation::XdgActivationTokenData;
 use crate::window::common::WindowCommon;
-use crate::{WindowAttributesWayland, output};
+use crate::{WindowAttributesWayland, layer_from_window_level, output};
 pub(crate) mod state;
 pub use state::WindowState;
 pub(crate) mod handles;
@@ -33,11 +36,38 @@ pub use handles::Handles;
 use handles::WindowRequests;
 pub(crate) mod common;
 
+/// Shell-specific handle backing a Wayland `Window`.
+#[derive(Debug)]
+pub(crate) enum WindowShell {
+    Xdg(SctkWindow),
+    Layer(LayerSurface),
+}
+
+impl WindowShell {
+    fn wl_surface(&self) -> &WlSurface {
+        match self {
+            Self::Xdg(window) => window.wl_surface(),
+            Self::Layer(surface) => surface.wl_surface(),
+        }
+    }
+
+    fn commit(&self) {
+        self.wl_surface().commit();
+    }
+
+    fn xdg_toplevel(&self) -> Option<&XdgToplevel> {
+        match self {
+            Self::Xdg(window) => Some(window.xdg_toplevel()),
+            Self::Layer(_) => None,
+        }
+    }
+}
+
 /// The Wayland window.
 #[derive(Debug)]
 pub struct Window {
-    /// Reference to the underlying SCTK window.
-    window: SctkWindow,
+    /// Reference to the underlying shell object (xdg window or layer surface).
+    window: WindowShell,
 
     /// Keeps the window's state alive for as long as this handle exists, independently of
     /// whatever the event loop's `windows` map does with its own reference.
@@ -79,15 +109,12 @@ impl Window {
             WindowDecorations::RequestClient
         };
 
-        let window =
-            state.xdg_shell.create_window(surface.clone(), default_decorations, &queue_handle);
-
-        let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
-            *attributes
-                .platform
-                .take()
-                .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-                .unwrap_or_default();
+        let wl_attrs = attributes
+            .platform
+            .take()
+            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+            .map(|boxed| *boxed)
+            .unwrap_or_default();
 
         let mut scale_factor = None;
         if let Some(RawWindowHandle::Wayland(handle)) = attributes.parent_window() {
@@ -99,16 +126,90 @@ impl Window {
         }
         let scale_factor = scale_factor.unwrap_or(1.0);
 
-        let mut window_state = WindowState::new(
-            event_loop_window_target,
-            &state,
-            size,
-            state::WindowType::Window { window: window.clone(), last_configure: None },
-            attributes.preferred_theme,
-            prefer_csd,
-            scale_factor,
-            None,
-        );
+        let is_layer_shell = wl_attrs.is_layer_shell;
+        let app_name = wl_attrs.name.clone();
+        let activation_token = wl_attrs.activation_token.clone();
+        let prefer_csd = wl_attrs.prefer_csd;
+
+        let (window, mut window_state) = if is_layer_shell {
+            let Some(layer_shell) = state.layer_shell.as_ref() else {
+                return Err(os_error!(
+                    "layer-shell protocol is not available on this compositor"
+                )
+                .into());
+            };
+
+            let output = wl_attrs.output.and_then(|id| {
+                monitors
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .find(|m| m.native_id() == id)
+                    .map(|m| m.proxy.clone())
+            });
+
+            let layer = wl_attrs
+                .layer
+                .unwrap_or_else(|| layer_from_window_level(attributes.window_level));
+            let namespace = wl_attrs.namespace.clone().unwrap_or_else(|| attributes.title.clone());
+            let layer_surface = layer_shell.create_layer_surface(
+                &queue_handle,
+                surface.clone(),
+                layer,
+                Some(namespace),
+                output.as_ref(),
+            );
+
+            let logical_size = size.to_logical::<u32>(scale_factor);
+            layer_surface.set_size(logical_size.width, logical_size.height);
+            if let Some(anchor) = wl_attrs.anchor {
+                layer_surface.set_anchor(anchor);
+            }
+            if let Some(zone) = wl_attrs.exclusive_zone {
+                layer_surface.set_exclusive_zone(zone);
+            }
+            if let Some((top, right, bottom, left)) = wl_attrs.margin {
+                layer_surface.set_margin(top, right, bottom, left);
+            }
+            if let Some(ki) = wl_attrs.keyboard_interactivity {
+                layer_surface.set_keyboard_interactivity(ki);
+            }
+            if let Some((pos, region_size)) = wl_attrs.region {
+                let region = Region::new(&*compositor).map_err(|err| os_error!(err))?;
+                region.add(pos.x, pos.y, region_size.width, region_size.height);
+                surface.set_input_region(Some(region.wl_region()));
+            }
+
+            let window_state = WindowState::new(
+                event_loop_window_target,
+                &state,
+                size,
+                state::WindowType::Layer { surface: layer_surface.clone(), last_configure: None },
+                attributes.preferred_theme,
+                prefer_csd,
+                scale_factor,
+                None,
+            );
+            (WindowShell::Layer(layer_surface), window_state)
+        } else {
+            let window = state.xdg_shell.create_window(
+                surface.clone(),
+                default_decorations,
+                &queue_handle,
+            );
+
+            let window_state = WindowState::new(
+                event_loop_window_target,
+                &state,
+                size,
+                state::WindowType::Window { window: window.clone(), last_configure: None },
+                attributes.preferred_theme,
+                prefer_csd,
+                scale_factor,
+                None,
+            );
+            (WindowShell::Xdg(window), window_state)
+        };
 
         window_state.set_window_icon(attributes.window_icon);
 
@@ -122,8 +223,8 @@ impl Window {
         window_state.set_decorate(attributes.decorations);
 
         // Set the app_id.
-        if let Some(name) = app_name.map(|name| name.general) {
-            window.set_app_id(name);
+        if let (WindowShell::Xdg(xdg), Some(name)) = (&window, app_name.map(|n| n.general)) {
+            xdg.set_app_id(name);
         }
 
         // Set the window title.
@@ -139,21 +240,23 @@ impl Window {
         // Non-resizable implies that the min and max sizes are set to the same value.
         window_state.set_resizable(attributes.resizable);
 
-        // Set startup mode.
-        match attributes.fullscreen {
-            Some(Fullscreen::Exclusive(..)) => {
-                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
-            },
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.as_ref().and_then(|monitor| {
-                    monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
-                });
+        // Set startup mode (xdg only).
+        if let WindowShell::Xdg(xdg) = &window {
+            match attributes.fullscreen {
+                Some(Fullscreen::Exclusive(..)) => {
+                    warn!("`Fullscreen::Exclusive` is ignored on Wayland");
+                },
+                Some(Fullscreen::Borderless(monitor)) => {
+                    let output = monitor.as_ref().and_then(|monitor| {
+                        monitor.cast_ref::<output::MonitorHandle>().map(|handle| &handle.proxy)
+                    });
 
-                window.set_fullscreen(output)
-            },
-            _ if attributes.maximized => window.set_maximized(),
-            _ => (),
-        };
+                    xdg.set_fullscreen(output)
+                },
+                _ if attributes.maximized => xdg.set_maximized(),
+                _ => (),
+            };
+        }
 
         window_state.set_cursor(attributes.cursor);
 
@@ -227,7 +330,8 @@ impl Window {
     }
 
     pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
+        let toplevel = self.window.xdg_toplevel()?;
+        NonNull::new(toplevel.id().as_ptr().cast())
     }
 }
 
@@ -252,6 +356,56 @@ impl Window {
     #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
+    }
+
+    fn as_layer(&self) -> Option<&LayerSurface> {
+        match &self.window {
+            WindowShell::Layer(layer) => Some(layer),
+            WindowShell::Xdg(_) => None,
+        }
+    }
+
+    #[inline]
+    pub fn set_anchor(&self, anchor: sctk::shell::wlr_layer::Anchor) {
+        if let Some(layer) = self.as_layer() {
+            layer.set_anchor(anchor);
+            self.window.commit();
+        }
+    }
+
+    #[inline]
+    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        if let Some(layer) = self.as_layer() {
+            layer.set_margin(top, right, bottom, left);
+            self.window.commit();
+        }
+    }
+
+    #[inline]
+    pub fn set_exclusive_zone(&self, zone: i32) {
+        if let Some(layer) = self.as_layer() {
+            layer.set_exclusive_zone(zone);
+            self.window.commit();
+        }
+    }
+
+    #[inline]
+    pub fn set_keyboard_interactivity(
+        &self,
+        interactivity: sctk::shell::wlr_layer::KeyboardInteractivity,
+    ) {
+        if let Some(layer) = self.as_layer() {
+            layer.set_keyboard_interactivity(interactivity);
+            self.window.commit();
+        }
+    }
+
+    #[inline]
+    pub fn set_layer(&self, layer_level: sctk::shell::wlr_layer::Layer) {
+        if let Some(layer) = self.as_layer() {
+            layer.set_layer(layer_level);
+            self.window.commit();
+        }
     }
 }
 
@@ -369,7 +523,9 @@ impl CoreWindow for Window {
             return;
         }
 
-        self.window.set_minimized();
+        if let WindowShell::Xdg(window) = &self.window {
+            window.set_minimized();
+        }
     }
 
     fn is_minimized(&self) -> Option<bool> {
