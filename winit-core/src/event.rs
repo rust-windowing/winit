@@ -502,10 +502,24 @@ pub enum WindowEvent {
     /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
     ///
+    /// ### Wayland
+    ///
+    /// Emitted when the compositor adds or removes the xdg-shell `suspended` state (xdg_wm_base
+    /// version 6 or later), for example while the window is on a hidden workspace or the outputs
+    /// are off. A suspended window receives no frame callbacks, so a frame presented with vsync
+    /// may block until the window is shown again.
+    ///
+    /// Winit still asks for a redraw after every configure, including the one that suspends the
+    /// window, since a configure only takes effect once the application commits. Some compositors
+    /// wait for that commit, up to a short timeout, before they finish rearranging windows. An
+    /// application that calls [`Window::pre_present_notify`] before presenting doesn't block
+    /// while suspended, since winit holds back [`WindowEvent::RedrawRequested`] until the
+    /// compositor sends the next frame callback.
+    ///
     /// ### Others
     ///
     /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    /// - **Android / Wayland / Windows / Orbital:** Unsupported.
+    /// - **Android / Windows / Orbital:** Unsupported.
     ///
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
