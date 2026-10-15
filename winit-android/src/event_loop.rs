@@ -34,6 +34,9 @@ use crate::keycodes;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 
+/// Set while an [`EventLoop`] exists.
+static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
 /// `Option::min`)
@@ -131,7 +134,6 @@ const GLOBAL_WINDOW: WindowId = WindowId::from_raw(0);
 
 impl EventLoop {
     pub fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
-        static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             // For better cross-platformness.
             return Err(EventLoopError::RecreationAttempt);
@@ -248,9 +250,10 @@ impl EventLoop {
                     app.suspended(self.window_target());
                 },
                 MainEvent::Destroy => {
-                    // XXX: maybe exit mainloop to drop things before being
-                    // killed by the OS?
-                    warn!("TODO: forward onDestroy notification to application");
+                    // `onDestroy` blocks the Java main thread until `android_main` returns.
+                    debug!("App Destroyed - exiting event loop");
+                    self.running = false;
+                    self.window_target.exit();
                 },
                 MainEvent::InsetsChanged { .. } => {
                     // XXX: how to forward this state to applications?
@@ -643,6 +646,12 @@ impl EventLoop {
 
     fn exiting(&self) -> bool {
         self.window_target.exiting()
+    }
+}
+
+impl Drop for EventLoop {
+    fn drop(&mut self) {
+        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 }
 
