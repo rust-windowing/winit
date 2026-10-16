@@ -38,7 +38,7 @@ macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
-mod dnd;
+mod data_transfer;
 mod event_loop;
 mod output;
 mod popup;
@@ -47,7 +47,7 @@ mod state;
 mod types;
 mod window;
 
-pub use self::dnd::{DataOffer, DragSource, MimeData, MimeType};
+pub use self::data_transfer::{DataOffer, DragSource, MimeData, MimeType};
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::popup::Popup;
 pub use self::window::Window;

@@ -1,19 +1,22 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::io;
 use std::ops::{BitOr, ControlFlow};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use dispatch2::MainThreadBound;
 use objc2::rc::{Retained, Weak};
 use objc2::runtime::AnyObject;
-use objc2::{AnyThread, DefinedClass as _, MainThreadMarker, Message, define_class, msg_send};
+use objc2::{
+    AnyThread, ClassType, DefinedClass as _, MainThreadMarker, Message, define_class, msg_send,
+};
 use objc2_app_kit::{
     NSDragOperation, NSPasteboard, NSPasteboardType, NSPasteboardTypeFileURL, NSPasteboardTypeHTML,
     NSPasteboardTypePNG, NSPasteboardTypeSound, NSPasteboardTypeString, NSPasteboardTypeTIFF,
     NSPasteboardWriting, NSPasteboardWritingOptions,
 };
-use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString, NSURL};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
@@ -107,7 +110,7 @@ impl Clone for Pasteboard {
 }
 
 impl Pasteboard {
-    fn new(
+    pub(crate) fn new(
         transfer_id: DataTransferId,
         ns_pasteboard: MainThreadBound<Retained<NSPasteboard>>,
     ) -> Self {
@@ -266,41 +269,44 @@ impl TypedData for PasteboardValue {
     }
 
     fn try_as_uris(&self) -> io::Result<Vec<String>> {
-        // TODO: We should probably use `readObjects`, need to check how that works.
         if self.type_().hint() != Some(TypeHint::UriList) {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
         self.pasteboard.ns_pasteboard.get_on_main(|pasteboard| {
-            let Some(items) = pasteboard.pasteboardItems() else {
-                // The pasteboard didn't expose any items, so we try with the deprecated method.
-                #[expect(deprecated)]
-                let property_list = match pasteboard
-                    .propertyListForType(unsafe { objc2_app_kit::NSFilenamesPboardType })
-                {
-                    Some(property_list) => property_list,
-                    None => {
-                        return pasteboard
-                            .stringForType(unsafe { NSPasteboardTypeFileURL })
-                            .map(|ns_str| vec![ns_str.to_string()])
-                            .ok_or_else(|| io::ErrorKind::InvalidData.into());
-                    },
-                };
-
-                let paths = property_list
-                    .downcast::<NSArray>()
-                    .unwrap()
-                    .into_iter()
-                    .map(|file| file.downcast::<NSString>().unwrap().to_string())
-                    .collect();
-
-                return Ok(paths);
-            };
-
-            Ok(items
+            let classes = NSArray::from_slice(&[NSURL::class()]);
+            let uris = unsafe { pasteboard.readObjectsForClasses_options(&classes, None) }
                 .into_iter()
-                .filter_map(|item| item.stringForType(unsafe { NSPasteboardTypeFileURL }))
-                .map(|ns_str| ns_str.to_string())
+                .flatten()
+                .filter_map(|url| url.downcast::<NSURL>().ok())
+                .filter(|url| url.isFileURL())
+                .filter_map(|url| {
+                    url.filePathURL()
+                        .as_deref()
+                        .unwrap_or(&url)
+                        .absoluteString()
+                        .map(|uri| uri.to_string())
+                })
+                .collect::<Vec<_>>();
+
+            if !uris.is_empty() {
+                return Ok(uris);
+            }
+
+            // The pasteboard didn't expose any file URLs, so we try with the deprecated method.
+            #[expect(deprecated)]
+            let property_list = pasteboard
+                .propertyListForType(unsafe { objc2_app_kit::NSFilenamesPboardType })
+                .ok_or(io::ErrorKind::InvalidData)?;
+
+            Ok(property_list
+                .downcast::<NSArray>()
+                .unwrap()
+                .into_iter()
+                .filter_map(|file| {
+                    NSURL::fileURLWithPath(&file.downcast::<NSString>().unwrap()).absoluteString()
+                })
+                .map(|uri| uri.to_string())
                 .collect())
         })
     }
@@ -381,6 +387,91 @@ impl Pasteboards {
     /// Get the window ID that most-recently saw the provided data transfer.
     pub fn window_id(&self, id: DataTransferId) -> Option<WindowId> {
         self.inner.borrow().get(&id).map(|active_pasteboard| active_pasteboard.window_id)
+    }
+}
+
+#[derive(Debug)]
+struct DragState {
+    id: DataTransferId,
+    valid_actions: Vec<DndAction>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DataTransferState {
+    pasteboards: Pasteboards,
+    clipboard: Cell<Option<(isize, DataTransferId)>>,
+    drag: RefCell<Option<DragState>>,
+}
+
+impl DataTransferState {
+    pub(crate) fn pasteboards(&self) -> &Pasteboards {
+        &self.pasteboards
+    }
+
+    pub(crate) fn register_drag(
+        &self,
+        id: DataTransferId,
+        pb: &MainThreadBound<Retained<NSPasteboard>>,
+        window_id: WindowId,
+    ) {
+        self.pasteboards.insert(id, pb, window_id);
+        self.drag.replace(Some(DragState { id, valid_actions: vec![] }));
+    }
+
+    pub(crate) fn remove_drag(&self, id: DataTransferId) {
+        let mut state = self.drag.borrow_mut();
+        if state.as_ref().is_some_and(|s| s.id == id) {
+            *state = None;
+        }
+    }
+
+    pub(crate) fn current_drag_id(&self) -> Option<DataTransferId> {
+        self.drag.borrow().as_ref().map(|state| state.id)
+    }
+
+    pub(crate) fn set_valid_dnd_actions(&self, id: DataTransferId, actions: &[DndAction]) -> bool {
+        match &mut *self.drag.borrow_mut() {
+            Some(state) if state.id == id => {
+                state.valid_actions.clear();
+                state.valid_actions.extend_from_slice(actions);
+                true
+            },
+            _ => false,
+        }
+    }
+
+    pub(crate) fn proposed_drag_action(
+        &self,
+        source_operations: NSDragOperation,
+    ) -> Option<DndAction> {
+        self.drag
+            .borrow()
+            .as_ref()
+            .and_then(|state| preferred_drag_operation(source_operations, &state.valid_actions))
+    }
+
+    pub(crate) fn proposed_drag_operation(
+        &self,
+        source_operations: NSDragOperation,
+    ) -> NSDragOperation {
+        self.proposed_drag_action(source_operations)
+            .map(dnd_action_to_ns_drag_operation)
+            .unwrap_or(NSDragOperation::empty())
+    }
+
+    pub(crate) fn clipboard_transfer_id(&self, pasteboard: &NSPasteboard) -> DataTransferId {
+        // Counts downward to keep clipboard IDs disjoint from drag IDs.
+        static NEXT_ID: AtomicI64 = AtomicI64::new(-1);
+
+        let change_count = pasteboard.changeCount();
+        match self.clipboard.get() {
+            Some((cached, id)) if cached == change_count => id,
+            _ => {
+                let id = DataTransferId::from_raw(NEXT_ID.fetch_sub(1, Ordering::Relaxed));
+                self.clipboard.set(Some((change_count, id)));
+                id
+            },
+        }
     }
 }
 
