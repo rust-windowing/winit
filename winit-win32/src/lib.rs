@@ -12,6 +12,7 @@ mod definitions;
 mod dnd;
 mod dpi;
 mod event_loop;
+mod fullscreen;
 mod icon;
 mod ime;
 mod keyboard;
