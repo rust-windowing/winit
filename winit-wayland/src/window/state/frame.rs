@@ -141,7 +141,7 @@ impl WindowState {
                     true
                 }
             },
-            WindowType::Popup { .. } => false, // Popup window does not have any decoration
+            WindowType::Popup { .. } | WindowType::Layer { .. } => false,
         }
     }
 
@@ -166,7 +166,7 @@ impl WindowState {
     fn request_decoration_mode(&self, mode: Option<DecorationMode>) {
         match &self.window {
             WindowType::Window { window, .. } => window.request_decoration_mode(mode),
-            WindowType::Popup { .. } => {},
+            WindowType::Popup { .. } | WindowType::Layer { .. } => {},
         }
     }
 
@@ -181,7 +181,7 @@ impl WindowState {
 
         let last_configure = match &self.window {
             WindowType::Window { last_configure, .. } => last_configure,
-            WindowType::Popup { .. } => return, // Popup does not have any decoration
+            WindowType::Popup { .. } | WindowType::Layer { .. } => return,
         };
 
         match last_configure.as_ref().map(|configure| configure.decoration_mode) {
