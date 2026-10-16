@@ -2,6 +2,8 @@
 pub(crate) use winit_android as platform;
 #[cfg(macos_platform)]
 pub(crate) use winit_appkit as platform;
+#[cfg(ohos_platform)]
+pub(crate) use winit_ohos as platform;
 #[cfg(any(x11_platform, wayland_platform))]
 mod linux;
 #[cfg(orbital_platform)]
@@ -23,6 +25,7 @@ pub use self::platform::*;
     not(windows_platform),
     not(macos_platform),
     not(android_platform),
+    not(ohos_platform),
     not(x11_platform),
     not(wayland_platform),
     not(web_platform),

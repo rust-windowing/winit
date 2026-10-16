@@ -20,7 +20,10 @@
 /winit-web                          @daxpedda
 
 # Windows (Win32) (UNOWNED)
-#/winit-win32                       
+#/winit-win32
 
 # Orbital (Redox OS)
 /winit-orbital                      @jackpot51
+
+# OpenHarmony (Ohos)
+winit-ohos                          @richerfu @jschwe

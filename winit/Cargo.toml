@@ -44,6 +44,7 @@ default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 android-game-activity = ["winit-android/game-activity"]
 android-native-activity = ["winit-android/native-activity"]
 mint = ["dpi/mint"]
+ohos-window-plugin = ["winit-ohos/plugin-window"]
 private-apple-apis = ["winit-appkit/private-apple-apis"]
 serde = [
     "dep:serde",
@@ -90,6 +91,9 @@ softbuffer.workspace = true
 [target.'cfg(target_os = "android")'.dependencies]
 winit-android.workspace = true
 
+[target.'cfg(target_env = "ohos")'.dependencies]
+winit-ohos.workspace = true
+
 [target.'cfg(target_os = "macos")'.dependencies]
 winit-appkit.workspace = true
 
@@ -100,7 +104,7 @@ winit-uikit.workspace = true
 winit-win32.workspace = true
 
 # Linux
-[target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
+[target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple", target_env = "ohos"))))'.dependencies]
 libc.workspace = true
 rustix = { workspace = true, features = ["std", "thread"] }
 winit-common = { workspace = true, features = ["xkb"] }
