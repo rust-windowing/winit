@@ -1630,11 +1630,6 @@ unsafe fn public_window_callback_inner(
                 if (lparam as u32 & GCS_RESULTSTR) != 0 {
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
                         userdata.window_state_lock().ime_state = ImeState::Enabled;
-
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        );
                         userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                     }
                 }
@@ -1670,10 +1665,6 @@ unsafe fn public_window_callback_inner(
                     // trying receiving composing result and commit if exists.
                     let ime_context = unsafe { ImeContext::current(window) };
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        );
                         userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                     }
                 }
