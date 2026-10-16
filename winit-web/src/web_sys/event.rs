@@ -1,5 +1,6 @@
 use std::cell::OnceCell;
 use std::f64;
+use std::time::Duration;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
@@ -42,6 +43,10 @@ impl From<TabletToolButton> for ButtonsState {
 pub fn pointer_buttons(event: &MouseEvent) -> ButtonsState {
     #[allow(clippy::disallowed_methods)]
     ButtonsState::from_bits_retain(event.buttons())
+}
+
+pub fn event_time(event: &Event) -> Option<Duration> {
+    Some(Duration::from_secs_f64(event.time_stamp() / 1000.0))
 }
 
 pub fn raw_button(event: &MouseEvent) -> Option<u16> {
