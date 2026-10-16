@@ -2310,7 +2310,19 @@ unsafe fn public_window_callback_inner(
                     unsafe { lose_active_focus(window, userdata) };
                 }
             }
-            result = ProcResult::DefWindowProc(wparam);
+            // An undecorated window keeps `WS_CAPTION` and gives its whole area to the client in
+            // `WM_NCCALCSIZE`, but when DWM does not draw its frame (as after leaving fullscreen)
+            // `DefWindowProc` still paints the caption into the top of the window. A transparent
+            // window shows it through its transparent pixels. With an `lParam` of -1,
+            // `DefWindowProc` does not repaint the non-client area:
+            // https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-ncactivate
+            let decorated =
+                userdata.window_state_lock().window_flags.contains(WindowFlags::MARKER_DECORATIONS);
+            result = if decorated {
+                ProcResult::DefWindowProc(wparam)
+            } else {
+                ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, -1) })
+            };
         },
 
         WM_SETFOCUS => {
