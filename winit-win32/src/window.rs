@@ -38,7 +38,7 @@ use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
     FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
-    GetClientRect, GetCursorPos, GetForegroundWindow, GetParent, GetSystemMenu, GetSystemMetrics,
+    GetClientRect, GetCursorPos, GetForegroundWindow, GetSystemMenu, GetSystemMetrics,
     GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT,
     HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible,
     LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE,
@@ -144,7 +144,7 @@ impl Window {
         if window_flags.contains(WindowFlags::ANCHORED)
             && !window_flags.contains(WindowFlags::CHILD)
         {
-            let parent = unsafe { GetParent(self.hwnd()) };
+            let parent = window_flags.parent_or_owner(self.hwnd());
             if !parent.is_null() {
                 unsafe {
                     ScreenToClient(parent, &mut point);
@@ -161,13 +161,17 @@ impl Window {
     /// a popup, see `init`), the positioner is resolved relative to the screen's work area
     /// instead of the parent's content area.
     fn reposition(&self) {
-        let (anchored, positioner) = {
+        let (anchored, window_flags, positioner) = {
             let window_state = self.window_state_lock();
-            (window_state.anchored, window_state.positioner)
+            (window_state.anchored, window_state.window_flags, window_state.positioner)
         };
-        let Some((origin, size, current_size)) =
-            compute_anchored_placement(self.hwnd(), anchored, &positioner, self.scale_factor())
-        else {
+        let Some((origin, size, current_size)) = compute_anchored_placement(
+            self.hwnd(),
+            anchored,
+            window_flags,
+            &positioner,
+            self.scale_factor(),
+        ) else {
             return;
         };
 
@@ -1265,7 +1269,7 @@ fn translate_outer_position(
 
     let window_flags = window_state.lock().unwrap().window_flags;
     if window_flags.contains(WindowFlags::ANCHORED) && !window_flags.contains(WindowFlags::CHILD) {
-        let parent = unsafe { GetParent(hwnd) };
+        let parent = window_flags.parent_or_owner(hwnd);
         if !parent.is_null() {
             unsafe {
                 ClientToScreen(parent, &mut point);
@@ -1290,6 +1294,7 @@ fn translate_outer_position(
 fn compute_anchored_placement(
     hwnd: HWND,
     anchored: bool,
+    window_flags: WindowFlags,
     positioner: &WindowPositioner,
     scale_factor: f64,
 ) -> Option<(LogicalPosition<f64>, LogicalSize<f64>, LogicalSize<f64>)> {
@@ -1309,7 +1314,7 @@ fn compute_anchored_placement(
     // parent, both the anchor rect and `set_outer_position` operate directly in screen
     // coordinates instead, so the origin is left at zero and the clip region stays in screen
     // space.
-    let parent = unsafe { GetParent(hwnd) };
+    let parent = window_flags.parent_or_owner(hwnd);
     let mut parent_origin = POINT { x: 0, y: 0 };
     if !parent.is_null() {
         unsafe { ClientToScreen(parent, &mut parent_origin) };
@@ -1349,13 +1354,13 @@ fn compute_anchored_placement(
 /// `WM_WINDOWPOSCHANGED`), so it's safe to update the OS window and `WindowState` directly
 /// instead of going through `EventLoopThreadExecutor`
 pub(crate) fn reposition_owned_popup(hwnd: HWND, window_state: &Mutex<WindowState>) {
-    let (anchored, positioner, scale_factor) = {
+    let (anchored, window_flags, positioner, scale_factor) = {
         let state = window_state.lock().unwrap();
-        (state.anchored, state.positioner, state.scale_factor)
+        (state.anchored, state.window_flags, state.positioner, state.scale_factor)
     };
 
     let Some((origin, size, current_size)) =
-        compute_anchored_placement(hwnd, anchored, &positioner, scale_factor)
+        compute_anchored_placement(hwnd, anchored, window_flags, &positioner, scale_factor)
     else {
         return;
     };
@@ -1626,7 +1631,7 @@ unsafe fn init(
 
     let mut fallback_parent = || match win_attributes.owner {
         Some(parent) => {
-            window_flags.set(WindowFlags::POPUP, true);
+            window_flags.set(WindowFlags::OWNED, true);
             Some(parent)
         },
         None => {
@@ -1637,9 +1642,9 @@ unsafe fn init(
 
     let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            if !is_popup {
-                window_flags.set(WindowFlags::CHILD, true);
-            }
+            // A popup's parent is a native owner; an ordinary parented window is embedded.
+            window_flags.set(WindowFlags::OWNED, is_popup);
+            window_flags.set(WindowFlags::CHILD, !is_popup);
             if win_attributes.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
