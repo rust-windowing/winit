@@ -84,10 +84,8 @@ impl WindowCommon {
     }
 
     pub(crate) fn set_min_surface_size(&self, min_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let min_size = min_size.map(|size| size.to_logical(scale_factor));
         let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_min_surface_size(min_size);
+        s.lock().unwrap().request_min_surface_size(min_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }
@@ -95,10 +93,8 @@ impl WindowCommon {
     /// Set the maximum surface size for the window.
     #[inline]
     pub(crate) fn set_max_surface_size(&self, max_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let max_size = max_size.map(|size| size.to_logical(scale_factor));
         let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_max_surface_size(max_size);
+        s.lock().unwrap().request_max_surface_size(max_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }

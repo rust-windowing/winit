@@ -68,7 +68,18 @@ impl WindowState {
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
         if let Some(initial_size) = self.initial_size.take() {
-            self.size = initial_size.to_logical(self.scale_factor());
+            let scale_factor = self.scale_factor();
+            self.size = initial_size.to_logical(scale_factor);
+            let min = self.requested_min_surface_size.map(|size| size.to_logical(scale_factor));
+            let max = self.requested_max_surface_size.map(|size| size.to_logical(scale_factor));
+            self.set_min_surface_size(min);
+            self.set_max_surface_size(max);
+            // The compositor may ignore the hints for the initial size (xdg-shell).
+            self.size = fit_surface_size(self.size, self.min_surface_size, self.max_surface_size);
+            if !self.resizable {
+                self.set_min_surface_size(Some(self.size));
+                self.set_max_surface_size(Some(self.size));
+            }
             self.stateless_size = self.size;
         }
 
@@ -216,5 +227,55 @@ impl WindowState {
             );
             false
         }
+    }
+}
+
+/// `size` fitted into `min` and `max`. The minimum wins if it's above the maximum, as on X11,
+/// and a maximum of 0 means no maximum, as in xdg-shell.
+fn fit_surface_size(
+    size: LogicalSize<u32>,
+    min: LogicalSize<u32>,
+    max: Option<LogicalSize<u32>>,
+) -> LogicalSize<u32> {
+    let fit = |size: u32, min: u32, max: Option<u32>| {
+        size.min(max.filter(|max| *max > 0).unwrap_or(u32::MAX)).max(min)
+    };
+    LogicalSize::new(
+        fit(size.width, min.width, max.map(|max| max.width)),
+        fit(size.height, min.height, max.map(|max| max.height)),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use dpi::LogicalSize;
+
+    use super::fit_surface_size;
+
+    #[test]
+    fn fit_surface_size_into_limits() {
+        let min = LogicalSize::new(100, 50);
+        let max = Some(LogicalSize::new(400, 300));
+        assert_eq!(
+            fit_surface_size(LogicalSize::new(200, 100), min, max),
+            LogicalSize::new(200, 100)
+        );
+        assert_eq!(fit_surface_size(LogicalSize::new(10, 10), min, max), LogicalSize::new(100, 50));
+        assert_eq!(
+            fit_surface_size(LogicalSize::new(800, 600), min, max),
+            LogicalSize::new(400, 300)
+        );
+        assert_eq!(
+            fit_surface_size(LogicalSize::new(800, 10), min, None),
+            LogicalSize::new(800, 50)
+        );
+        // A maximum of 0 means no maximum.
+        assert_eq!(
+            fit_surface_size(LogicalSize::new(800, 10), min, Some(LogicalSize::new(0, 300))),
+            LogicalSize::new(800, 50)
+        );
+        // A minimum above the maximum wins.
+        let max = Some(LogicalSize::new(80, 40));
+        assert_eq!(fit_surface_size(LogicalSize::new(60, 60), min, max), LogicalSize::new(100, 50));
     }
 }
