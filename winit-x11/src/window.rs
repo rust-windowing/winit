@@ -509,7 +509,7 @@ impl UnownedWindow {
                 })
                 .unwrap_or_else(|| monitors.swap_remove(0))
         };
-        let scale_factor = guessed_monitor.scale_factor();
+        let scale_factor = guessed_monitor.scale_factor().unwrap_or(1.0);
 
         info!("Guessed window scale factor: {}", scale_factor);
 
