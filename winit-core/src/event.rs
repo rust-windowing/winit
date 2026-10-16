@@ -305,7 +305,20 @@ pub enum WindowEvent {
     },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: Option<DeviceId>, delta: MouseScrollDelta, phase: TouchPhase },
+    MouseWheel {
+        device_id: Option<DeviceId>,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+
+        /// What is driving the scroll: a wheel, fingers on a touchpad, or the system
+        /// continuing a finger scroll with momentum.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **macOS / Wayland:** Reported.
+        /// - **Windows / X11 / Web / Orbital / iOS / Android:** Always [`ScrollSource::Unknown`].
+        source: ScrollSource,
+    },
 
     /// An mouse button press has been received.
     PointerButton {
@@ -1611,6 +1624,35 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
+/// What is driving a [`WindowEvent::MouseWheel`] event.
+///
+/// This lets an application treat the different kinds of scrolling differently, for example
+/// to not scroll a slider during system-driven momentum scrolling, or to implement its own
+/// momentum scrolling only on platforms where the system doesn't.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub enum ScrollSource {
+    /// The platform doesn't say.
+    Unknown,
+
+    /// A physical wheel, usually on a mouse (including tilting it sideways).
+    Wheel,
+
+    /// Fingers moving on a touchpad.
+    ///
+    /// On platforms that report a [`TouchPhase`], the fingers are on the touchpad from
+    /// [`TouchPhase::Started`] until [`TouchPhase::Ended`].
+    Finger,
+
+    /// The system is continuing a finger scroll after the fingers were lifted, with
+    /// decaying speed, such as the "momentum phase" on macOS.
+    ///
+    /// On platforms that report a [`TouchPhase`], this gets its own [`TouchPhase::Started`]
+    /// … [`TouchPhase::Ended`] cycle after the [`ScrollSource::Finger`] one.
+    Momentum,
+}
+
 /// Handle to synchronously change the size of the window from the [`WindowEvent`].
 #[derive(Debug, Clone)]
 pub struct SurfaceSizeWriter {
@@ -1712,6 +1754,7 @@ mod tests {
                 device_id: None,
                 delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 phase: event::TouchPhase::Started,
+                source: event::ScrollSource::Unknown,
             });
             with_window_event(PointerButton {
                 device_id: None,
