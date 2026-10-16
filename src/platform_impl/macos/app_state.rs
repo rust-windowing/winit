@@ -62,8 +62,8 @@ declare_class!(
 
     unsafe impl NSApplicationDelegate for ApplicationDelegate {
         #[method(applicationDidFinishLaunching:)]
-        fn app_did_finish_launching(&self, notification: &NSNotification) {
-            self.did_finish_launching(notification)
+        fn app_did_finish_launching(&self, _notification: &NSNotification) {
+            self.did_finish_launching()
         }
 
         #[method(applicationWillTerminate:)]
@@ -102,11 +102,27 @@ impl ApplicationDelegate {
         unsafe { msg_send_id![super(this), init] }
     }
 
-    // NOTE: This will, globally, only be run once, no matter how many
-    // `EventLoop`s the user creates.
-    fn did_finish_launching(&self, _notification: &NSNotification) {
+    /// Initializes winit when another AppKit loop finished launching before
+    /// our delegate was installed. The one-time launch notification will not
+    /// be delivered again when we next run the application.
+    ///
+    /// Call only with an event handler installed, just like the launch callback.
+    pub(super) fn launch_if_already_finished(&self) -> bool {
+        // SAFETY: This delegate is main-thread-only, and these queries have
+        // no additional requirements.
+        if unsafe { NSRunningApplication::currentApplication().isFinishedLaunching() } {
+            self.did_finish_launching();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn did_finish_launching(&self) {
         trace_scope!("applicationDidFinishLaunching:");
-        self.ivars().is_launched.set(true);
+        if self.ivars().is_launched.replace(true) {
+            return;
+        }
 
         let mtm = MainThreadMarker::from(self);
         let app = NSApplication::sharedApplication(mtm);

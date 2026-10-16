@@ -293,6 +293,8 @@ impl<T> EventLoop<T> {
                     debug_assert!(!self.delegate.is_running());
                     self.delegate.set_is_running(true);
                     self.delegate.dispatch_init_events();
+                } else {
+                    self.delegate.launch_if_already_finished();
                 }
 
                 // SAFETY: We do not run the application re-entrantly
@@ -327,9 +329,11 @@ impl<T> EventLoop<T> {
                 if !self.delegate.is_launched() {
                     debug_assert!(!self.delegate.is_running());
 
-                    self.delegate.set_stop_on_launch();
-                    // SAFETY: We do not run the application re-entrantly
-                    unsafe { self.app.run() };
+                    if !self.delegate.launch_if_already_finished() {
+                        self.delegate.set_stop_on_launch();
+                        // SAFETY: We do not run the application re-entrantly
+                        unsafe { self.app.run() };
+                    }
 
                     // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
                     // has launched

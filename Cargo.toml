@@ -363,6 +363,10 @@ tracing-web = "0.1"
 doc-scrape-examples = true
 name = "window"
 
+[[test]]
+name = "macos_prelaunched"
+harness = false
+
 [workspace]
 resolver = "2"
 members = ["dpi"]
