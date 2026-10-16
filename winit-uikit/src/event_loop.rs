@@ -1,10 +1,12 @@
+use std::ffi::{CStr, c_char, c_void};
+use std::ptr;
 use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{ClassType, MainThreadMarker, msg_send};
+use objc2::{ClassType, MainThreadMarker, available, msg_send};
 use objc2_core_foundation::{CFIndex, CFRunLoopActivity, kCFRunLoopDefaultMode};
-use objc2_foundation::{NSNotificationCenter, NSObjectProtocol};
+use objc2_foundation::{NSNotificationCenter, NSNotificationName, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UIApplicationDidBecomeActiveNotification,
     UIApplicationDidEnterBackgroundNotification, UIApplicationDidFinishLaunchingNotification,
@@ -134,6 +136,7 @@ pub struct EventLoop {
     _did_enter_background_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _will_terminate_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
     _did_receive_memory_warning_observer: Retained<ProtocolObject<dyn NSObjectProtocol>>,
+    _scene_will_connect_observer: Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>,
 
     _tracing_observers: Option<(MainRunLoopObserver, MainRunLoopObserver)>,
     _wakeup_observer: MainRunLoopObserver,
@@ -240,6 +243,19 @@ impl EventLoop {
             },
         );
 
+        let _scene_will_connect_observer = available!(ios = 13.0, tvos = 13.0, visionos = 1.0)
+            .then(|| {
+                create_observer(
+                    &center,
+                    // `scene:willConnectToSession:options:`
+                    uikit_notification_name(c"UISceneWillConnectNotification"),
+                    move |_| {
+                        let _entered = debug_span!("UISceneWillConnectNotification").entered();
+                        app_state::scene_will_connect(mtm)
+                    },
+                )
+            });
+
         let main_loop = MainRunLoop::get(mtm);
         let mode = unsafe { kCFRunLoopDefaultMode }.unwrap();
 
@@ -302,6 +318,7 @@ impl EventLoop {
             _did_enter_background_observer,
             _will_terminate_observer,
             _did_receive_memory_warning_observer,
+            _scene_will_connect_observer,
             _tracing_observers,
             _wakeup_observer,
             _main_events_cleared_observer,
@@ -332,6 +349,18 @@ impl EventLoop {
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
+}
+
+/// Looks up a notification name at runtime. Linking to one that is newer than the app's oldest
+/// supported iOS version would stop the app from launching there.
+fn uikit_notification_name(symbol: &CStr) -> &'static NSNotificationName {
+    unsafe extern "C" {
+        fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+    }
+    const RTLD_DEFAULT: *mut c_void = ptr::without_provenance_mut(-2isize as usize);
+    let name: *const &'static NSNotificationName =
+        unsafe { dlsym(RTLD_DEFAULT, symbol.as_ptr()) }.cast();
+    unsafe { name.as_ref() }.copied().unwrap_or_else(|| panic!("UIKit has no {symbol:?}"))
 }
 
 impl EventLoopProvider for EventLoop {

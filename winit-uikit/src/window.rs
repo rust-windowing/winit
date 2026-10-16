@@ -14,7 +14,7 @@ use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_ui_kit::{
     UIApplication, UICoordinateSpace, UIEdgeInsets, UIResponder, UIScreen,
-    UIScreenOverscanCompensation, UIViewController, UIWindow,
+    UIScreenOverscanCompensation, UIViewController, UIWindow, UIWindowScene,
 };
 use tracing::{debug, debug_span, warn};
 use winit_core::cursor::Cursor;
@@ -83,6 +83,15 @@ impl WinitUIWindow {
         let this: Retained<Self> = unsafe { msg_send![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
+
+        // Windows in apps that adopt the scene life cycle are only shown once attached to a scene.
+        if available!(ios = 13.0, tvos = 13.0, visionos = 1.0) && this.windowScene().is_none() {
+            let scene = UIApplication::sharedApplication(mtm)
+                .connectedScenes()
+                .into_iter()
+                .find_map(|scene| scene.downcast::<UIWindowScene>().ok());
+            this.setWindowScene(scene.as_deref());
+        }
 
         match window_attributes.fullscreen.clone() {
             Some(Fullscreen::Exclusive(monitor, ref video_mode)) => {
