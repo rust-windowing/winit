@@ -52,6 +52,9 @@ changelog entry.
   updates are processed.
 - On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
 
+- On X11, preserve input context focus when enabling or disabling IME on a
+  focused window.
+
 ### Changed
 
 - Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
