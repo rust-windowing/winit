@@ -718,7 +718,7 @@ static DROP_TARGET_VTBL: IDropTargetVtbl = IDropTargetVtbl {
 
 pub(crate) type DropEffect = u32;
 
-/// Map the app's [`DndActions`] to the win32 `DROPEFFECT_*` bitmask.
+/// Map the app's [`DndAction`] to the win32 `DROPEFFECT_*` value.
 pub(crate) fn dnd_action_to_dropeffect_mask(action: DndAction) -> DropEffect {
     match action {
         DndAction::Move => DROPEFFECT_MOVE,
@@ -728,7 +728,7 @@ pub(crate) fn dnd_action_to_dropeffect_mask(action: DndAction) -> DropEffect {
     }
 }
 
-/// Map the app's [`DndActions`] to the win32 `DROPEFFECT_*` bitmask.
+/// Map the app's [`DndAction`]s to the win32 `DROPEFFECT_*` bitmask.
 pub(crate) fn dnd_actions_to_dropeffect_mask(actions: &[DndAction]) -> DropEffect {
     actions
         .iter()
