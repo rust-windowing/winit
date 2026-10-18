@@ -634,7 +634,7 @@ pub enum ButtonSource {
     /// [`Left`](MouseButton::Left) clicks as secondary when
     /// [<kbd>CTRL</kbd>](ModifiersState::CONTROL) is held and their internal logic deems it
     /// appropriate for the content under the pointer.
-    /// See also https://github.com/rust-windowing/winit/issues/4469.
+    /// See also <https://github.com/rust-windowing/winit/issues/4469>.
     Mouse(MouseButton),
     /// See [`PointerSource::Touch`] for more details.
     ///
