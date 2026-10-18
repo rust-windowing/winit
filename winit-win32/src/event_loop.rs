@@ -2,7 +2,7 @@
 
 mod runner;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
 use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle, RawHandle};
 use std::rc::Rc;
@@ -30,7 +30,8 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     ReleaseCapture, SetCapture, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent,
 };
 use windows_sys::Win32::UI::Input::Pointer::{
-    POINTER_FLAG_DOWN, POINTER_FLAG_PRIMARY, POINTER_FLAG_UP, POINTER_FLAG_UPDATE,
+    POINTER_FLAG_CANCELED, POINTER_FLAG_DOWN, POINTER_FLAG_INCONTACT, POINTER_FLAG_PRIMARY,
+    POINTER_FLAG_UP, POINTER_FLAG_UPDATE,
 };
 use windows_sys::Win32::UI::Input::Touch::{
     CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
@@ -54,12 +55,13 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP,
     WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR,
     WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE,
-    WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
-    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING,
-    WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
-    WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT,
-    WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+    WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERCAPTURECHANGED, WM_POINTERDOWN,
+    WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS,
+    WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH,
+    WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM,
+    WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT,
+    WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
 use windows_sys::core::BOOL;
 use winit_core::application::ApplicationHandler;
@@ -71,8 +73,8 @@ use winit_core::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
 };
 use winit_core::event::{
-    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
-    TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId, FingerId, Force, Ime, PointerKind, RawKeyEvent, SurfaceSizeWriter,
+    TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -114,7 +116,7 @@ pub(crate) struct WindowData {
     pub key_event_builder: KeyEventBuilder,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
-    pub last_tablet_down_button_state: Cell<u32>,
+    pub pointer_contacts: RefCell<Vec<PointerContact>>,
     pub recurse_depth: Cell<u32>,
 }
 
@@ -127,6 +129,42 @@ impl WindowData {
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
     }
+
+    fn take_pointer_contact(&self, pointer_id: u32) -> Option<PointerContact> {
+        let mut contacts = self.pointer_contacts.borrow_mut();
+        let index = contacts.iter().position(|contact| contact.pointer_id == pointer_id)?;
+        Some(contacts.swap_remove(index))
+    }
+
+    /// Returns whether the pointer is in contact.
+    fn move_pointer_contact(&self, pointer_id: u32, position: PhysicalPosition<f64>) -> bool {
+        let mut contacts = self.pointer_contacts.borrow_mut();
+        let contact = contacts.iter_mut().find(|contact| contact.pointer_id == pointer_id);
+        contact.map(|contact| contact.position = position).is_some()
+    }
+
+    /// Ends a contact that did not complete its interaction with a `PointerLeft` and no release,
+    /// as `PointerSource::Touch` documents.
+    fn cancel_pointer_contact(&self, window: HWND, pointer_id: u32) {
+        if let Some(contact) = self.take_pointer_contact(pointer_id) {
+            self.send_window_event(window, WindowEvent::PointerLeft {
+                device_id: None,
+                primary: contact.primary,
+                position: Some(contact.position),
+                kind: contact.kind,
+            });
+        }
+    }
+}
+
+/// A touch or pen pointer between its press and its release or cancel.
+pub(crate) struct PointerContact {
+    pointer_id: u32,
+    primary: bool,
+    kind: PointerKind,
+    position: PhysicalPosition<f64>,
+    /// The pen buttons held at the press, which the release diffs against.
+    pen_flags: u32,
 }
 
 struct ThreadMsgTargetData {
@@ -2115,9 +2153,16 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(0);
         },
 
+        // Windows typically sends no further message for a pointer whose capture was lost, so a
+        // pointer still in contact is canceled here.
+        WM_POINTERCAPTURECHANGED => {
+            userdata.cancel_pointer_contact(window, util::loword(wparam as u32) as u32);
+            result = ProcResult::Value(0);
+        },
+
         WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
             use winit_core::event::ElementState::{Pressed, Released};
-            use winit_core::event::{ButtonSource, PointerKind, PointerSource};
+            use winit_core::event::{ButtonSource, PointerSource};
 
             if let (
                 Some(GetPointerFrameInfoHistory),
@@ -2210,68 +2255,100 @@ unsafe fn public_window_callback_inner(
                     let finger_id = FingerId::from_raw(pointer_info.pointerId as usize);
                     let primary = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_PRIMARY);
 
-                    let is_down = util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN);
-                    if is_down || util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
-                        let (kind, button) = match pointer_info.pointerType {
-                            PT_TOUCH => (PointerKind::Touch(finger_id), ButtonSource::Touch {
+                    let flags = pointer_info.pointerFlags;
+                    if util::has_flag(flags, POINTER_FLAG_DOWN) {
+                        let (kind, pen_flags, button) = match pointer_info.pointerType {
+                            PT_TOUCH => (PointerKind::Touch(finger_id), 0, ButtonSource::Touch {
                                 finger_id,
                                 force: force_for_touch(pointer_info.pointerId),
                             }),
                             PT_PEN => {
-                                let kind = PointerKind::TabletTool(TabletToolKind::Pen);
-                                let (mut pen_flags, data) =
+                                let (pen_flags, data) =
                                     tablet_tool_info_for_pen(pointer_info.pointerId);
-                                let old_pen_flags =
-                                    userdata.last_tablet_down_button_state.replace(pen_flags);
-                                // For release, use a diff.
-                                if !is_down {
-                                    pen_flags ^= old_pen_flags;
-                                };
-
                                 let button = ButtonSource::TabletTool {
                                     kind: TabletToolKind::Pen,
                                     button: pen_flags_to_button(pen_flags),
                                     data,
                                 };
-
-                                (kind, button)
+                                (PointerKind::TabletTool(TabletToolKind::Pen), pen_flags, button)
                             },
-                            _ => (PointerKind::Unknown, ButtonSource::Unknown(0)),
+                            _ => (PointerKind::Unknown, 0, ButtonSource::Unknown(0)),
                         };
 
-                        if is_down {
-                            userdata.send_window_event(window, WindowEvent::PointerEntered {
-                                device_id: None,
-                                primary,
-                                position,
-                                kind,
-                            });
+                        // A press of a pointer still in contact means that its end was lost.
+                        userdata.cancel_pointer_contact(window, pointer_info.pointerId);
+                        userdata.pointer_contacts.borrow_mut().push(PointerContact {
+                            pointer_id: pointer_info.pointerId,
+                            primary,
+                            kind,
+                            position,
+                            pen_flags,
+                        });
 
+                        userdata.send_window_event(window, WindowEvent::PointerEntered {
+                            device_id: None,
+                            primary,
+                            position,
+                            kind,
+                        });
+
+                        userdata.send_window_event(window, WindowEvent::PointerButton {
+                            device_id: None,
+                            primary,
+                            state: Pressed,
+                            position,
+                            button,
+                            is_macos_activation_click: false,
+                        });
+                    } else if util::has_flag(flags, POINTER_FLAG_UP) {
+                        // A pointer not in contact was already canceled.
+                        let Some(contact) = userdata.take_pointer_contact(pointer_info.pointerId)
+                        else {
+                            continue;
+                        };
+
+                        // A canceled pointer did not complete its interaction, so it leaves
+                        // without a release, as `PointerSource::Touch` documents.
+                        if !util::has_flag(flags, POINTER_FLAG_CANCELED) {
+                            let button = match pointer_info.pointerType {
+                                PT_TOUCH => ButtonSource::Touch {
+                                    finger_id,
+                                    force: force_for_touch(pointer_info.pointerId),
+                                },
+                                PT_PEN => {
+                                    let (pen_flags, data) =
+                                        tablet_tool_info_for_pen(pointer_info.pointerId);
+                                    ButtonSource::TabletTool {
+                                        kind: TabletToolKind::Pen,
+                                        button: pen_flags_to_button(pen_flags ^ contact.pen_flags),
+                                        data,
+                                    }
+                                },
+                                _ => ButtonSource::Unknown(0),
+                            };
                             userdata.send_window_event(window, WindowEvent::PointerButton {
                                 device_id: None,
-                                primary,
-                                state: Pressed,
-                                position,
-                                button,
-                                is_macos_activation_click: false,
-                            });
-                        } else {
-                            userdata.send_window_event(window, WindowEvent::PointerButton {
-                                device_id: None,
-                                primary,
+                                primary: contact.primary,
                                 state: Released,
                                 position,
                                 button,
                                 is_macos_activation_click: false,
                             });
-                            userdata.send_window_event(window, WindowEvent::PointerLeft {
-                                device_id: None,
-                                primary,
-                                position: Some(position),
-                                kind,
-                            });
                         }
-                    } else if util::has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
+                        userdata.send_window_event(window, WindowEvent::PointerLeft {
+                            device_id: None,
+                            primary: contact.primary,
+                            position: Some(position),
+                            kind: contact.kind,
+                        });
+                    } else if util::has_flag(flags, POINTER_FLAG_UPDATE) {
+                        // A pointer in contact that is not tracked was canceled, so it does not
+                        // move.
+                        if !userdata.move_pointer_contact(pointer_info.pointerId, position)
+                            && util::has_flag(flags, POINTER_FLAG_INCONTACT)
+                        {
+                            continue;
+                        }
                         let source = match pointer_info.pointerType {
                             PT_TOUCH => PointerSource::Touch {
                                 finger_id,
