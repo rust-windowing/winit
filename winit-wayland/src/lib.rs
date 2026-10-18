@@ -105,11 +105,18 @@ pub(crate) struct ApplicationName {
 }
 
 /// Window attributes methods specific to Wayland.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct WindowAttributesWayland {
     pub(crate) name: Option<ApplicationName>,
     pub(crate) activation_token: Option<ActivationToken>,
     pub(crate) prefer_csd: bool,
+    pub(crate) csd_fallback: bool,
+}
+
+impl Default for WindowAttributesWayland {
+    fn default() -> Self {
+        Self { name: None, activation_token: None, prefer_csd: false, csd_fallback: true }
+    }
 }
 
 impl WindowAttributesWayland {
@@ -146,6 +153,24 @@ impl WindowAttributesWayland {
     #[inline]
     pub fn with_prefer_csd(mut self, prefer_csd: bool) -> Self {
         self.prefer_csd = prefer_csd;
+        self
+    }
+
+    /// Whether to draw a client-side decoration frame when the compositor
+    /// declines server-side decoration.
+    ///
+    /// When set to `true` (the default), a window that asked for server-side
+    /// decoration but was told `ClientSide` by the compositor falls back to
+    /// drawing its own client-side decoration frame, matching prior winit
+    /// behavior. When set to `false`, no fallback frame is created; the
+    /// compositor's decoration mode is final, and `ClientSide` simply means
+    /// the window has no decoration at all. This is useful for applications
+    /// that have no CSD of their own and want the compositor's
+    /// xdg-decoration choice to be the sole authority over whether the
+    /// window gets decorated.
+    #[inline]
+    pub fn with_csd_fallback(mut self, csd_fallback: bool) -> Self {
+        self.csd_fallback = csd_fallback;
         self
     }
 }
