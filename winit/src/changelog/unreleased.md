@@ -40,6 +40,12 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On macOS, add `WindowExtMacOS::display_link`,
+  `WindowExtMacOS::display_link_target_timestamp`, `WindowExtMacOS::set_display_link_frame_rate_range`
+  and `WindowAttributesMacOS::with_display_link` to drive `RedrawRequested` from a `CADisplayLink`.
+
 ### Fixed
 
 - On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.

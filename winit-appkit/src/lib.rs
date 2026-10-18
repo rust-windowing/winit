@@ -72,6 +72,7 @@ mod util;
 mod app;
 mod app_state;
 mod cursor;
+mod display_link;
 mod dnd;
 mod event;
 mod event_loop;
@@ -84,6 +85,7 @@ mod window;
 mod window_delegate;
 
 use std::os::raw::c_void;
+use std::time::Instant;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -219,6 +221,48 @@ pub trait WindowExtMacOS {
 
     /// Getter for the [`WindowExtMacOS::set_blur_material`].
     fn blur_material(&self) -> BlurMaterial;
+
+    /// Whether this window's `RedrawRequested` is paced by a display link.
+    ///
+    /// See [`WindowAttributesMacOS::with_display_link`].
+    fn display_link(&self) -> bool;
+
+    /// The display link's `targetTimestamp`: when the frame of its latest tick is
+    /// expected to be displayed. During `RedrawRequested` this returns the current
+    /// frame's target. `None` if the window has no display link.
+    ///
+    /// See [`WindowAttributesMacOS::with_display_link`].
+    fn display_link_target_timestamp(&self) -> Option<Instant>;
+
+    /// The display link makes a best attempt to request redraws within the
+    /// frequency range you set to this property. However, the system also
+    /// takes into account the device’s hardware capabilities and the other
+    /// tasks your game or app is running.
+    ///
+    /// Choose a frame rate range that your app can consistently maintain.
+    ///
+    /// The system can change the available range of frame rates because it
+    /// factors in system policies and a person’s preferences. For example,
+    /// Low Power Mode, critical thermal state, and accessibility settings
+    /// can affect the system’s frame rate.
+    ///
+    /// The system typically provides a consistent frame rate by choosing one
+    /// that’s a factor of the display’s maximum refresh rate. For example,
+    /// a display link could invoke your callback 60 times per second for a
+    /// display with a refresh rate of 60 hertz. However, the display link
+    /// could invoke your callback less frequently, such as 30, 20, or 15 hertz,
+    /// by setting a range with smaller values.
+    ///
+    /// Ignored with a warning if the window has no display link.
+    ///
+    /// # Panics
+    ///
+    /// The range must have `0 <= min <= max`, and `min <= preferred <= max` if
+    /// `preferred` is set. Anything else is a programmer error: CoreAnimation raises an
+    /// Objective-C exception (`NSInvalidArgumentException`), which aborts the process.
+    ///
+    /// See [`WindowAttributesMacOS::with_display_link`].
+    fn set_display_link_frame_rate_range(&self, min: f32, max: f32, preferred: Option<f32>);
 }
 
 impl WindowExtMacOS for dyn Window + '_ {
@@ -353,6 +397,24 @@ impl WindowExtMacOS for dyn Window + '_ {
         let window = self.cast_ref::<AppKitWindow>().unwrap();
         window.maybe_wait_on_main(|w| w.blur_material())
     }
+
+    #[inline]
+    fn display_link(&self) -> bool {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.display_link())
+    }
+
+    #[inline]
+    fn display_link_target_timestamp(&self) -> Option<Instant> {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(|w| w.display_link_target_timestamp())
+    }
+
+    #[inline]
+    fn set_display_link_frame_rate_range(&self, min: f32, max: f32, preferred: Option<f32>) {
+        let window = self.cast_ref::<AppKitWindow>().unwrap();
+        window.maybe_wait_on_main(move |w| w.set_display_link_frame_rate_range(min, max, preferred))
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
@@ -399,6 +461,7 @@ pub struct WindowAttributesMacOS {
     pub(crate) panel: bool,
     pub(crate) fullscreen_auxiliary: bool,
     pub(crate) blur_material: BlurMaterial,
+    pub(crate) display_link: bool,
 }
 
 impl WindowAttributesMacOS {
@@ -521,6 +584,27 @@ impl WindowAttributesMacOS {
         self.fullscreen_auxiliary = fullscreen_auxiliary;
         self
     }
+
+    /// Pace this window's [`WindowEvent::RedrawRequested`] with a `CADisplayLink`
+    /// created from the window's view, so it follows whichever display the window is on.
+    ///
+    /// When enabled, `RedrawRequested` is sent on every display-link tick, so frames are
+    /// driven by the display. [`Window::request_redraw`] are ignored. The link is paused
+    /// while the window is occluded (see [`WindowEvent::Occluded`]).
+    ///
+    /// Use [`WindowExtMacOS::set_display_link_frame_rate_range`] to set a different
+    /// framerate target.
+    ///
+    /// Requires macOS 14 or later.
+    ///
+    /// [`WindowEvent::RedrawRequested`]: winit_core::event::WindowEvent::RedrawRequested
+    /// [`WindowEvent::Occluded`]: winit_core::event::WindowEvent::Occluded
+    /// [`Window::request_redraw`]: winit_core::window::Window::request_redraw
+    #[inline]
+    pub fn with_display_link(mut self, enabled: bool) -> Self {
+        self.display_link = enabled;
+        self
+    }
 }
 
 impl Default for WindowAttributesMacOS {
@@ -542,6 +626,7 @@ impl Default for WindowAttributesMacOS {
             panel: false,
             fullscreen_auxiliary: false,
             blur_material: Default::default(),
+            display_link: false,
         }
     }
 }

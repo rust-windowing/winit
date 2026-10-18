@@ -5,6 +5,7 @@ use std::ffi::c_void;
 use std::ptr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use dispatch2::MainThreadBound;
 use dpi::{
@@ -47,6 +48,7 @@ use objc2_foundation::{
     NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
     NSRect, NSSize, NSString, ns_string,
 };
+use objc2_quartz_core::CAFrameRateRange;
 use tracing::{debug_span, trace, warn};
 use winit_common::core_foundation::MainRunLoop;
 use winit_common::positioner::place_window;
@@ -164,6 +166,7 @@ define_class!(
                 // be called after the window closes.
                 self.window().setDelegate(None);
             });
+            self.view().invalidate_display_link();
             self.queue_event(WindowEvent::Destroyed);
         }
 
@@ -363,6 +366,7 @@ define_class!(
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidChangeOcclusionState:").entered();
             let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
+            self.view().set_display_link_paused(!visible);
             self.queue_event(WindowEvent::Occluded(!visible));
 
             // We do this here rather than in `window:willUseFullScreenPresentationOptions`
@@ -899,6 +903,9 @@ fn new_window(
                 | NSAutoresizingMaskOptions::ViewHeightSizable,
         );
         content_view.addSubview(&view);
+        if macos_attrs.display_link {
+            view.enable_display_link();
+        }
 
         // Configure the new view as the "key view" for the window
         window.setInitialFirstResponder(Some(&view));
@@ -1277,7 +1284,11 @@ impl WindowDelegate {
     }
 
     pub fn request_redraw(&self) {
-        self.ivars().app_state.queue_redraw(window_id(self.window()));
+        // With a display link, the next tick sends `RedrawRequested` anyway.
+        // Application-requested redraws are therefore ignored.
+        if !self.view().display_link_enabled() {
+            self.ivars().app_state.queue_redraw(window_id(self.window()));
+        }
     }
 
     #[inline]
@@ -2526,6 +2537,19 @@ impl WindowExtMacOS for WindowDelegate {
     #[inline]
     fn fullscreen_auxiliary(&self) -> bool {
         self.window().collectionBehavior().contains(NSWindowCollectionBehavior::FullScreenAuxiliary)
+    }
+
+    fn display_link(&self) -> bool {
+        self.view().display_link_enabled()
+    }
+
+    fn display_link_target_timestamp(&self) -> Option<Instant> {
+        self.view().display_link_target_timestamp()
+    }
+
+    fn set_display_link_frame_rate_range(&self, min: f32, max: f32, preferred: Option<f32>) {
+        let preferred = preferred.unwrap_or(0.0);
+        self.view().set_display_link_frame_rate_range(CAFrameRateRange::new(min, max, preferred))
     }
 }
 

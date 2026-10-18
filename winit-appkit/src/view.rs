@@ -2,6 +2,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
+use std::time::Instant;
 
 use dpi::{LogicalPosition, PhysicalSize};
 use objc2::rc::Retained;
@@ -17,6 +18,7 @@ use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
+use objc2_quartz_core::{CADisplayLink, CAFrameRateRange};
 use tracing::{debug_span, trace_span};
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
@@ -27,6 +29,7 @@ use winit_core::window::ImeCapabilities;
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
+use super::display_link::DisplayLink;
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
     scancode_to_physicalkey,
@@ -148,6 +151,9 @@ pub struct ViewState {
 
     /// The state of the `Option` as `Alt`.
     option_as_alt: Cell<OptionAsAlt>,
+
+    /// Paces `RedrawRequested` when enabled.
+    display_link: RefCell<Option<DisplayLink>>,
 }
 
 define_class!(
@@ -189,6 +195,15 @@ define_class!(
             // without a matching frame-size change.
             self.surface_resized();
             self.redraw_during_live_resize();
+        }
+
+        #[unsafe(method(displayLinkTick:))]
+        fn display_link_tick(&self, _link: &CADisplayLink) {
+            let _entered = trace_span!("displayLinkTick:").entered();
+            let Some(window) = (**self).window() else {
+                return;
+            };
+            self.ivars().app_state.handle_redraw(window_id(&window));
         }
 
         #[unsafe(method(drawRect:))]
@@ -869,6 +884,7 @@ impl WinitView {
             marked_text: Default::default(),
             next_click_is_activation: Default::default(),
             option_as_alt: Cell::new(option_as_alt),
+            display_link: Default::default(),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
@@ -981,6 +997,42 @@ impl WinitView {
             .selectedKeyboardInputSource()
             .map(|input_source| input_source.to_string())
             .unwrap_or_default()
+    }
+
+    /// Creates the display link. Only called once, at window creation.
+    pub(super) fn enable_display_link(&self) {
+        debug_assert!(!self.display_link_enabled());
+        *self.ivars().display_link.borrow_mut() = Some(DisplayLink::new(self));
+    }
+
+    pub(super) fn display_link_enabled(&self) -> bool {
+        self.ivars().display_link.borrow().is_some()
+    }
+
+    pub(super) fn set_display_link_paused(&self, paused: bool) {
+        if let Some(link) = &*self.ivars().display_link.borrow() {
+            link.set_paused(paused);
+        }
+    }
+
+    /// Returns `false` if the window has no display link.
+    pub(super) fn set_display_link_frame_rate_range(&self, range: CAFrameRateRange) {
+        let Some(link) = &*self.ivars().display_link.borrow() else {
+            return;
+        };
+        link.set_frame_rate_range(range);
+    }
+
+    pub(super) fn display_link_target_timestamp(&self) -> Option<Instant> {
+        self.ivars().display_link.borrow().as_ref().and_then(DisplayLink::target_timestamp)
+    }
+
+    /// Stops the display link for good. Must be called
+    /// when the window closes: the link retains the view until it's invalidated.
+    pub(super) fn invalidate_display_link(&self) {
+        if let Some(link) = self.ivars().display_link.borrow_mut().take() {
+            link.invalidate();
+        }
     }
 
     pub(super) fn cursor_icon(&self) -> Retained<NSCursor> {
