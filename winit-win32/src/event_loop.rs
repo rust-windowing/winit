@@ -1457,9 +1457,11 @@ unsafe fn public_window_callback_inner(
                         _ => (),
                     }
                 }
+                result = ProcResult::Value(0);
+            } else {
+                // `DefWindowProc` applies `WM_GETMINMAXINFO` to sizes set with `SetWindowPos`.
+                result = ProcResult::DefWindowProc(wparam);
             }
-
-            result = ProcResult::Value(0);
         },
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.

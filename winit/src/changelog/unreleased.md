@@ -51,6 +51,7 @@ changelog entry.
 - On Wayland, fix a panic when a popup is dropped before its queued compositor
   updates are processed.
 - On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
+- On Windows, apply the minimum and maximum inner size to resizes made with `SetWindowPos`, such as those of tiling window managers.
 
 ### Changed
 
