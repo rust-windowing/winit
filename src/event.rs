@@ -281,8 +281,10 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS** and **iOS**.
+    /// - Only available on **macOS**, **iOS** and **Wayland**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
+    /// - On Wayland, delivered when the compositor implements the `zwp_pointer_gestures_v1`
+    ///   protocol.
     PinchGesture {
         device_id: DeviceId,
         /// Positive values indicate magnification (zooming in) and  negative
@@ -333,8 +335,10 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS** and **iOS**.
+    /// - Only available on **macOS**, **iOS** and **Wayland**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
+    /// - On Wayland, delivered when the compositor implements the `zwp_pointer_gestures_v1`
+    ///   protocol.
     RotationGesture {
         device_id: DeviceId,
         /// change in rotation in degrees

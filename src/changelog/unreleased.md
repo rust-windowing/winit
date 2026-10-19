@@ -39,3 +39,9 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On Wayland, implement `WindowEvent::PinchGesture` and
+  `WindowEvent::RotationGesture`, delivered through the
+  `zwp_pointer_gestures_v1` protocol when the compositor implements it.

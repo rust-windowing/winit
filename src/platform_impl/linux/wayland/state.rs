@@ -26,8 +26,8 @@ use sctk::subcompositor::SubcompositorState;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::output::MonitorHandle;
 use crate::platform_impl::wayland::seat::{
-    PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
-    WinitPointerDataExt, WinitSeatState,
+    PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
+    WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
@@ -93,6 +93,9 @@ pub struct WinitState {
 
     /// Xdg activation.
     pub xdg_activation: Option<XdgActivationState>,
+
+    /// Touchpad pinch and rotation gestures.
+    pub pointer_gestures: Option<PointerGesturesState>,
 
     /// Relative pointer.
     pub relative_pointer: Option<RelativePointerState>,
@@ -169,6 +172,8 @@ impl WinitState {
 
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
+
+            pointer_gestures: PointerGesturesState::new(globals, queue_handle).ok(),
 
             windows: Default::default(),
             window_requests: Default::default(),
