@@ -10,5 +10,7 @@ pub mod event_handler;
 pub mod foundation;
 #[cfg(feature = "positioner")]
 pub mod positioner;
+#[cfg(feature = "timestamp-handler")]
+pub mod timestamp_handler;
 #[cfg(feature = "xkb")]
 pub mod xkb;

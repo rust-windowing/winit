@@ -406,6 +406,7 @@ impl EventLoop {
             active_window: None,
             modifiers: Default::default(),
             is_composing: false,
+            timestamp_extender: Default::default(),
         };
 
         // Register for device hotplug events

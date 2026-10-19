@@ -1481,6 +1481,7 @@ impl InitData<'_> {
             userdata_removed: Cell::new(false),
             recurse_depth: Cell::new(0),
             last_tablet_down_button_state: Cell::new(0),
+            timestamp_extender: Default::default(),
         }
     }
 

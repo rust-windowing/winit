@@ -7,10 +7,11 @@ use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use tracing::warn;
+use winit_common::timestamp_handler::TimeStampExtender;
 use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
-    ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
+    ButtonSource, DeviceEvent, DeviceId, ElementState, EventTime, FingerId, Ime, MouseButton,
     MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
     WindowEvent,
 };
@@ -78,6 +79,7 @@ pub struct EventProcessor {
     pub xfiltered_modifiers: VecDeque<u8>,
     pub xmodmap: util::ModifierKeymap,
     pub is_composing: bool,
+    pub timestamp_extender: Cell<TimeStampExtender>,
 }
 
 impl EventProcessor {
@@ -959,6 +961,7 @@ impl EventProcessor {
         let window_id = mkwid(window);
 
         let keycode = xev.keycode as _;
+        let event_time = self.event_time(xev.time);
 
         // Update state to track key repeats and determine whether this key was a repeat.
         //
@@ -1018,8 +1021,12 @@ impl EventProcessor {
 
             if let Some(mut key_processor) = self.xkb_context.key_context() {
                 let event = key_processor.process_key_event(keycode, state, repeat);
-                let event =
-                    WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
+                let event = WindowEvent::KeyboardInput {
+                    device_id: None,
+                    event_time,
+                    event,
+                    is_synthetic: false,
+                };
                 app.window_event(&self.target, window_id, event);
             }
 
@@ -1101,10 +1108,12 @@ impl EventProcessor {
         }
 
         let position = PhysicalPosition::new(event.event_x, event.event_y);
+        let event_time = self.event_time(event.time);
 
         let event = match event.detail as u32 {
             xlib::Button1 => WindowEvent::PointerButton {
                 device_id,
+                event_time,
                 primary: true,
                 state,
                 position,
@@ -1113,6 +1122,7 @@ impl EventProcessor {
             },
             xlib::Button2 => WindowEvent::PointerButton {
                 device_id,
+                event_time,
                 primary: true,
                 state,
                 position,
@@ -1121,6 +1131,7 @@ impl EventProcessor {
             },
             xlib::Button3 => WindowEvent::PointerButton {
                 device_id,
+                event_time,
                 primary: true,
                 state,
                 position,
@@ -1135,6 +1146,7 @@ impl EventProcessor {
             4..=7 => match state {
                 ElementState::Pressed => WindowEvent::MouseWheel {
                     device_id,
+                    event_time,
                     delta: match event.detail {
                         4 => MouseScrollDelta::LineDelta(0.0, 1.0),
                         5 => MouseScrollDelta::LineDelta(0.0, -1.0),
@@ -1149,6 +1161,7 @@ impl EventProcessor {
 
             x @ 8..37 => WindowEvent::PointerButton {
                 device_id,
+                event_time,
                 primary: true,
                 state,
                 position,
@@ -1159,6 +1172,7 @@ impl EventProcessor {
             },
             x @ 37..=0xff => WindowEvent::PointerButton {
                 device_id,
+                event_time,
                 primary: true,
                 state,
                 position,
@@ -1189,6 +1203,7 @@ impl EventProcessor {
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
+        let event_time = self.event_time(event.time);
 
         let cursor_moved = self.with_window(window, |window| {
             let mut shared_state_lock = window.shared_state_lock();
@@ -1200,9 +1215,11 @@ impl EventProcessor {
 
             let event = WindowEvent::PointerMoved {
                 device_id,
+                event_time,
                 primary: true,
                 position,
                 source: PointerSource::Mouse,
+                history: Vec::new(),
             };
             app.window_event(&self.target, window_id, event);
         } else if cursor_moved.is_none() {
@@ -1241,7 +1258,12 @@ impl EventProcessor {
                     ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
                 };
 
-                let event = WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
+                let event = WindowEvent::MouseWheel {
+                    device_id,
+                    delta,
+                    phase: TouchPhase::Moved,
+                    event_time,
+                };
                 events.push(event);
             }
 
@@ -1281,9 +1303,11 @@ impl EventProcessor {
         if self.window_exists(window) {
             let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
+            let event_time = self.event_time(event.time);
 
             let event = WindowEvent::PointerEntered {
                 device_id,
+                event_time,
                 primary: true,
                 position,
                 kind: PointerKind::Mouse,
@@ -1302,8 +1326,10 @@ impl EventProcessor {
         // been destroyed, which the user presumably doesn't want to deal with.
         if self.window_exists(window) {
             let window_id = mkwid(window);
+            let event_time = self.event_time(event.time);
             let event = WindowEvent::PointerLeft {
                 device_id: Some(mkdid(event.deviceid as xinput::DeviceId)),
+                event_time,
                 primary: true,
                 position: Some(PhysicalPosition::new(event.event_x, event.event_y)),
                 kind: PointerKind::Mouse,
@@ -1339,10 +1365,13 @@ impl EventProcessor {
 
         app.window_event(&self.target, window_id, WindowEvent::Focused(true));
 
+        let event_time = self.event_time(xev.time);
+
         // Issue key press events for all pressed keys
         Self::handle_pressed_keys(
             &self.target,
             window_id,
+            event_time,
             ElementState::Pressed,
             &mut self.xkb_context,
             app,
@@ -1360,9 +1389,11 @@ impl EventProcessor {
 
         let event = WindowEvent::PointerMoved {
             device_id,
+            event_time,
             primary: true,
             position,
             source: PointerSource::Mouse,
+            history: Vec::new(),
         };
         app.window_event(&self.target, window_id, event);
     }
@@ -1393,10 +1424,13 @@ impl EventProcessor {
                 self.send_modifiers(window_id, mods.into(), true, app);
             }
 
+            let event_time = self.event_time(xev.time);
+
             // Issue key release events for all pressed keys
             Self::handle_pressed_keys(
                 &self.target,
                 window_id,
+                event_time,
                 ElementState::Released,
                 &mut self.xkb_context,
                 app,
@@ -1423,6 +1457,7 @@ impl EventProcessor {
             let window_id = mkwid(window);
             let id = xev.detail as u32;
             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
+            let event_time = self.event_time(xev.time);
 
             // Mouse cursor position changes when touch events are received.
             // Only the first concurrently active touch ID moves the mouse cursor.
@@ -1431,9 +1466,11 @@ impl EventProcessor {
             if is_first_touch {
                 let event = WindowEvent::PointerMoved {
                     device_id: None,
+                    event_time,
                     primary: true,
                     position: position.cast(),
                     source: PointerSource::Mouse,
+                    history: Vec::new(),
                 };
                 app.window_event(&self.target, window_id, event);
             }
@@ -1445,6 +1482,7 @@ impl EventProcessor {
                 xinput2::XI_TouchBegin => {
                     let event = WindowEvent::PointerEntered {
                         device_id,
+                        event_time,
                         primary: is_first_touch,
                         position,
                         kind: PointerKind::Touch(finger_id),
@@ -1452,6 +1490,7 @@ impl EventProcessor {
                     app.window_event(&self.target, window_id, event);
                     let event = WindowEvent::PointerButton {
                         device_id,
+                        event_time,
                         primary: is_first_touch,
                         state: ElementState::Pressed,
                         position,
@@ -1463,15 +1502,18 @@ impl EventProcessor {
                 xinput2::XI_TouchUpdate => {
                     let event = WindowEvent::PointerMoved {
                         device_id,
+                        event_time,
                         primary: is_first_touch,
                         position,
                         source: PointerSource::Touch { finger_id, force: None },
+                        history: Vec::new(),
                     };
                     app.window_event(&self.target, window_id, event);
                 },
                 xinput2::XI_TouchEnd => {
                     let event = WindowEvent::PointerButton {
                         device_id,
+                        event_time,
                         primary: is_first_touch,
                         state: ElementState::Released,
                         position,
@@ -1481,6 +1523,7 @@ impl EventProcessor {
                     app.window_event(&self.target, window_id, event);
                     let event = WindowEvent::PointerLeft {
                         device_id,
+                        event_time,
                         primary: is_first_touch,
                         position: Some(position),
                         kind: PointerKind::Touch(finger_id),
@@ -1823,6 +1866,7 @@ impl EventProcessor {
     fn handle_pressed_keys(
         target: &ActiveEventLoop,
         window_id: winit_core::window::WindowId,
+        event_time: Option<EventTime>,
         state: ElementState,
         xkb_context: &mut Context,
         app: &mut dyn ApplicationHandler,
@@ -1847,7 +1891,12 @@ impl EventProcessor {
 
         for keycode in target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
             let event = key_processor.process_key_event(keycode as u32, state, false);
-            let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true };
+            let event = WindowEvent::KeyboardInput {
+                device_id: None,
+                event_time,
+                event,
+                is_synthetic: true,
+            };
             app.window_event(target, window_id, event);
         }
     }
@@ -1888,6 +1937,15 @@ impl EventProcessor {
 
     fn window_exists(&self, window_id: xproto::Window) -> bool {
         self.with_window(window_id, |_| ()).is_some()
+    }
+
+    fn event_time(&self, time: xlib::Time) -> Option<EventTime> {
+        // X server timestamps are 32-bit (CARD32) and wrap around after ~49.7 days, even though
+        // Xlib stores them in a `c_ulong`.
+        let mut timestamp_extender = self.timestamp_extender.get();
+        let event_time = timestamp_extender.extend_timestamp_millisecond(time as xproto::Timestamp);
+        self.timestamp_extender.set(timestamp_extender);
+        Some(event_time)
     }
 }
 
