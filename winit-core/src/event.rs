@@ -287,7 +287,8 @@ pub enum WindowEvent {
         ///
         /// ## Platform-specific
         ///
-        /// - **Orbital/Windows:** Always emits [`None`].
+        /// - **Orbital:** Always emits [`None`].
+        /// - **Windows:** Emits [`None`] only for a mouse.
         /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
         ///
         /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border

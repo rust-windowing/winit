@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
 use std::mem::{self, MaybeUninit};
 use std::rc::Rc;
@@ -1480,7 +1480,7 @@ impl InitData<'_> {
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
             recurse_depth: Cell::new(0),
-            last_tablet_down_button_state: Cell::new(0),
+            pointer_contacts: RefCell::new(Vec::new()),
         }
     }
 
