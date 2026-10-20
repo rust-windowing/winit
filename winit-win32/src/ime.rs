@@ -11,7 +11,6 @@ use windows_sys::Win32::UI::Input::Ime::{
     ImmReleaseContext, ImmSetCandidateWindow, ImmSetCompositionWindow,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
-
 use winit_common::text::utf16_to_utf8_offset;
 
 use crate::HWND;
