@@ -12,6 +12,8 @@ use windows_sys::Win32::UI::Input::Ime::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
 
+use winit_common::text::utf16_to_utf8_offset;
+
 use crate::HWND;
 
 pub struct ImeContext {
@@ -158,79 +160,5 @@ impl ImeContext {
 impl Drop for ImeContext {
     fn drop(&mut self) {
         unsafe { ImmReleaseContext(self.hwnd, self.himc) };
-    }
-}
-
-/// Convert a UTF-16 code unit offset into a UTF-8 byte offset.
-/// Offsets inside a surrogate pair round down; offsets past the end clamp to the string's length.
-fn utf16_to_utf8_offset(text: &str, units: usize) -> usize {
-    let mut consumed = 0;
-    for (byte, ch) in text.char_indices() {
-        if consumed >= units || consumed + ch.len_utf16() > units {
-            return byte;
-        }
-        consumed += ch.len_utf16();
-    }
-    text.len()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::utf16_to_utf8_offset;
-
-    #[test]
-    fn cursor_offsets_use_utf16_units() {
-        for (text, units, expected) in [
-            // A valid cursor after the emoji must not advance past the following character.
-            ("a😀b", 3, 5),
-            ("😀😀", 2, 4),
-            // Empty, ASCII and BMP text retain their existing offsets.
-            ("", 0, 0),
-            ("", 1, 0),
-            ("ab", 0, 0),
-            ("ab", 1, 1),
-            ("ab", 2, 2),
-            ("ab", 3, 2),
-            ("あい", 1, 3),
-            ("あい", 2, 6),
-            ("éあ", 1, 2),
-            ("éあ", 2, 5),
-            // A position inside a surrogate pair rounds down to that character's start.
-            ("😀😀", 1, 0),
-            ("😀😀", 3, 4),
-            ("a😀b", 2, 1),
-            // End-of-string and oversized positions clamp to the UTF-8 length.
-            ("a😀b", 4, 6),
-            ("a😀b", 5, 6),
-            ("😀😀", 4, 8),
-            ("😀😀", usize::MAX, 8),
-        ] {
-            let byte = utf16_to_utf8_offset(text, units);
-            assert_eq!(byte, expected, "{text:?}, UTF-16 offset {units}");
-            assert!(text.is_char_boundary(byte));
-        }
-    }
-
-    #[test]
-    fn cursor_offsets_match_decoded_utf16_prefixes() {
-        for text in ["", "ab", "あい", "éあ", "😀😀", "a😀b", "👨‍👩‍👧🇯🇵", "e\u{301}", "مرحبا"]
-        {
-            let encoded: Vec<u16> = text.encode_utf16().collect();
-            let mut previous = 0;
-            for units in 0..=encoded.len() + 3 {
-                // An independent oracle: truncate the UTF-16 representation, drop any
-                // trailing high surrogate, then decode the complete prefix back to UTF-8.
-                let mut prefix = encoded[..units.min(encoded.len())].to_vec();
-                if matches!(prefix.last(), Some(0xd800..=0xdbff)) {
-                    prefix.pop();
-                }
-                let expected = String::from_utf16(&prefix).unwrap().len();
-                let byte = utf16_to_utf8_offset(text, units);
-                assert_eq!(byte, expected, "{text:?}, UTF-16 offset {units}");
-                assert!(text.is_char_boundary(byte));
-                assert!(byte >= previous);
-                previous = byte;
-            }
-        }
     }
 }
