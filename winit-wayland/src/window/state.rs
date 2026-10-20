@@ -70,6 +70,9 @@ pub struct WindowState {
     /// The seat and serial of the touch currently down on the window, if any.
     pub touch_down: Option<(WlSeat, u32)>,
 
+    /// The seat and serial of the latest key press, button press or touch down on the window.
+    pub latest_input: Option<(WlSeat, u32)>,
+
     selected_cursor: SelectedCursor,
 
     /// Whether the cursor is visible.
@@ -237,6 +240,7 @@ impl WindowState {
             pointer_constraints,
             pointers: Default::default(),
             touch_down: None,
+            latest_input: None,
             queue_handle: queue_handle.clone(),
             resizable: true,
             scale_factor,

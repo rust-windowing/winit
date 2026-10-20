@@ -172,6 +172,7 @@ impl PointerHandler for WinitState {
                         // For Gnome (Mutter) and possible others only the Press event serial must
                         // be logged!
                         seat_state.latest_input_serial.set(Some(serial));
+                        window.latest_input = Some((seat.clone(), serial));
                     }
 
                     let button = wayland_button_to_winit(button);

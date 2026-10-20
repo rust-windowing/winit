@@ -244,6 +244,12 @@ impl Window {
         let xdg_activation_token =
             xdg_activation.get_activation_token(&self.common.handles.queue_handle, data);
         xdg_activation_token.set_surface(self.surface());
+        // Compositors use the serial to tell a request the user made from one made on its own.
+        if let Some(state) = self.common.state.upgrade() {
+            if let Some((seat, serial)) = &state.lock().unwrap().latest_input {
+                xdg_activation_token.set_serial(*serial, seat);
+            }
+        }
         xdg_activation_token.commit();
 
         Ok(serial)
