@@ -64,3 +64,4 @@ changelog entry.
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Wayland, set the serial of the window's latest key press, button press or touch down on the token from `Window::request_activation_token`, so compositors that check it treat the request as user-initiated.
