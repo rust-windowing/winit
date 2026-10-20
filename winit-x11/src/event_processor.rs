@@ -1036,9 +1036,6 @@ impl EventProcessor {
         {
             let written = self.target.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
-                let event = WindowEvent::Ime(Ime::Preedit(String::new(), None));
-                app.window_event(&self.target, window_id, event);
-
                 let event = WindowEvent::Ime(Ime::Commit(written));
                 self.is_composing = false;
                 app.window_event(&self.target, window_id, event);
