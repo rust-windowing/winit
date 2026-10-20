@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Wayland, set the serial of the window's latest key press, button press or touch down on the token from `Window::request_activation_token`, so compositors that check it treat the request as user-initiated.
