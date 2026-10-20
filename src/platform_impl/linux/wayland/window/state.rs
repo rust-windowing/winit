@@ -66,6 +66,9 @@ pub struct WindowState {
     /// The last received configure.
     pub last_configure: Option<WindowConfigure>,
 
+    /// The seat and serial of the latest key press, button press or touch down on the window.
+    pub latest_input: Option<(WlSeat, u32)>,
+
     /// The pointers observed on the window.
     pub pointers: Vec<Weak<ThemedPointer<WinitPointerData>>>,
 
@@ -185,6 +188,7 @@ impl WindowState {
 
         Self {
             blur: None,
+            latest_input: None,
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
             connection,
