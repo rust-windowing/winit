@@ -470,7 +470,11 @@ impl WindowFlags {
                 // This condition is necessary to avoid having an unrestorable window
                 if !new.contains(WindowFlags::MINIMIZED) {
                     SetWindowLongW(window, GWL_STYLE, style as i32);
-                    SetWindowLongW(window, GWL_EXSTYLE, style_ex as i32);
+                    // Native mirroring may have been enabled through the HWND.
+                    // Keep it when applying unrelated winit window attributes.
+                    let layout = GetWindowLongW(window, GWL_EXSTYLE) as u32
+                        & windows_sys::Win32::UI::WindowsAndMessaging::WS_EX_LAYOUTRTL;
+                    SetWindowLongW(window, GWL_EXSTYLE, (style_ex | layout) as i32);
                 }
 
                 let mut flags = SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED;

@@ -19,7 +19,6 @@ use windows_sys::Win32::Foundation::{
     E_FAIL, E_NOINTERFACE, E_NOTIMPL, E_UNEXPECTED, GlobalFree, HGLOBAL, HWND,
     OLE_E_ADVISENOTSUPPORTED, POINT, POINTL, S_FALSE, S_OK,
 };
-use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::System::Com::{
     DVASPECT_CONTENT, FORMATETC, STGMEDIUM, TYMED_ENHMF, TYMED_FILE, TYMED_GDI, TYMED_HGLOBAL,
     TYMED_MFPICT,
@@ -490,6 +489,11 @@ impl FileDropHandler {
         pdwEffect: *mut u32,
     ) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
+        let pt_screen = POINT { x: pt.x, y: pt.y };
+        let pt_client = match crate::util::screen_to_surface(drop_handler.window, pt_screen) {
+            Ok(point) => point,
+            Err(_) => return E_FAIL,
+        };
         // If this is a self-drop (we initiated the drag from this process), reuse the source's id
         // and seed actions from the mask declared at `start_drag` - the app's `DragEntered`
         // handler can't call `set_valid_actions` in time because it's buffered until `DoDragDrop`
@@ -506,11 +510,6 @@ impl FileDropHandler {
         let data = Arc::new(unsafe { DataObject::from_idataobject(pDataObj) });
         drop_handler.runner.register_data_transfer(data_transfer_id, wid, data);
 
-        let pt_screen = POINT { x: pt.x, y: pt.y };
-        let mut pt_client = pt_screen;
-        unsafe {
-            ScreenToClient(drop_handler.window, &mut pt_client);
-        }
         let position = PhysicalPosition::new(pt_client.x as f64, pt_client.y as f64);
         (drop_handler.send_event)(WindowEvent::DragEntered {
             id: data_transfer_id,
@@ -565,10 +564,10 @@ impl FileDropHandler {
         let effects = unsafe { pdwEffect.read() };
 
         let pt_screen = POINT { x: pt.x, y: pt.y };
-        let mut pt_client = pt_screen;
-        unsafe {
-            ScreenToClient(drop_handler.window, &mut pt_client);
-        }
+        let pt_client = match crate::util::screen_to_surface(drop_handler.window, pt_screen) {
+            Ok(point) => point,
+            Err(_) => return E_FAIL,
+        };
         let position = PhysicalPosition::new(pt_client.x as f64, pt_client.y as f64);
 
         let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
@@ -620,6 +619,11 @@ impl FileDropHandler {
         pdwEffect: *mut u32,
     ) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
+        let pt_screen = POINT { x: pt.x, y: pt.y };
+        let pt_client = match crate::util::screen_to_surface(drop_handler.window, pt_screen) {
+            Ok(point) => point,
+            Err(_) => return E_FAIL,
+        };
         let Some(data_transfer_id) = drop_handler.active_data_transfer_id.take() else {
             unsafe {
                 *pdwEffect = DROPEFFECT_NONE;
@@ -631,11 +635,6 @@ impl FileDropHandler {
         let effects = unsafe { pdwEffect.read() };
         let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
 
-        let pt_screen = POINT { x: pt.x, y: pt.y };
-        let mut pt_client = pt_screen;
-        unsafe {
-            ScreenToClient(drop_handler.window, &mut pt_client);
-        }
         let pt = pt_client;
         let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
 
