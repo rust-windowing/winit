@@ -400,11 +400,6 @@ define_class!(
             let pending_commit = self.ivars().pending_commit.get();
             let ime_enabled = self.is_ime_enabled();
 
-            // Clear preedit if there is marked text.
-            if has_marked {
-                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
-            }
-
             // Only commit via IME if there was a real composition session.
             // Some IMEs send insertText for all typing (e.g. spaces, English chars)
             // which should go through keyboard input instead of paste.
@@ -412,6 +407,8 @@ define_class!(
                 self.ivars().pending_commit.set(false);
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
+            } else if has_marked {
+                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             }
         }
 
