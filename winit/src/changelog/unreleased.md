@@ -51,6 +51,7 @@ changelog entry.
 - On Wayland, fix a panic when a popup is dropped before its queued compositor
   updates are processed.
 - On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
+- On Wayland, fit the initial surface size into the minimum and maximum surface sizes, as the other backends do, so a window no longer opens below its minimum size. At window creation, minimum and maximum sizes given as a physical size, and a non-resizable window's size, now use the window's scale factor.
 
 ### Changed
 
