@@ -42,6 +42,7 @@ changelog entry.
 
 ### Added
 
+- On iOS, support the UIScene lifecycle (required by iOS 27)
 - Add `ActiveEventLoop::clipboard` and `ActiveEventLoop::set_clipboard` for
   interacting with the system clipboard through the data transfer API,
   implemented on Wayland, X11, macOS and Windows.
