@@ -132,6 +132,11 @@ pub struct ViewState {
     /// True if this view was in a preedit session that will result in a commit.
     pending_commit: Cell<bool>,
 
+    /// True while `keyDown:` is running `interpretKeyEvents`, i.e. while an `insertText:`
+    /// call belongs to a key press (which is reported as `KeyboardInput`) rather than
+    /// standing alone.
+    in_key_down: Cell<bool>,
+
     /// True iff the application wants IME events.
     ///
     /// Can be set using `set_ime_allowed`
@@ -256,8 +261,11 @@ define_class!(
         #[unsafe(method(selectedRange))]
         fn selected_range(&self) -> NSRange {
             let _entered = debug_span!("selectedRange").entered();
-            // Documented to return `{NSNotFound, 0}` if there is no selection.
-            NSRange::new(NSNotFound as NSUInteger, 0)
+            // Report an empty selection (an insertion point) at the end of any marked text.
+            // `{NSNotFound, 0}` says there is no insertion point at all, and Dictation then
+            // refuses to start.
+            let length = self.ivars().marked_text.borrow().length();
+            NSRange::new(length, 0)
         }
 
         #[unsafe(method(setMarkedText:selectedRange:replacementRange:))]
@@ -409,6 +417,20 @@ define_class!(
                 self.ivars().ime_state.set(ImeState::Committed);
             } else if has_marked {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+            } else if !self.ivars().in_key_down.get()
+                && self.ivars().ime_capabilities.get().is_some()
+                && !is_control
+                && !string.is_empty()
+            {
+                // Text inserted with no composition and no key press behind it: the Character
+                // Viewer (emoji picker) and similar system text sources. Nothing else will
+                // report it, so commit it directly.
+                if !ime_enabled {
+                    *self.ivars().input_source.borrow_mut() = self.current_input_source();
+                    self.ivars().ime_state.set(ImeState::Ground);
+                    self.queue_event(WindowEvent::Ime(Ime::Enabled));
+                }
+                self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
             }
         }
 
@@ -480,7 +502,9 @@ define_class!(
             // is not handled by IME and should be handled by the application)
             if self.ivars().ime_capabilities.get().is_some() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
+                self.ivars().in_key_down.set(true);
                 self.interpretKeyEvents(&events_for_nsview);
+                self.ivars().in_key_down.set(false);
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -872,6 +896,7 @@ impl WinitView {
             ime_state: Default::default(),
             input_source: Default::default(),
             pending_commit: Default::default(),
+            in_key_down: Default::default(),
             ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
             marked_text: Default::default(),
