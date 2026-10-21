@@ -292,11 +292,7 @@ define_class!(
             // Update marked text.
             *self.ivars().marked_text.borrow_mut() = marked_text;
 
-            // Notify IME is active if application still doesn't know it.
-            if self.ivars().ime_state.get() == ImeState::Disabled {
-                *self.ivars().input_source.borrow_mut() = self.current_input_source();
-                self.queue_event(WindowEvent::Ime(Ime::Enabled));
-            }
+            self.notify_ime_enabled();
 
             if self.hasMarkedText() {
                 self.ivars().ime_state.set(ImeState::Preedit);
@@ -407,6 +403,7 @@ define_class!(
             let has_marked = self.hasMarkedText();
             let pending_commit = self.ivars().pending_commit.get();
             let ime_enabled = self.is_ime_enabled();
+            let in_key_down = self.ivars().in_key_down.get();
 
             // Only commit via IME if there was a real composition session.
             // Some IMEs send insertText for all typing (e.g. spaces, English chars)
@@ -414,10 +411,19 @@ define_class!(
             if pending_commit && ime_enabled && !is_control {
                 self.ivars().pending_commit.set(false);
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
-                self.ivars().ime_state.set(ImeState::Committed);
+                if in_key_down {
+                    // `keyDown:` clears the marked text and suppresses this key press.
+                    self.ivars().ime_state.set(ImeState::Committed);
+                } else {
+                    // Committed with no key press behind it (Dictation, a mouse click, the
+                    // Character Viewer). There is no key event to suppress, so `Committed`
+                    // would instead swallow the user's next, unrelated key press.
+                    *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
+                    self.ivars().ime_state.set(ImeState::Ground);
+                }
             } else if has_marked {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
-            } else if !self.ivars().in_key_down.get()
+            } else if !in_key_down
                 && self.ivars().ime_capabilities.get().is_some()
                 && !is_control
                 && !string.is_empty()
@@ -425,11 +431,7 @@ define_class!(
                 // Text inserted with no composition and no key press behind it: the Character
                 // Viewer (emoji picker) and similar system text sources. Nothing else will
                 // report it, so commit it directly.
-                if !ime_enabled {
-                    *self.ivars().input_source.borrow_mut() = self.current_input_source();
-                    self.ivars().ime_state.set(ImeState::Ground);
-                    self.queue_event(WindowEvent::Ime(Ime::Enabled));
-                }
+                self.notify_ime_enabled();
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
             }
         }
@@ -502,9 +504,11 @@ define_class!(
             // is not handled by IME and should be handled by the application)
             if self.ivars().ime_capabilities.get().is_some() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
-                self.ivars().in_key_down.set(true);
+                // Restore rather than clear, so a nested `keyDown:` does not end the outer one's
+                // window early.
+                let was_in_key_down = self.ivars().in_key_down.replace(true);
                 self.interpretKeyEvents(&events_for_nsview);
-                self.ivars().in_key_down.set(false);
+                self.ivars().in_key_down.set(was_in_key_down);
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -1006,6 +1010,16 @@ impl WinitView {
 
     fn is_ime_enabled(&self) -> bool {
         !matches!(self.ivars().ime_state.get(), ImeState::Disabled)
+    }
+
+    /// Send `Ime::Enabled` and enter the ground state if the application does not yet know
+    /// that IME is active.
+    fn notify_ime_enabled(&self) {
+        if self.ivars().ime_state.get() == ImeState::Disabled {
+            *self.ivars().input_source.borrow_mut() = self.current_input_source();
+            self.ivars().ime_state.set(ImeState::Ground);
+            self.queue_event(WindowEvent::Ime(Ime::Enabled));
+        }
     }
 
     fn current_input_source(&self) -> String {
