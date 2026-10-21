@@ -17,7 +17,7 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, MonitorFromWindow,
-    RDW_INTERNALPAINT, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
+    RDW_INTERNALPAINT, RDW_INVALIDATE, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
 };
 use windows_sys::Win32::System::DataExchange::CountClipboardFormats;
 use windows_sys::Win32::System::Ole::{OleSetClipboard, RevokeDragDrop};
@@ -2340,6 +2340,15 @@ unsafe fn public_window_callback_inner(
                 }
             }
             result = ProcResult::DefWindowProc(wparam);
+
+            // The default processing of this message repaints the non-client
+            // area, and the system paints the caption of the window's own
+            // style over the window while it does. An application that only
+            // repaints when something else changes will not paint over that,
+            // and the caption stays on the window until it does, so ask for a
+            // repaint of the client area, which is where the application's
+            // own drawing goes.
+            unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INVALIDATE) };
         },
 
         WM_SETFOCUS => {
