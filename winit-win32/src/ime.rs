@@ -11,6 +11,7 @@ use windows_sys::Win32::UI::Input::Ime::{
     ImmReleaseContext, ImmSetCandidateWindow, ImmSetCompositionWindow,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
+use winit_common::text::utf16_to_utf8_offset;
 
 use crate::HWND;
 
@@ -73,7 +74,8 @@ impl ImeContext {
 
     unsafe fn get_composition_cursor(&self, text: &str) -> Option<usize> {
         let cursor = unsafe { ImmGetCompositionStringW(self.himc, GCS_CURSORPOS, null_mut(), 0) };
-        (cursor >= 0).then(|| text.chars().take(cursor as _).map(|c| c.len_utf8()).sum())
+        // GCS_CURSORPOS counts UTF-16 code units, while Ime::Preedit uses UTF-8 byte offsets.
+        (cursor >= 0).then(|| utf16_to_utf8_offset(text, cursor as usize))
     }
 
     unsafe fn get_composition_string(&self, gcs_mode: u32) -> Option<String> {

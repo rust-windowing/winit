@@ -10,5 +10,6 @@ pub mod event_handler;
 pub mod foundation;
 #[cfg(feature = "positioner")]
 pub mod positioner;
+pub mod text;
 #[cfg(feature = "xkb")]
 pub mod xkb;
