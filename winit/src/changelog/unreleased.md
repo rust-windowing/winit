@@ -62,6 +62,8 @@ changelog entry.
   updates are processed.
 - On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
 - On macOS, discard the input method's marked text when IME is disabled, so an unfinished composition is not resumed (and committed again) when IME is re-enabled.
+- On macOS, report text inserted by the Character Viewer (emoji picker) as `Ime::Commit`. It arrives with no composition and no key press, and was dropped.
+- On macOS, report an insertion point from `selectedRange` instead of `NSNotFound`, so built-in Dictation starts and inserts text.
 
 ### Added
 
