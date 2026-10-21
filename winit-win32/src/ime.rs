@@ -25,8 +25,10 @@ impl ImeContext {
         ImeContext { hwnd, himc }
     }
 
+    /// `composition_flags` is the `lParam` of the `WM_IME_COMPOSITION` message.
     pub unsafe fn get_composing_text_and_cursor(
         &self,
+        composition_flags: u32,
     ) -> Option<(String, Option<usize>, Option<usize>)> {
         let text = unsafe { self.get_composition_string(GCS_COMPSTR) }?;
         let attrs = unsafe { self.get_composition_data(GCS_COMPATTR) }.unwrap_or_default();
@@ -58,8 +60,13 @@ impl ImeContext {
             last = Some(text.len());
         } else if first.is_none() {
             // IME haven't split words and select any clause yet, so trying to retrieve normal
-            // cursor.
-            let cursor = unsafe { self.get_composition_cursor(&text) };
+            // cursor. Some IMEs (e.g. the Microsoft Korean IME) don't report a cursor position,
+            // in which case `GCS_CURSORPOS` reads as 0; put the cursor at the end instead.
+            let cursor = if composition_flags & GCS_CURSORPOS != 0 {
+                unsafe { self.get_composition_cursor(&text) }
+            } else {
+                Some(text.len())
+            };
             first = cursor;
             last = cursor;
         }
