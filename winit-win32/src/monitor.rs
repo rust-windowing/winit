@@ -73,16 +73,27 @@ unsafe extern "system" fn monitor_enum_proc(
 }
 
 pub fn available_monitors() -> VecDeque<MonitorHandle> {
-    let mut monitors: VecDeque<MonitorHandle> = VecDeque::new();
-    unsafe {
+    let mut monitors = VecDeque::new();
+    let _ = enumerate_monitors(&mut monitors);
+    monitors
+}
+
+pub(crate) fn is_monitor_connected(hmonitor: HMONITOR) -> io::Result<bool> {
+    let mut monitors = VecDeque::new();
+    enumerate_monitors(&mut monitors)?;
+    Ok(monitors.iter().any(|monitor| monitor.0 == hmonitor))
+}
+
+fn enumerate_monitors(monitors: &mut VecDeque<MonitorHandle>) -> io::Result<()> {
+    let result = unsafe {
         EnumDisplayMonitors(
             ptr::null_mut(),
             ptr::null(),
             Some(monitor_enum_proc),
-            &mut monitors as *mut _ as LPARAM,
-        );
-    }
-    monitors
+            monitors as *mut _ as LPARAM,
+        )
+    };
+    if result == false.into() { Err(io::Error::last_os_error()) } else { Ok(()) }
 }
 
 pub fn primary_monitor() -> MonitorHandle {

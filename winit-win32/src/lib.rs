@@ -12,6 +12,7 @@ mod data_transfer;
 mod definitions;
 mod dpi;
 mod event_loop;
+mod fullscreen;
 mod icon;
 mod ime;
 mod keyboard;
