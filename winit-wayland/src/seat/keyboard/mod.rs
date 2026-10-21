@@ -133,6 +133,11 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 if matches!(key_state, WlKeyState::Repeated | WlKeyState::Pressed) =>
             {
                 seat_state.latest_input_serial.set(Some(serial));
+                if let Some(window) =
+                    data.window_id.lock().unwrap().and_then(|id| state.windows.get_mut().get(&id))
+                {
+                    window.lock().unwrap().latest_input = Some((data.seat.clone(), serial));
+                }
                 let key = key + 8;
                 key_input(
                     keyboard_state,
