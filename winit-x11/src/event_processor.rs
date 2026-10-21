@@ -11,8 +11,8 @@ use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
     ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
-    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
+    TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::DndAction;
 use winit_core::keyboard::ModifiersState;
@@ -1036,9 +1036,6 @@ impl EventProcessor {
         {
             let written = self.target.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
-                let event = WindowEvent::Ime(Ime::Preedit(String::new(), None));
-                app.window_event(&self.target, window_id, event);
-
                 let event = WindowEvent::Ime(Ime::Commit(written));
                 self.is_composing = false;
                 app.window_event(&self.target, window_id, event);
@@ -1135,6 +1132,7 @@ impl EventProcessor {
             4..=7 => match state {
                 ElementState::Pressed => WindowEvent::MouseWheel {
                     device_id,
+                    source: ScrollSource::Wheel,
                     delta: match event.detail {
                         4 => MouseScrollDelta::LineDelta(0.0, 1.0),
                         5 => MouseScrollDelta::LineDelta(0.0, -1.0),
@@ -1241,7 +1239,12 @@ impl EventProcessor {
                     ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
                 };
 
-                let event = WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
+                let event = WindowEvent::MouseWheel {
+                    device_id,
+                    delta,
+                    phase: TouchPhase::Moved,
+                    source: ScrollSource::Unknown,
+                };
                 events.push(event);
             }
 

@@ -21,7 +21,7 @@ use tracing::{debug_span, trace_span};
 use winit_common::text::utf16_to_utf8_offset;
 use winit_core::event::{
     DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
-    PointerKind, PointerSource, TouchPhase, WindowEvent,
+    PointerKind, PointerSource, ScrollSource, TouchPhase, WindowEvent,
 };
 use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use winit_core::window::ImeCapabilities;
@@ -401,11 +401,6 @@ define_class!(
             let pending_commit = self.ivars().pending_commit.get();
             let ime_enabled = self.is_ime_enabled();
 
-            // Clear preedit if there is marked text.
-            if has_marked {
-                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
-            }
-
             // Only commit via IME if there was a real composition session.
             // Some IMEs send insertText for all typing (e.g. spaces, English chars)
             // which should go through keyboard input instead of paste.
@@ -413,6 +408,8 @@ define_class!(
                 self.ivars().pending_commit.set(false);
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
+            } else if has_marked {
+                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             }
         }
 
@@ -738,15 +735,26 @@ define_class!(
             // be mutually exclusive anyhow, which is why the API is rather incoherent). If no
             // momentum phase is recorded (or rather, the started/ended cases of the
             // momentum phase) then we report the touch phase.
+            let momentum_phase = event.momentumPhase();
+            let touch_phase = event.phase();
             #[allow(non_upper_case_globals)]
-            let phase = match event.momentumPhase() {
+            let phase = match momentum_phase {
                 NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                 NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
-                _ => match event.phase() {
+                _ => match touch_phase {
                     NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
                     NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 },
+            };
+
+            // Mouse wheels have neither phase. Trackpads have one of them.
+            let source = if momentum_phase != NSEventPhase::None {
+                ScrollSource::Momentum
+            } else if touch_phase != NSEventPhase::None {
+                ScrollSource::Finger
+            } else {
+                ScrollSource::Wheel
             };
 
             self.update_modifiers(event, false);
@@ -754,7 +762,7 @@ define_class!(
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
                 app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
             });
-            self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase });
+            self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase, source });
         }
 
         #[unsafe(method(magnifyWithEvent:))]
@@ -1024,6 +1032,14 @@ impl WinitView {
         self.ivars().pending_commit.set(false);
     }
     pub(super) fn disable_ime(&self) {
+        // Tell the input method to drop any composition in progress. Otherwise it keeps the
+        // marked text and continues composing it once IME is enabled again (e.g. when focus
+        // returns to a text input), even though the application has already ended it.
+        if self.ivars().marked_text.borrow().length() > 0 {
+            if let Some(input_context) = self.inputContext() {
+                input_context.discardMarkedText();
+            }
+        }
         // see above
         self.ivars().ime_capabilities.set(None);
         if self.ivars().ime_state.get() != ImeState::Disabled {
