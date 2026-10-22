@@ -19,6 +19,7 @@ use crate::event::WindowEvent;
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::state::WinitState;
 
+pub(crate) mod dnd;
 mod keyboard;
 mod pointer;
 mod text_input;
@@ -34,6 +35,7 @@ use touch::TouchPoint;
 
 #[derive(Debug, Default)]
 pub struct WinitSeatState {
+    pub data_device: Option<sctk::reexports::client::protocol::wl_data_device::WlDataDevice>,
     /// The pointer bound on the seat.
     pointer: Option<Arc<ThemedPointer<WinitPointerData>>>,
 
@@ -202,10 +204,15 @@ impl SeatHandler for WinitState {
     fn new_seat(
         &mut self,
         _connection: &Connection,
-        _queue_handle: &QueueHandle<Self>,
+        queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
-        self.seats.insert(seat.id(), WinitSeatState::new());
+        let mut state = WinitSeatState::new();
+        state.data_device = self
+            .dnd_manager
+            .as_ref()
+            .map(|m| m.data_device_manager().get_data_device(&seat, queue_handle, dnd::DeviceData));
+        self.seats.insert(seat.id(), state);
     }
 
     fn remove_seat(
@@ -214,7 +221,14 @@ impl SeatHandler for WinitState {
         _queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
-        let _ = self.seats.remove(&seat.id());
+        if let Some(state) = self.seats.remove(&seat.id()) {
+            if let Some(device) = state.data_device {
+                self.cancel_drag(&device);
+                if device.version() >= 2 {
+                    device.release();
+                }
+            }
+        }
         self.on_keyboard_destroy(&seat.id());
     }
 }

@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On Wayland, receive local file drops through `WindowEvent::DroppedFile`; optionally
+  resolve sandboxed file transfers with the new `wayland-portal` feature (Rust 1.87).

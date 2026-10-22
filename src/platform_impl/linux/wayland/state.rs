@@ -54,6 +54,9 @@ pub struct WinitState {
     /// The seat state responsible for all sorts of input.
     pub seat_state: SeatState,
 
+    pub dnd_manager: Option<sctk::data_device_manager::DataDeviceManagerState>,
+    pub(crate) dnd: super::seat::dnd::DndState,
+
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
 
@@ -143,9 +146,19 @@ impl WinitState {
 
         let seat_state = SeatState::new(globals, queue_handle);
 
+        let dnd_manager =
+            sctk::data_device_manager::DataDeviceManagerState::bind(globals, queue_handle).ok();
         let mut seats = AHashMap::default();
         for seat in seat_state.seats() {
-            seats.insert(seat.id(), WinitSeatState::new());
+            let mut state = WinitSeatState::new();
+            state.data_device = dnd_manager.as_ref().map(|m| {
+                m.data_device_manager().get_data_device(
+                    &seat,
+                    queue_handle,
+                    super::seat::dnd::DeviceData,
+                )
+            });
+            seats.insert(seat.id(), state);
         }
 
         let (viewporter_state, fractional_scaling_manager) =
@@ -164,6 +177,8 @@ impl WinitState {
             subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,
             seat_state,
+            dnd_manager,
+            dnd: Default::default(),
             shm,
             custom_cursor_pool,
 

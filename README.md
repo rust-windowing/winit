@@ -17,6 +17,26 @@ For features _within_ the scope of winit, see [FEATURES.md](FEATURES.md).
 
 For features _outside_ the scope of winit, see [Are we GUI Yet?](https://areweguiyet.com/) and [Are we game yet?](https://arewegameyet.rs/), depending on what kind of project you're looking to do.
 
+## Native Wayland file drops
+
+The 0.30 Wayland backend accepts local `text/uri-list` drops through the existing
+`WindowEvent::DroppedFile` API. Enable `wayland-portal` for
+`application/vnd.portal.filetransfer` offers (including Flatpak); the portal grants
+access only to the dropped files, without broad filesystem permissions. The portal
+feature uses zbus 5 and requires Rust 1.87; applications that do not enable this new
+feature retain the existing feature set and MSRV policy.
+
+Only Copy drops are accepted. Transfers are asynchronous, capped at 1 MiB of
+metadata and 256 paths, with at most eight pending drops and a ten-second deadline.
+No file names or portal capabilities are fetched while hovering, so
+`HoveredFile` is not emitted on Wayland. Clipboard ownership stays with the
+application's clipboard integration.
+
+Protocol regressions use a private server, without an existing desktop:
+`cargo test --features wayland-portal --test wayland_dnd`.
+The ignored `native_file_drop_portal` test additionally needs a session bus with
+`org.freedesktop.portal.Documents`; it creates only temporary test transfers.
+
 ## Contact Us
 
 Join us in our [![Matrix](https://img.shields.io/badge/Matrix-%23rust--windowing%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#rust-windowing:matrix.org) room.

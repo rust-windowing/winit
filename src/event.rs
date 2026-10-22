@@ -177,12 +177,20 @@ pub enum WindowEvent {
     ///
     /// When the user drops multiple files at once, this event will be emitted for each file
     /// separately.
+    ///
+    /// ## Platform-specific
+    /// - **Wayland:** Local `text/uri-list` drops are supported. Enable `wayland-portal` for
+    ///   sandboxed file transfers through the XDG File Transfer portal. Data is retrieved only
+    ///   after the drop; file names are not available during hover.
     DroppedFile(PathBuf),
 
     /// A file is being hovered over the window.
     ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
+    ///
+    /// ## Platform-specific
+    /// - **Wayland:** Not emitted; portal capabilities are resolved only after a drop.
     HoveredFile(PathBuf),
 
     /// A file was hovered, but has exited the window.
