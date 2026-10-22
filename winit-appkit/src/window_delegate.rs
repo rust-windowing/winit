@@ -2123,6 +2123,18 @@ impl WindowDelegate {
                 warn!("discarding IME cursor area update without capability enabled.");
             }
         }
+        if let Some(surrounding_text) = request_data.surrounding_text {
+            if self.view().ime_capabilities().unwrap().surrounding_text() {
+                let text = NSString::from_str(surrounding_text.text());
+                let cursor =
+                    utf8_to_utf16_offset(surrounding_text.text(), surrounding_text.cursor());
+                let anchor =
+                    utf8_to_utf16_offset(surrounding_text.text(), surrounding_text.anchor());
+                self.view().set_ime_surrounding_text(text, cursor, anchor);
+            } else {
+                warn!("discarding IME surrounding text update without capability enabled.");
+            }
+        }
 
         Ok(())
     }
@@ -2541,4 +2553,28 @@ fn theme_to_appearance(theme: Option<Theme>) -> Option<Retained<NSAppearance>> {
         // Assume system appearance in this case
         None
     }
+}
+
+fn utf8_code_point_size(b: u8) -> usize {
+    if b <= 0x7f {
+        1
+    } else if b <= 0b110_11111 {
+        2
+    } else if b <= 0b1110_1111 {
+        3
+    } else {
+        4
+    }
+}
+
+fn utf8_to_utf16_offset(s: &str, utf8_offset: usize) -> usize {
+    let mut i = 0;
+    let mut utf16_offset = 0;
+    while i != utf8_offset {
+        let leading = s.as_bytes()[i];
+        let size = utf8_code_point_size(leading);
+        utf16_offset += if size <= 3 { 1 } else { 2 };
+        i += size;
+    }
+    utf16_offset
 }
