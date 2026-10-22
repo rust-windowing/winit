@@ -52,6 +52,7 @@ changelog entry.
   updates are processed.
 - On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
 - On macOS, discard the input method's marked text when IME is disabled, so an unfinished composition is not resumed (and committed again) when IME is re-enabled.
+- On macOS, implement the surrounding text capability.
 
 ### Added
 

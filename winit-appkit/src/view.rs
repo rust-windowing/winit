@@ -129,6 +129,15 @@ pub struct ViewState {
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
+    /// The contents of the current text input, without marked text.
+    surrounding_text: RefCell<Retained<NSString>>,
+    /// Offset (in UTF-16 code units) of the cursor in the current text
+    /// input.
+    cursor_offset: Cell<usize>,
+    /// Offset (in UTF-16 code units) of the selection anchor in the current
+    /// text input. Will be equal to the cursor if there is no selection.
+    anchor_offset: Cell<usize>,
+
     /// True if this view was in a preedit session that will result in a commit.
     pending_commit: Cell<bool>,
 
@@ -256,8 +265,10 @@ define_class!(
         #[unsafe(method(selectedRange))]
         fn selected_range(&self) -> NSRange {
             let _entered = debug_span!("selectedRange").entered();
-            // Documented to return `{NSNotFound, 0}` if there is no selection.
-            NSRange::new(NSNotFound as NSUInteger, 0)
+            let cursor = self.ivars().cursor_offset.get();
+            let anchor = self.ivars().anchor_offset.get();
+            let (start, end) = if anchor < cursor { (anchor, cursor) } else { (cursor, anchor) };
+            NSRange::new(start, end - start)
         }
 
         #[unsafe(method(setMarkedText:selectedRange:replacementRange:))]
@@ -265,10 +276,19 @@ define_class!(
             &self,
             string: &NSObject,
             selected_range: NSRange,
-            _replacement_range: NSRange,
+            replacement_range: NSRange,
         ) {
-            // TODO: Use _replacement_range, requires changing the event to report surrounding text.
             let _entered = debug_span!("setMarkedText:selectedRange:replacementRange:").entered();
+
+            // Try to send `DeleteSurrounding`
+            if let Some((before_bytes, after_bytes)) =
+                self.compute_delete_surrounding_from_range(replacement_range)
+            {
+                self.queue_event(WindowEvent::Ime(Ime::DeleteSurrounding {
+                    before_bytes,
+                    after_bytes,
+                }));
+            }
 
             let (marked_text, string) = if let Some(string) =
                 string.downcast_ref::<NSAttributedString>()
@@ -348,12 +368,25 @@ define_class!(
         #[unsafe(method_id(attributedSubstringForProposedRange:actualRange:))]
         fn attributed_substring_for_proposed_range(
             &self,
-            _range: NSRange,
-            _actual_range: *mut NSRange,
+            range: NSRange,
+            actual_range: *mut NSRange,
         ) -> Option<Retained<NSAttributedString>> {
             let _entered =
                 trace_span!("attributedSubstringForProposedRange:actualRange:").entered();
-            None
+            let length = self.ivars().surrounding_text.borrow().length();
+            if range.location >= length {
+                None
+            } else {
+                // The range we got might be out of bounds, so clamp it to the surrounding text.
+                let clamped_length = std::cmp::min(length - range.location, range.length);
+                let actual = NSRange::new(range.location, clamped_length);
+                if !actual_range.is_null() {
+                    unsafe { *actual_range = actual };
+                }
+                let substring = self.ivars().surrounding_text.borrow().substringWithRange(actual);
+                let attributed_string = NSAttributedString::from_nsstring(&substring);
+                Some(attributed_string)
+            }
         }
 
         #[unsafe(method(characterIndexForPoint:))]
@@ -382,8 +415,7 @@ define_class!(
         }
 
         #[unsafe(method(insertText:replacementRange:))]
-        fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
-            // TODO: Use _replacement_range, requires changing the event to report surrounding text.
+        fn insert_text(&self, string: &NSObject, replacement_range: NSRange) {
             let _entered = debug_span!("insertText:replacementRange:").entered();
 
             let string = if let Some(string) = string.downcast_ref::<NSAttributedString>() {
@@ -404,6 +436,16 @@ define_class!(
             // Some IMEs send insertText for all typing (e.g. spaces, English chars)
             // which should go through keyboard input instead of paste.
             if pending_commit && ime_enabled && !is_control {
+                // Try to send `DeleteSurrounding`
+                if let Some((before_bytes, after_bytes)) =
+                    self.compute_delete_surrounding_from_range(replacement_range)
+                {
+                    self.queue_event(WindowEvent::Ime(Ime::DeleteSurrounding {
+                        before_bytes,
+                        after_bytes,
+                    }));
+                }
+
                 self.ivars().pending_commit.set(false);
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
@@ -871,6 +913,9 @@ impl WinitView {
             phys_modifiers: Default::default(),
             ime_state: Default::default(),
             input_source: Default::default(),
+            surrounding_text: Default::default(),
+            cursor_offset: Default::default(),
+            anchor_offset: Default::default(),
             pending_commit: Default::default(),
             ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
@@ -1060,6 +1105,17 @@ impl WinitView {
         self.ivars().ime_size.set(size);
         let input_context = self.inputContext().expect("input context");
         input_context.invalidateCharacterCoordinates();
+    }
+
+    pub(super) fn set_ime_surrounding_text(
+        &self,
+        text: Retained<NSString>,
+        cursor: usize,
+        anchor: usize,
+    ) {
+        *self.ivars().surrounding_text.borrow_mut() = text;
+        self.ivars().cursor_offset.set(cursor);
+        self.ivars().anchor_offset.set(anchor);
     }
 
     /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
@@ -1289,6 +1345,25 @@ impl WinitView {
         let view_point = self.convertPoint_fromView(window_point, None);
 
         LogicalPosition::new(view_point.x, view_point.y)
+    }
+
+    fn compute_delete_surrounding_from_range(&self, range: NSRange) -> Option<(usize, usize)> {
+        if range.location == NSNotFound as NSUInteger {
+            return None;
+        }
+        let surrounding_text = self.ivars().surrounding_text.borrow().to_string();
+        let anchor_utf8 = utf16_to_utf8_offset(&surrounding_text, self.ivars().anchor_offset.get());
+        let cursor_utf8 = utf16_to_utf8_offset(&surrounding_text, self.ivars().cursor_offset.get());
+        let start_utf8 = utf16_to_utf8_offset(&surrounding_text, range.location);
+        let end_utf8 = utf16_to_utf8_offset(&surrounding_text, range.location + range.length);
+        let (left, right) = if anchor_utf8 < cursor_utf8 {
+            (anchor_utf8, cursor_utf8)
+        } else {
+            (cursor_utf8, anchor_utf8)
+        };
+        let before_bytes = left.saturating_sub(start_utf8);
+        let after_bytes = end_utf8.saturating_sub(right);
+        if before_bytes > 0 || after_bytes > 0 { Some((before_bytes, after_bytes)) } else { None }
     }
 }
 
