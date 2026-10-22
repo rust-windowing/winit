@@ -21,6 +21,7 @@ dlopen = ["wayland-backend/dlopen"]
 serde = ["dep:serde", "bitflags/serde", "smol_str/serde", "dpi/serde"]
 
 [dependencies]
+mime = "0.3.17"
 bitflags.workspace = true
 cursor-icon.workspace = true
 dpi.workspace = true
