@@ -67,6 +67,9 @@ changelog entry.
 
 - Add `WindowEvent::MouseWheel::source: ScrollSource`, telling a mouse wheel from fingers on a touchpad from system-driven momentum scrolling, implemented on macOS and Wayland.
 
+- On X11, preserve input context focus when enabling or disabling IME on a
+  focused window.
+
 ### Changed
 
 - No longer send an empty `Ime::Preedit` before `Ime::Commit`.
