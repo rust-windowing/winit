@@ -211,12 +211,17 @@ Legend:
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |**N/A** |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |**N/A** |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |✔️    |❌     |✔️        |✔️      |
-|Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |▢[#720]   |**N/A**|**N/A**|❓        |**N/A** |
+|Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |▢ (incoming files)|**N/A**|**N/A**|❓        |**N/A** |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |**N/A** |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |**N/A** |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |**N/A** |
 |Drag window with cursor |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |**N/A** |
 |Resize with cursor      |✔️       |❌       |✔️       |✔️       |**N/A**|**N/A**|**N/A**   |**N/A** |
+
+On Wayland, incoming local file drops are supported through `DroppedFile`; the optional
+`wayland-portal` feature resolves sandbox file transfers. File names are not fetched during
+hover. General content dragging and outgoing drags remain outside this implementation.
+See [native Wayland file drops](README.md#native-wayland-file-drops).
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
