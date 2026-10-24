@@ -39,3 +39,39 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- Add `ActiveEventLoop::clipboard` and `ActiveEventLoop::set_clipboard` for
+  interacting with the system clipboard through the data transfer API,
+  implemented on Wayland, X11, macOS and Windows.
+- Add `ActiveEventLoop::primary_selection_ext` for interacting with
+  the primary selection through the data transfer API on Wayland and X11.
+
+### Fixed
+
+- On Windows, fix a crash occurring when trying to create a DXGI surface on a window that is both fullscreen and always on top.
+- On Wayland, use the touch serial for `Window::drag_window`, `Window::drag_resize_window` and `Window::show_window_menu` when the interaction was started by touch.
+- On Windows, fix a crash when moving a window that owns windows not created by winit, such as native dialogs or application helper windows.
+- On Windows, avoid overflow when negating minimum mouse-wheel deltas.
+- On Windows, fix IME preedit cursor offsets around surrogate pairs when no
+  target clause is selected.
+- On Windows, pass the correct cursor coordinates when starting a window move
+  or drag-resize operation.
+- On X11, reset the drag and drop state when a drag operation ends. A later drag no longer reuses the state of a previous drag.
+- On Wayland, fix the text input being destroyed whenever a seat capability changed. This made IME input stop working in already-running applications after the seat's capabilities were updated.
+- On Wayland, fix a panic when a popup is dropped before its queued compositor
+  updates are processed.
+- On macOS, forward mouse click events to AppKit. This makes IME semantics more similar to native macOS applications, particularly when an IME is clicked out of.
+- On macOS, discard the input method's marked text when IME is disabled, so an unfinished composition is not resumed (and committed again) when IME is re-enabled.
+
+### Added
+
+- Add `WindowEvent::MouseWheel::source: ScrollSource`, telling a mouse wheel from fingers on a touchpad from system-driven momentum scrolling, implemented on macOS and Wayland.
+
+### Changed
+
+- No longer send an empty `Ime::Preedit` before `Ime::Commit`.
+- Removed the `url` dependency from `winit-core`, along with `SendData::from_file_paths`,
+  `TypedData::try_as_file_paths` and `impl From<Vec<url::Url>> for SendData`. Use `SendData::Uris`
+  / `TypedData::try_as_uris` with `file:` URIs instead.
