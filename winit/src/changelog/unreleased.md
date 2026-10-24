@@ -39,3 +39,11 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, fix a panic ("tried to handle event while another event is
+  currently being handled") when a nested run loop runs inside an event
+  handler, such as a modal `NSAlert` or `NSOpenPanel` or a drag-tracking
+  session, and the event loop proxy is woken or an event is queued meanwhile.
+  Such calls are now delivered once the outer handler returns.

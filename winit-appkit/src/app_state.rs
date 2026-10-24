@@ -1,9 +1,9 @@
 use std::cell::{Cell, OnceCell, RefCell};
-use std::collections::HashMap;
-use std::mem;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
+use std::{fmt, mem};
 
 use dispatch2::MainThreadBound;
 use objc2::MainThreadMarker;
@@ -23,6 +23,30 @@ use super::observer::EventLoopWaker;
 use crate::data_transfer::DataTransferState;
 use crate::window_delegate::WindowDelegate;
 
+/// A call to the application handler that could not be made because the handler was in use.
+type DeferredCall = Box<dyn FnOnce(&mut dyn ApplicationHandler, &ActiveEventLoop)>;
+
+/// Calls to the application handler that arrived while it was in use, to be made once it is free.
+///
+/// A nested run loop started from inside an event handler (a modal `NSAlert` or `NSOpenPanel`, a
+/// drag-tracking session) runs the main run loop's sources and queued blocks re-entrantly. Calling
+/// the handler there would panic, so the calls are kept here instead (#3992).
+#[derive(Default)]
+struct DeferredCalls {
+    calls: RefCell<VecDeque<DeferredCall>>,
+    /// A wake-up from the event loop proxy; several of them are delivered as one.
+    proxy_wake_up: Cell<bool>,
+}
+
+impl fmt::Debug for DeferredCalls {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DeferredCalls")
+            .field("calls", &self.calls.borrow().len())
+            .field("proxy_wake_up", &self.proxy_wake_up.get())
+            .finish()
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct AppState {
     mtm: MainThreadMarker,
@@ -33,6 +57,7 @@ pub(super) struct AppState {
     run_loop: MainRunLoop,
     event_loop_proxy: Arc<EventLoopProxy>,
     event_handler: EventHandler,
+    deferred: DeferredCalls,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
     stop_after_wait: Cell<bool>,
@@ -66,7 +91,14 @@ impl AppState {
         activate_ignoring_other_apps: bool,
     ) -> Option<Rc<Self>> {
         let event_loop_proxy = Arc::new(EventLoopProxy::new(mtm, move || {
-            Self::get(mtm).with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
+            let this = Self::get(mtm);
+            // The proxy's source is in the common modes, so it also fires in a nested run loop
+            // started from inside an event handler (a modal panel's).
+            if this.event_handler.in_use() {
+                this.deferred.proxy_wake_up.set(true);
+            } else {
+                this.with_handler(|app, event_loop| app.proxy_wake_up(event_loop));
+            }
         }));
 
         let this = Rc::new(Self {
@@ -78,6 +110,7 @@ impl AppState {
             run_loop: MainRunLoop::get(mtm),
             event_loop_proxy,
             event_handler: EventHandler::new(),
+            deferred: DeferredCalls::default(),
             stop_on_launch: Cell::new(false),
             stop_before_wait: Cell::new(false),
             stop_after_wait: Cell::new(false),
@@ -309,7 +342,13 @@ impl AppState {
             tracing::debug!("had to queue event since another is currently being handled");
             let this = Rc::clone(self);
             self.run_loop.queue_closure(move || {
-                this.with_handler(callback);
+                // A nested run loop in the default mode (a drag-tracking session) started from
+                // inside an event handler runs this while the handler is still in use.
+                if this.event_handler.in_use() {
+                    this.deferred.calls.borrow_mut().push_back(Box::new(callback));
+                } else {
+                    this.with_handler(callback);
+                }
             });
         }
     }
@@ -321,6 +360,33 @@ impl AppState {
     ) {
         let event_loop = ActiveEventLoop { app_state: Rc::clone(self), mtm: self.mtm };
         self.event_handler.handle(|app| callback(app, &event_loop));
+        self.run_deferred_calls();
+    }
+
+    /// Makes the calls that arrived while the handler was in use, in order, once it is free.
+    fn run_deferred_calls(self: &Rc<Self>) {
+        if self.event_handler.in_use() {
+            return;
+        }
+        let event_loop = ActiveEventLoop { app_state: Rc::clone(self), mtm: self.mtm };
+        let mut ran = false;
+        loop {
+            // Not borrowed across the call: the handler may defer more.
+            let next = self.deferred.calls.borrow_mut().pop_front();
+            if let Some(call) = next {
+                self.event_handler.handle(|app| call(app, &event_loop));
+            } else if self.deferred.proxy_wake_up.take() {
+                self.event_handler.handle(|app| app.proxy_wake_up(&event_loop));
+            } else {
+                break;
+            }
+            ran = true;
+        }
+        // These may have come after `about_to_wait`: wake the run loop, so that another pass
+        // follows and the application still hears `about_to_wait` last before it waits.
+        if ran {
+            self.run_loop.wake_up();
+        }
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
