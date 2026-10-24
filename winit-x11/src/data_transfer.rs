@@ -5,7 +5,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::os::raw::*;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
@@ -130,8 +130,8 @@ pub struct DragState {
 
 /// Create a new [`DataTransferId`] from a global counter
 fn generate_transfer_id() -> DataTransferId {
-    static DATA_TRANSFER_ID: AtomicI64 = AtomicI64::new(0);
-    DataTransferId::from_raw(DATA_TRANSFER_ID.fetch_add(1, Ordering::Relaxed))
+    static DATA_TRANSFER_ID: AtomicUsize = AtomicUsize::new(0);
+    DataTransferId::from_raw(DATA_TRANSFER_ID.fetch_add(1, Ordering::Relaxed).try_into().unwrap())
 }
 
 impl Default for DragState {
