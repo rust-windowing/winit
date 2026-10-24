@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Android, report the action key of the soft keyboard ("Done", "Go", "Search"...) as a press of
+  the return key instead of dropping it.
