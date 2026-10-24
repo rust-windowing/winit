@@ -123,6 +123,15 @@ winit-common = { workspace = true, features = [
 [dev-dependencies]
 winit.workspace = true
 
+# A nested run loop inside an event handler (#3992): on the main thread, so no test harness.
+[[test]]
+harness = false
+name = "proxy_wake_in_nested_run_loop"
+
+[[test]]
+harness = false
+name = "queued_event_in_nested_run_loop"
+
 [package.metadata.docs.rs]
 features = ["serde"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
