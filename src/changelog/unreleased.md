@@ -39,3 +39,11 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On Android, report stylus hover (`HoverMove` / `HoverEnter`) as `CursorMoved`, so a pen in the
+  air moves the pointer before it touches the glass.
+- On Android, ignore finger input while the stylus is down: a palm resting on the glass is no
+  longer reported as a second finger (which reads as a pinch).
+

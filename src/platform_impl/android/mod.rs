@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction, ToolType};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -33,6 +33,11 @@ pub(crate) use crate::cursor::{
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
+/// Whether the stylus is currently touching the glass. A palm resting next to a drawing pen
+/// arrives as finger input; ignoring it until the pen lifts keeps a pen stroke from turning
+/// into a two-finger pinch (a zoom) halfway through.
+static STYLUS_DOWN: AtomicBool = AtomicBool::new(false);
+
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -376,6 +381,48 @@ impl<T: 'static> EventLoop<T> {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
                 let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
+
+                // A stylus or mouse hovering above the glass (no button down) is a pointer move:
+                // apps can show what a tap would hit before it lands, as on other platforms.
+                if matches!(
+                    motion_event.action(),
+                    MotionAction::HoverMove | MotionAction::HoverEnter
+                ) {
+                    if let Some(pointer) = motion_event.pointers().next() {
+                        let position = PhysicalPosition { x: pointer.x() as _, y: pointer.y() as _ };
+                        callback(
+                            event::Event::WindowEvent {
+                                window_id,
+                                event: event::WindowEvent::CursorMoved { device_id, position },
+                            },
+                            self.window_target(),
+                        );
+                    }
+                    // A pen in the air is not touching the glass: if its `Up` was lost (the app
+                    // went to the background mid-stroke, say), this is what clears the flag
+                    // rather than leaving every finger ignored.
+                    STYLUS_DOWN.store(false, Ordering::Relaxed);
+                    return InputStatus::Handled;
+                }
+
+                // Finger input that arrives while the pen is down is a palm on the glass, not a
+                // second finger: honouring it would read as a pinch and zoom the scene mid-stroke.
+                if matches!(
+                    motion_event.pointer_at_index(motion_event.pointer_index()).tool_type(),
+                    ToolType::Stylus
+                ) {
+                    match motion_event.action() {
+                        MotionAction::Down | MotionAction::PointerDown | MotionAction::Move => {
+                            STYLUS_DOWN.store(true, Ordering::Relaxed)
+                        },
+                        MotionAction::Up | MotionAction::PointerUp | MotionAction::Cancel => {
+                            STYLUS_DOWN.store(false, Ordering::Relaxed)
+                        },
+                        _ => (),
+                    }
+                } else if STYLUS_DOWN.load(Ordering::Relaxed) {
+                    return InputStatus::Handled;
+                }
 
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
