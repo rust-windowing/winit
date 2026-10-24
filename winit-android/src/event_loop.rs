@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{
+    InputEvent, KeyAction, Keycode, MotionAction, TextInputState, TextSpan,
+};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -26,10 +28,11 @@ use winit_core::event_loop::{
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     self, CursorGrabMode, ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError,
-    ResizeDirection, Theme, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    ImeSurroundingText, ResizeDirection, Theme, Window as CoreWindow, WindowAttributes,
+    WindowButtons, WindowId, WindowLevel,
 };
 
+use crate::ime::{self, ImeState};
 use crate::keycodes;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
@@ -155,6 +158,7 @@ impl EventLoop {
                 exit: Cell::new(false),
                 redraw_requester: RedrawRequester::new(&redraw_flag, android_app.create_waker()),
                 event_loop_proxy,
+                ime: Default::default(),
             },
             redraw_flag,
             loop_running: false,
@@ -282,6 +286,8 @@ impl EventLoop {
                 tracing::warn!("Failed to get input events iterator: {err:?}");
             },
         }
+
+        self.report_ime_status_change(app);
 
         if self.window_target.event_loop_proxy.wake_up.swap(false, Ordering::Relaxed) {
             app.proxy_wake_up(&self.window_target);
@@ -503,12 +509,39 @@ impl EventLoop {
                     },
                 }
             },
+            InputEvent::TextEvent(state) => {
+                if !self.window_target.ime.lock().unwrap().is_enabled() {
+                    // The keyboard may still report its buffer while it goes away.
+                    return InputStatus::Unhandled;
+                }
+                self.report_ime_status_change(app);
+
+                let snapshot = ime::Snapshot {
+                    text: &state.text,
+                    anchor: state.selection.start,
+                    cursor: state.selection.end,
+                    compose: state.compose_region.map(|span| (span.start, span.end)),
+                };
+                let events = self.window_target.ime.lock().unwrap().update(snapshot);
+                for ime in events {
+                    let event = event::WindowEvent::Ime(ime);
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+                }
+            },
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             },
         }
 
         input_status
+    }
+
+    fn report_ime_status_change<A: ApplicationHandler>(&mut self, app: &mut A) {
+        let change = self.window_target.ime.lock().unwrap().take_status_change();
+        if let Some(ime) = change {
+            let event = event::WindowEvent::Ime(ime);
+            app.window_event(&self.window_target, GLOBAL_WINDOW, event);
+        }
     }
 
     pub fn run_app_on_demand<A: ApplicationHandler>(
@@ -712,6 +745,7 @@ pub struct ActiveEventLoop {
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
     event_loop_proxy: Arc<EventLoopProxy>,
+    ime: Arc<Mutex<ImeState>>,
 }
 
 impl ActiveEventLoop {
@@ -802,6 +836,7 @@ pub struct PlatformSpecificWindowAttributes;
 pub struct Window {
     app: AndroidApp,
     ime_capabilities: Mutex<Option<ImeCapabilities>>,
+    ime: Arc<Mutex<ImeState>>,
     redraw_requester: RedrawRequester,
 }
 
@@ -821,12 +856,31 @@ impl Window {
         Ok(Self {
             app: el.app.clone(),
             ime_capabilities: Default::default(),
+            ime: el.ime.clone(),
             redraw_requester: el.redraw_requester.clone(),
         })
     }
 
     pub(crate) fn config(&self) -> ConfigurationRef {
         self.app.config()
+    }
+
+    /// Load the text of the focused field into `GameTextInput`, or an empty buffer without it.
+    ///
+    /// This restarts the input connection, so nothing is loaded when the keyboard already has
+    /// this text, e.g. when the application reports back an edit the keyboard just made.
+    fn load_surrounding_text(&self, ime: &mut ImeState, surrounding: Option<&ImeSurroundingText>) {
+        let (text, cursor, anchor) = match surrounding {
+            Some(surrounding) => (surrounding.text(), surrounding.cursor(), surrounding.anchor()),
+            None => ("", 0, 0),
+        };
+        if let Some(buffer) = ime.load(text, cursor, anchor) {
+            self.app.set_text_input_state(TextInputState {
+                text: buffer.text,
+                selection: TextSpan { start: buffer.anchor, end: buffer.cursor },
+                compose_region: buffer.compose.map(|(start, end)| TextSpan { start, end }),
+            });
+        }
     }
 
     pub(crate) fn content_rect(&self) -> Rect {
@@ -998,21 +1052,42 @@ impl CoreWindow for Window {
         let mut current_caps = self.ime_capabilities.lock().unwrap();
         match request {
             ImeRequest::Enable(enable) => {
-                let (capabilities, _) = enable.into_raw();
+                let (capabilities, data) = enable.into_raw();
                 if current_caps.is_some() {
                     return Err(ImeRequestError::AlreadyEnabled);
                 }
                 *current_caps = Some(capabilities);
+
+                // The keyboard buffer is emptied on disable, so without surrounding text there is
+                // nothing to load and the keyboard starts from an empty field.
+                let mut ime = self.ime.lock().unwrap();
+                ime.enable();
+                let surrounding =
+                    data.surrounding_text.as_ref().filter(|_| capabilities.surrounding_text());
+                self.load_surrounding_text(&mut ime, surrounding);
                 self.app.show_soft_input(true);
+                self.redraw_requester.waker.wake();
             },
-            ImeRequest::Update(_) => {
-                if current_caps.is_none() {
+            ImeRequest::Update(data) => {
+                let Some(capabilities) = *current_caps else {
                     return Err(ImeRequestError::NotEnabled);
+                };
+                if let Some(surrounding) =
+                    data.surrounding_text.as_ref().filter(|_| capabilities.surrounding_text())
+                {
+                    self.load_surrounding_text(&mut self.ime.lock().unwrap(), Some(surrounding));
                 }
             },
             ImeRequest::Disable => {
                 *current_caps = None;
+                self.ime.lock().unwrap().disable();
+                self.app.set_text_input_state(TextInputState {
+                    text: String::new(),
+                    selection: TextSpan { start: 0, end: 0 },
+                    compose_region: None,
+                });
                 self.app.hide_soft_input(true);
+                self.redraw_requester.waker.wake();
             },
             _ => return Err(ImeRequestError::NotSupported),
         }

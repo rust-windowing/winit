@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- On Android, report soft keyboard input from `GameActivity` as `WindowEvent::Ime` events, with
+  the composing text as `Ime::Preedit`, and load `ImeSurroundingText` into the keyboard.
