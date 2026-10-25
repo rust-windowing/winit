@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On X11, avoid spurious focus events when mapping windows, which could dismiss
+  menus before they receive focus.
