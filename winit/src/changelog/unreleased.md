@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Windows, end a canceled touch or pen contact with `PointerLeft` and no `PointerButton` release, and cancel a contact whose pointer capture was lost, so neither reads as a completed press.
