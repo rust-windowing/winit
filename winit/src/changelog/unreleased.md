@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS 26, work around incorrect fullscreen pointer motion after switching
+  Spaces that could cancel clicks near the top of the window.

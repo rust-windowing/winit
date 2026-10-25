@@ -2,6 +2,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 use dpi::{LogicalPosition, PhysicalSize};
 use objc2::rc::Retained;
@@ -10,12 +11,12 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, Message, define_class, ms
 use objc2_app_kit::{
     NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
     NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
-    NSViewLayerContentsRedrawPolicy, NSWindow,
+    NSViewLayerContentsRedrawPolicy, NSWindow, NSWindowStyleMask,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
-    NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    NSNotFound, NSObject, NSPoint, NSProcessInfo, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 use tracing::{debug_span, trace_span};
 use winit_common::text::utf16_to_utf8_offset;
@@ -657,7 +658,7 @@ define_class!(
             if self.handle_event(event) {
                 return;
             }
-            self.mouse_motion(event);
+            self.mouse_motion_at(event, self.fullscreen_mouse_position());
         }
 
         #[unsafe(method(mouseDragged:))]
@@ -666,7 +667,7 @@ define_class!(
             if self.handle_event(event) {
                 return;
             }
-            self.mouse_motion(event);
+            self.mouse_motion_at(event, self.fullscreen_mouse_position());
         }
 
         #[unsafe(method(rightMouseDragged:))]
@@ -675,7 +676,7 @@ define_class!(
             if self.handle_event(event) {
                 return;
             }
-            self.mouse_motion(event);
+            self.mouse_motion_at(event, self.fullscreen_mouse_position());
         }
 
         #[unsafe(method(otherMouseDragged:))]
@@ -684,7 +685,7 @@ define_class!(
             if self.handle_event(event) {
                 return;
             }
-            self.mouse_motion(event);
+            self.mouse_motion_at(event, self.fullscreen_mouse_position());
         }
 
         #[unsafe(method(mouseEntered:))]
@@ -704,6 +705,17 @@ define_class!(
         #[unsafe(method(mouseExited:))]
         fn mouse_exited(&self, event: &NSEvent) {
             let _entered = debug_span!("mouseExited:").entered();
+
+            // The same AppKit bug can emit a spurious exit during a held gesture.
+            // Preserve actual exits, including drags outside the window.
+            if NSEvent::pressedMouseButtons() != 0 {
+                if let Some(point) = self.fullscreen_mouse_position() {
+                    let size = self.bounds().size;
+                    if pointer_inside([point.x, point.y], [size.width, size.height]) {
+                        return;
+                    }
+                }
+            }
 
             let position = self.mouse_view_point(event).to_physical(self.scale_factor());
 
@@ -1259,8 +1271,30 @@ impl WinitView {
         });
     }
 
+    // After switching Spaces on macOS 26, fullscreen motion events near the
+    // top of the window can carry incorrect coordinates. Button events remain
+    // correct. Query through NSWindow/NSView instead of subtracting screen origins,
+    // so secondary displays and backing scales use AppKit's own conversion.
+    // See SDL's workaround: https://github.com/libsdl-org/SDL/issues/15967
+    fn fullscreen_mouse_position(&self) -> Option<LogicalPosition<f64>> {
+        static MACOS_MAJOR: OnceLock<isize> = OnceLock::new();
+        let major = *MACOS_MAJOR
+            .get_or_init(|| NSProcessInfo::processInfo().operatingSystemVersion().majorVersion);
+        let window = self.window();
+        let fullscreen = window.styleMask().contains(NSWindowStyleMask::FullScreen);
+        if !needs_live_fullscreen_motion(major, fullscreen) {
+            return None;
+        }
+        let point = self.convertPoint_fromView(window.mouseLocationOutsideOfEventStream(), None);
+        Some(LogicalPosition::new(point.x, point.y))
+    }
+
     fn mouse_motion(&self, event: &NSEvent) {
-        let view_point = self.mouse_view_point(event);
+        self.mouse_motion_at(event, None);
+    }
+
+    fn mouse_motion_at(&self, event: &NSEvent, live: Option<LogicalPosition<f64>>) {
+        let view_point = live.unwrap_or_else(|| self.mouse_view_point(event));
         let frame = self.frame();
 
         if view_point.x.is_sign_negative()
@@ -1339,5 +1373,36 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEven
             .unwrap()
     } else {
         event.copy()
+    }
+}
+
+fn needs_live_fullscreen_motion(macos_major: isize, fullscreen: bool) -> bool {
+    macos_major >= 26 && fullscreen
+}
+
+fn pointer_inside(point: [f64; 2], size: [f64; 2]) -> bool {
+    point[0] >= 0.0 && point[1] >= 0.0 && point[0] < size[0] && point[1] < size[1]
+}
+
+#[cfg(test)]
+mod pointer_tests {
+    use super::*;
+
+    #[test]
+    fn live_motion_is_limited_to_affected_fullscreen_windows() {
+        assert!(needs_live_fullscreen_motion(26, true));
+        assert!(needs_live_fullscreen_motion(27, true));
+        assert!(!needs_live_fullscreen_motion(15, true));
+        assert!(!needs_live_fullscreen_motion(26, false));
+    }
+
+    #[test]
+    fn actual_outside_motion_does_not_suppress_exit() {
+        let size = [1920.0, 1080.0];
+        assert!(pointer_inside([142.6, 27.1], size));
+        assert!(!pointer_inside([-668.4, -1052.9], size));
+        for point in [[-0.01, 0.0], [0.0, -0.01], [1920.0, 30.0], [30.0, 1080.0], [f64::NAN, 0.0]] {
+            assert!(!pointer_inside(point, size));
+        }
     }
 }
