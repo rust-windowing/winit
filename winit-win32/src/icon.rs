@@ -94,11 +94,17 @@ impl WinIcon {
     }
 
     pub(crate) fn from_rgba(rgba: &RgbaIcon) -> Result<Self, BadIcon> {
-        let pixel_count = rgba.buffer().len() / PIXEL_SIZE;
-        let mut and_mask = Vec::with_capacity(pixel_count);
+        let width = rgba.width() as usize;
+        // The AND mask is a monochrome bitmap: one bit per pixel, set where the pixel is
+        // transparent, with each row padded to a WORD boundary.
+        let mask_stride = width.div_ceil(16) * 2;
+        let mut and_mask = vec![0u8; mask_stride * rgba.height() as usize];
         let mut bgra = Vec::with_capacity(rgba.buffer().len());
-        for pixel in rgba.buffer().chunks_exact(PIXEL_SIZE) {
-            and_mask.push(pixel[3].wrapping_sub(u8::MAX)); // invert alpha channel
+        for (i, pixel) in rgba.buffer().chunks_exact(PIXEL_SIZE).enumerate() {
+            if pixel[3] == 0 {
+                let (x, y) = (i % width, i / width);
+                and_mask[y * mask_stride + x / 8] |= 0x80 >> (x % 8);
+            }
             bgra.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
         }
         let handle = unsafe {
