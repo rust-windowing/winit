@@ -6,17 +6,17 @@ use std::slice;
 use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalPosition, PhysicalSize};
-use tracing::warn;
 use winit_common::xkb::{self, Context, XkbState};
 use winit_core::application::ApplicationHandler;
 use winit_core::event::{
     ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Ime, MouseButton,
-    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, SurfaceSizeWriter, TouchPhase,
-    WindowEvent,
+    MouseScrollDelta, PointerKind, PointerSource, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
+    TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::DndAction;
 use winit_core::keyboard::ModifiersState;
 use winit_core::window::WindowId;
+use x11_dl::xfixes::XFixesSelectionNotifyEvent;
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
     XILeaveEvent, XIModifierState, XIRawEvent,
@@ -24,8 +24,10 @@ use x11_dl::xinput2::{
 use x11_dl::xlib::{
     self, Display as XDisplay, Window as XWindow, XAnyEvent, XClientMessageEvent, XConfigureEvent,
     XDestroyWindowEvent, XEvent, XExposeEvent, XKeyEvent, XMapEvent, XPropertyEvent,
-    XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent, XkbStateRec,
+    XReparentEvent, XSelectionEvent, XSelectionRequestEvent, XVisibilityEvent, XkbAnyEvent,
+    XkbStateRec,
 };
+use x11rb::CURRENT_TIME;
 use x11rb::protocol::sync::{ConnectionExt, Int64};
 use x11rb::protocol::xinput;
 use x11rb::protocol::xkb::ID as XkbId;
@@ -34,7 +36,7 @@ use x11rb::x11_utils::{ExtensionInformation, Serialize};
 use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::atoms::*;
-use crate::dnd::{DndState, SelectionType};
+use crate::data_transfer::{ClipboardSelectionType, DndState, SelectionType};
 use crate::event_loop::{
     ALL_DEVICES, ActiveEventLoop, CookieResultExt, Device, DeviceInfo, DeviceType,
     ScrollOrientation, mkdid, mkwid,
@@ -58,6 +60,7 @@ pub struct EventProcessor {
     pub devices: RefCell<HashMap<DeviceId, Device>>,
     pub xi2ext: ExtensionInformation,
     pub xkbext: ExtensionInformation,
+    pub xfixesext: ExtensionInformation,
     pub target: ActiveEventLoop,
     pub xkb_context: Context,
     // Number of touch events currently in progress
@@ -198,7 +201,9 @@ impl EventProcessor {
 
         match event_type {
             xlib::ClientMessage => self.client_message(xev.as_ref(), app),
+            xlib::SelectionRequest => self.selection_request(xev.as_ref()),
             xlib::SelectionNotify => self.selection_notify(xev.as_ref(), app),
+            xlib::SelectionClear => self.selection_clear(xev.as_ref()),
             xlib::ConfigureNotify => self.configure_notify(xev.as_ref(), app),
             xlib::ReparentNotify => self.reparent_notify(xev.as_ref()),
             xlib::MapNotify => self.map_notify(xev.as_ref(), app),
@@ -302,6 +307,11 @@ impl EventProcessor {
                 }
                 if event_type == self.randr_event_offset as c_int {
                     self.process_dpi_change(app);
+                }
+                if event_type == self.xfixesext.first_event as _ {
+                    let xev: &XFixesSelectionNotifyEvent =
+                        unsafe { &*(xev as *const _ as *const XFixesSelectionNotifyEvent) };
+                    self.xfixes_selection_notify(xev);
                 }
             },
         }
@@ -447,7 +457,7 @@ impl EventProcessor {
             // Cautiously limit the scope of the `dnd` lock so we don't rely on `app.window_event`
             // never contending the lock.
             let transfer_id = {
-                let mut dnd = self.target.dnd.borrow_mut();
+                let mut dnd = self.target.data_transfer_state.borrow_mut();
                 let source_window = xev.data.get_long(0) as xproto::Window;
                 let flags = xev.data.get_long(1);
 
@@ -509,7 +519,7 @@ impl EventProcessor {
             // Cautiously limit the scope of the `dnd` lock so we don't rely on `app.window_event`
             // never contending the lock.
             let transfer_id = {
-                let dnd = self.target.dnd.borrow();
+                let dnd = self.target.data_transfer_state.borrow();
                 let Some(state) = dnd.state() else {
                     return;
                 };
@@ -554,7 +564,7 @@ impl EventProcessor {
 
         if xev.message_type == atoms[XdndDrop] as c_ulong {
             let (source_window, transfer_id) = {
-                let dnd = self.target.dnd.borrow();
+                let dnd = self.target.data_transfer_state.borrow();
                 let Some(state) = dnd.state() else {
                     warn!("Received `XdndDrop` without `XdndEnter`");
                     return;
@@ -580,7 +590,7 @@ impl EventProcessor {
                 },
             );
 
-            let mut dnd = self.target.dnd.borrow_mut();
+            let mut dnd = self.target.data_transfer_state.borrow_mut();
 
             if let Some(state) =
                 dnd.state_mut().filter(|state| !state.pending_fetch_types.is_empty())
@@ -591,14 +601,14 @@ impl EventProcessor {
                     dnd.send_finished(window, source_window)
                         .expect("Failed to send `XdndFinished` message.");
                 }
+                dnd.reset_state();
             }
 
             return;
         }
 
         if xev.message_type == atoms[XdndLeave] as c_ulong {
-            let dnd = self.target.dnd.borrow();
-            let Some(state) = dnd.state() else {
+            let Some(state) = self.target.data_transfer_state.borrow_mut().reset_state() else {
                 return;
             };
             app.window_event(&self.target, window_id, WindowEvent::DragLeft {
@@ -607,22 +617,99 @@ impl EventProcessor {
         }
     }
 
-    fn selection_notify(&mut self, xev: &XSelectionEvent, app: &mut dyn ApplicationHandler) {
-        let atoms = self.target.xconn.atoms();
+    /// Handles the X11 `SelectionRequest` which occurs when we own a selection and another
+    /// application wants to read it
+    fn selection_request(&mut self, xev: &XSelectionRequestEvent) {
+        let mut data_transfer = self.target.data_transfer_state.borrow_mut();
+        if !data_transfer.attach_clipboard_property(xev) {
+            info!("Not sending selection notify, no resolved value");
+            return;
+        }
+        // Notify the other program that we've put the property on the clipboard
+        let notify = xproto::SelectionNotifyEvent {
+            response_type: xproto::SELECTION_NOTIFY_EVENT,
+            sequence: 0,
+            time: CURRENT_TIME,
+            requestor: xev.requestor as _,
+            selection: xev.selection as _,
+            target: xev.target as _,
+            property: xev.property as _,
+        };
+        let con = self.target.x_connection();
+        let result = con.xcb_connection().send_event(
+            false,
+            notify.requestor,
+            xproto::EventMask::PROPERTY_CHANGE,
+            notify,
+        );
+        if let Err(err) = result {
+            warn!(
+                "Got error when sending property change event for {}: {}",
+                con.atom_str(xev.selection as _),
+                err
+            )
+        }
+    }
 
-        let xwindow = xev.requestor as xproto::Window;
+    /// Handles the X11 SelectionNotify which occurs after `convert_selection` is called for reading
+    /// clipboard.
+    fn selection_notify(&mut self, xev: &XSelectionEvent, app: &mut dyn ApplicationHandler) {
+        let atoms = self.target.x_connection().atoms();
 
         // Set the timestamp.
-        self.target.xconn.set_timestamp(xev.time as xproto::Timestamp);
+        self.target.x_connection().set_timestamp(xev.time as xproto::Timestamp);
 
-        // For now, winit only supports selections for drag-and-drop. This should be changed
-        // when clipboard support is implemented.
-        if xev.property != atoms[XdndSelection] as c_ulong {
+        // Choose the handler for the type of selection
+        if xev.selection == atoms[XdndSelection] as c_ulong {
+            self.selection_notify_dnd(app, xev);
+        } else if ClipboardSelectionType::from_atom(atoms, xev.selection as _).is_some() {
+            self.selection_notify_clip(app, xev);
+        } else {
+            warn!(
+                "Selection notify for unknown selection property {}",
+                self.target.x_connection().atom_str(xev.property as _)
+            );
+        }
+    }
+
+    fn xfixes_selection_notify(&mut self, xev: &XFixesSelectionNotifyEvent) {
+        let Some(clipboard) = ClipboardSelectionType::from_atom(
+            self.target.x_connection().atoms(),
+            xev.selection as _,
+        ) else {
+            return;
+        };
+
+        // If the selection is not owned then clear
+        if xev.owner == 0 {
+            self.target.data_transfer_state.borrow_mut().clear_clipboard(clipboard);
             return;
         }
 
+        let Some(window) = self.target.clipboard_window() else { return };
+        let mut data_transfer = self.target.data_transfer_state.borrow_mut();
+        let serial = {
+            // Conversion needed on 32-bit targets.
+            #[allow(clippy::useless_conversion)]
+            u64::from(xev.selection_timestamp)
+        };
+        data_transfer.request_updated_targets(clipboard, window, serial);
+    }
+
+    /// Handles the X11 `SelectionClear` which occurs when we used to own a selection but now do not
+    fn selection_clear(&mut self, xev: &XSelectionEvent) {
+        let atoms = self.target.x_connection().atoms();
+        let Some(clipboard) = ClipboardSelectionType::from_atom(atoms, xev.selection as _) else {
+            return;
+        };
+        let mut data_transfer = self.target.data_transfer_state.borrow_mut();
+        data_transfer.clear_clipboard(clipboard);
+    }
+
+    fn selection_notify_dnd(&mut self, app: &mut dyn ApplicationHandler, xev: &XSelectionEvent) {
+        let xwindow = xev.requestor as xproto::Window;
         let (transfer_id, serial, type_) = {
-            let Some(state) = self.target.dnd.get_mut().state_mut() else {
+            let Some(state) = self.target.data_transfer_state.get_mut().state_mut() else {
                 return;
             };
 
@@ -669,7 +756,7 @@ impl EventProcessor {
             (state.transfer_id, serial, type_)
         };
 
-        let value = match self.target.dnd.borrow().read_data(xwindow, type_) {
+        let value = match self.target.data_transfer_state.borrow().read_data(xwindow, type_) {
             Ok(value) => Arc::new(value),
             Err(err) => {
                 warn!("Failed to read selection: {err}");
@@ -685,24 +772,87 @@ impl EventProcessor {
             value,
         });
 
-        let dnd = self.target.dnd.borrow();
+        let mut data_transfer = self.target.data_transfer_state.borrow_mut();
 
         // If we have another fetch pending, request it from the drag source window
-        if let Some((window, type_)) = dnd.state().and_then(|state| {
+        if let Some((window, type_)) = data_transfer.state().and_then(|state| {
             state
                 .pending_fetch_types
                 .front()
                 .cloned()
                 .map(|(_, type_)| (state.target_window, type_))
         }) {
-            dnd.convert_selection(window, self.target.xconn.timestamp(), type_.atom());
+            let selection = self.target.xconn.atoms()[XdndSelection];
+            // TODO: The result is stored into a property named XdndSelection. Consider using a
+            // different name to avoid conflict.
+            if let Err(err) =
+                self.target.xconn.convert_selection(window, selection, type_.atom(), selection)
+            {
+                error!("Could not convert the dropped selection: {err}");
+            }
         } else if let Some((this_window, target_window)) =
-            dnd.state().and_then(|state| state.finished)
+            data_transfer.state().and_then(|state| state.finished)
         {
             unsafe {
-                dnd.send_finished(this_window, target_window)
+                data_transfer
+                    .send_finished(this_window, target_window)
                     .expect("Failed to send `XdndFinished` message.");
             }
+            data_transfer.reset_state();
+        }
+    }
+
+    /// Data received from another application
+    fn selection_notify_clip(&mut self, app: &mut dyn ApplicationHandler, xev: &XSelectionEvent) {
+        let xwindow = xev.requestor as xproto::Window;
+        let property = xev.property as xproto::Atom;
+
+        // If we get a request for a window which is not ours then skip
+        if !self.window_exists(xwindow) {
+            return;
+        }
+
+        // If we get a target that is not one of our known clipboards the skip
+        let Some(clipboard) = ClipboardSelectionType::from_atom(
+            self.target.x_connection().atoms(),
+            xev.selection as _,
+        ) else {
+            return;
+        };
+
+        // If we get a none property then skip
+        if xev.property as xproto::Atom == xproto::AtomEnum::NONE.into() {
+            return;
+        }
+
+        let con = &self.target.xconn;
+        let atoms = con.atoms();
+
+        let data_transfer = self.target.data_transfer_state.get_mut();
+        let mut property_value = Vec::new();
+        let property_ty = match con.get_dynamic_property(property, xwindow, &mut property_value) {
+            Ok((property_ty, _)) => property_ty,
+            Err(e) => {
+                error!(
+                    "Unable to read property {} on notify clip for selection {clipboard:?}: {e}",
+                    self.target.xconn.atom_str(property)
+                );
+                return;
+            },
+        };
+        if property_ty == atoms[INCR] {
+            data_transfer.start_incr_receiver(xev);
+            return;
+        }
+
+        if xev.target == atoms[TARGETS] as c_ulong
+            || xev.target as xproto::Atom == xproto::AtomEnum::ATOM.into()
+        {
+            data_transfer.populate_targets(xev.selection as _, property_value);
+        } else if let Some(data) =
+            data_transfer.send_clipboard_data(xwindow, clipboard, property_value)
+        {
+            app.window_event(&self.target, data.window(), data.into_event());
         }
     }
 
@@ -932,6 +1082,11 @@ impl EventProcessor {
         {
             self.process_dpi_change(app);
         }
+
+        if let Some(data) = self.target.data_transfer_state.get_mut().check_incr_receive_data(xev) {
+            app.window_event(&self.target, data.window(), data.into_event());
+        }
+        self.target.data_transfer_state.get_mut().check_incr_send_data(xev);
     }
 
     fn visibility_notify(&self, xev: &XVisibilityEvent, app: &mut dyn ApplicationHandler) {
@@ -1050,9 +1205,6 @@ impl EventProcessor {
         {
             let written = self.target.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
-                let event = WindowEvent::Ime(Ime::Preedit(String::new(), None));
-                app.window_event(&self.target, window_id, event);
-
                 let event = WindowEvent::Ime(Ime::Commit(written));
                 self.is_composing = false;
                 app.window_event(&self.target, window_id, event);
@@ -1149,6 +1301,7 @@ impl EventProcessor {
             4..=7 => match state {
                 ElementState::Pressed => WindowEvent::MouseWheel {
                     device_id,
+                    source: ScrollSource::Wheel,
                     delta: match event.detail {
                         4 => MouseScrollDelta::LineDelta(0.0, 1.0),
                         5 => MouseScrollDelta::LineDelta(0.0, -1.0),
@@ -1255,7 +1408,12 @@ impl EventProcessor {
                     ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
                 };
 
-                let event = WindowEvent::MouseWheel { device_id, delta, phase: TouchPhase::Moved };
+                let event = WindowEvent::MouseWheel {
+                    device_id,
+                    delta,
+                    phase: TouchPhase::Moved,
+                    source: ScrollSource::Unknown,
+                };
                 events.push(event);
             }
 

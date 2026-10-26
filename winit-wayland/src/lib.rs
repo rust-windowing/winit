@@ -38,7 +38,7 @@ macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
-mod dnd;
+mod data_transfer;
 mod event_loop;
 mod output;
 mod popup;
@@ -47,7 +47,7 @@ mod state;
 mod types;
 mod window;
 
-pub use self::dnd::{DataOffer, DragSource, MimeData, MimeType};
+pub use self::data_transfer::{DataOffer, DragSource, MimeData, MimeType};
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::popup::Popup;
 pub use self::window::Window;
@@ -130,7 +130,7 @@ impl WindowAttributesWayland {
     ///
     /// The activation token allows the compositor to grant focus to the new window,
     /// overriding focus-stealing prevention. Obtain a token via
-    /// [`ActiveEventLoop::request_activation_token`].
+    /// [`Window::request_activation_token`].
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);

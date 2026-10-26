@@ -57,7 +57,7 @@ impl From<NotSupportedError> for EventLoopError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum CreateWindowError {
-    /// [`WindowType::Popup`] is not supported.
+    /// [`WindowType::Popup`](crate::window::WindowType::Popup) is not supported.
     PopupNotSupported,
     /// Invalid input attribute
     InvalidAttribute(InvalidInput),
@@ -143,7 +143,7 @@ impl From<OsError> for TransferError {
 pub enum CustomCursorError {
     /// Custom cursors are not supported.
     NotSupported,
-    /// The [`CustomCursorSource`] variant is not supported.
+    /// The [`CustomCursorSource`](crate::cursor::CustomCursorSource) variant is not supported.
     UnsupportedSource,
     /// Got unspecified OS specific error during the request.
     Os(OsError),
