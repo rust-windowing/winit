@@ -7,6 +7,7 @@ use dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use foldhash::HashSet;
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::globals::GlobalData;
+use sctk::output::OutputData;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
@@ -803,8 +804,10 @@ impl WindowState {
 
     pub fn current_monitor(&self) -> Option<CoreMonitorHandle> {
         let data = self.window.wl_surface().data::<SurfaceData<()>>()?;
+        // Another library on the same connection, such as an embedded browser, may bind
+        // `wl_output`s of its own, and the surface enters those too; they carry none of our data.
         data.outputs()
-            .next()
+            .find(|output| output.data::<OutputData>().is_some())
             .map(output::MonitorHandle::new)
             .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
     }

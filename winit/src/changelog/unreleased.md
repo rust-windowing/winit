@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Wayland, fix `Window::current_monitor` panicking when another library on the
+  same connection, such as an embedded browser, binds `wl_output`s of its own.
