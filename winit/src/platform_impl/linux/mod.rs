@@ -230,7 +230,7 @@ fn is_main_thread() -> bool {
     unsafe { pthread_main_np() == 1 }
 }
 
-#[cfg(target_os = "netbsd")]
+#[cfg(any(target_os = "netbsd", target_os = "illumos", target_os = "solaris"))]
 fn is_main_thread() -> bool {
     std::thread::current().name() == Some("main")
 }
