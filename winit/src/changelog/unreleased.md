@@ -39,3 +39,9 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On Windows, fix a deadlock when IME is disabled during an active composition. The input
+  method sends `WM_IME_ENDCOMPOSITION` synchronously, and its handler waited on the window
+  state lock that `request_ime_update` was still holding.
