@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On X11, preserve input context focus when enabling or disabling IME on a
+  focused window.
