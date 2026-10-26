@@ -10,6 +10,7 @@ use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
 use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
+use smol_str::SmolStr;
 use tracing::{debug, trace, warn};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{Cursor, CustomCursor, CustomCursorSource};
@@ -23,6 +24,7 @@ use winit_core::event_loop::{
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
     OwnedDisplayHandle as CoreOwnedDisplayHandle,
 };
+use winit_core::keyboard::{Key, KeyCode, KeyLocation, NamedKey, PhysicalKey};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     self, CursorGrabMode, ImeCapabilities, ImePurpose, ImeRequest, ImeRequestError,
@@ -501,6 +503,30 @@ impl EventLoop {
 
                         app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                     },
+                }
+            },
+            InputEvent::TextAction(action) => {
+                // The action key of the soft keyboard ("Done", "Go", "Search"...). `GameTextInput`
+                // turns the return key of single line fields into an action, so report it as the
+                // return key it stands for.
+                debug!("Soft keyboard action {action:?}");
+                for state in [event::ElementState::Pressed, event::ElementState::Released] {
+                    let text = state.is_pressed().then(|| SmolStr::new_static("\r"));
+                    let event = event::WindowEvent::KeyboardInput {
+                        device_id: None,
+                        event: event::KeyEvent {
+                            state,
+                            physical_key: PhysicalKey::Code(KeyCode::Enter),
+                            logical_key: Key::Named(NamedKey::Enter),
+                            location: KeyLocation::Standard,
+                            repeat: false,
+                            text: text.clone(),
+                            text_with_all_modifiers: text,
+                            key_without_modifiers: Key::Named(NamedKey::Enter),
+                        },
+                        is_synthetic: false,
+                    };
+                    app.window_event(&self.window_target, GLOBAL_WINDOW, event);
                 }
             },
             _ => {
