@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On illumos and Solaris, fix the build of the X11 backend (missing `is_main_thread`).
