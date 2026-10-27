@@ -122,6 +122,13 @@ jobs:
            cargo update -p unicode-ident --precise 1.0.10
            cargo update -p syn@2 --precise 2.0.114
 
+    - name: Keep macOS macro compatible with MSRV
+      if: matrix.toolchain == '1.70.0' && matrix.platform.name == 'macOS'
+      env:
+        CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+      # 0.2.4はsyn 3経由でRust 1.71を要求するため、最低対応版のmacOSだけ固定する。
+      run: cargo update -p foreign-types-macros@0.2 --precise 0.2.3
+
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
