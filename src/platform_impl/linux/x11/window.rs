@@ -1732,12 +1732,14 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
+        let PhysicalPosition { x, y } = spot.to_physical::<i16>(self.scale_factor());
+        let PhysicalSize { width, height } = size.to_physical::<i16>(self.scale_factor());
+        // XIM連携ではキャレット位置を通知し、未確定文字に候補窓が重ならないよう矩形の右下を渡す。
         let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
             self.xwindow as ffi::Window,
-            x,
-            y,
+            x.saturating_add(width),
+            y.saturating_add(height),
         ));
     }
 
