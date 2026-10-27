@@ -39,3 +39,7 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Changed
+
+- On Windows, if the window is created through `with_active(false)`, subsequent `window.set_visible(true)` calls will now focus the window (the current behavior is the window only gets focus if you call `window.set_focus()` or `window.set_maximized(true)`) this is consistent with the other platforms.
