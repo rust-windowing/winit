@@ -1,5 +1,5 @@
 /// This is a simple implementation of support for Windows Dark Mode,
-/// which is inspired by the solution in https://github.com/ysc3839/win32-darkmode
+/// which is inspired by the solution in <https://github.com/ysc3839/win32-darkmode>
 use std::{ffi::c_void, ptr};
 
 use crate::utils::Lazy;
