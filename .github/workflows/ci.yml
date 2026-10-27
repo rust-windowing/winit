@@ -107,6 +107,9 @@ jobs:
 
     - name: Generate lockfile
       # Also updates the crates.io index
+      env:
+        # 最低対応Rust版のジョブだけ、その版で利用できる依存を解決する。
+        CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: ${{ matrix.toolchain == '1.70.0' && 'fallback' || 'allow' }}
       run: |
            cargo generate-lockfile
            cargo update -p ahash --precise 0.8.7
@@ -115,9 +118,16 @@ jobs:
            cargo update -p objc2-encode --precise 4.0.3
            cargo update -p orbclient --precise 0.3.47
            cargo update -p image --precise 0.25.0
-           cargo update -p gethostname@1.1.0 --precise 1.0.2
+           cargo update -p gethostname@1 --precise 1.0.2
            cargo update -p unicode-ident --precise 1.0.10
-           cargo update -p syn --precise 2.0.114
+           cargo update -p syn@2 --precise 2.0.114
+
+    - name: Keep macOS macro compatible with MSRV
+      if: matrix.toolchain == '1.70.0' && matrix.platform.name == 'macOS'
+      env:
+        CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+      # 0.2.4はsyn 3経由でRust 1.71を要求するため、最低対応版のmacOSだけ固定する。
+      run: cargo update -p foreign-types-macros@0.2 --precise 0.2.3
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -143,7 +153,8 @@ jobs:
 
     - uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
+        # nightlyの32bit GNUホスト版は配布されないため、同じ32bitターゲットを64bitホストで検査する。
+        toolchain: ${{ matrix.toolchain }}${{ matrix.toolchain == 'nightly' && matrix.platform.target == 'i686-pc-windows-gnu' && '-x86_64-pc-windows-gnu' || matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
         components: clippy, ${{ matrix.platform.components }}
 
