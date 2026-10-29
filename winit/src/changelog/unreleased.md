@@ -40,6 +40,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Wayland, emit `WindowEvent::Occluded` when the compositor suspends or resumes the window (xdg-shell v6 `suspended` state).
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
