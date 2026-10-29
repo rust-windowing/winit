@@ -67,10 +67,12 @@ pub struct MimeType {
 const TEXT_URI_LIST: &str = "text/uri-list";
 // Plaintext
 const TEXT_PLAIN: &str = "text/plain";
-const TEXT_PLAIN_CHARSET_UTF8: &str = "text/plain; charset=utf-8";
+const TEXT_PLAIN_CHARSET_UTF8: &str = "text/plain;charset=utf-8";
+// Used mostly when transferring to Xwayland.
+const TEXT_PLAIN_UTF8_STRING: &str = "UTF8_STRING";
 // HTML
 const TEXT_HTML: &str = "text/html";
-const TEXT_HTML_CHARSET_UTF8: &str = "text/html; charset=utf-8";
+const TEXT_HTML_CHARSET_UTF8: &str = "text/html;charset=utf-8";
 // RTF
 const APPLICATION_RTF: &str = "application/rtf";
 // Audio
@@ -112,8 +114,9 @@ impl MimeType {
         // Files
         (TEXT_URI_LIST, TypeHint::UriList),
         // Plaintext
-        (TEXT_PLAIN, TypeHint::Plaintext),
         (TEXT_PLAIN_CHARSET_UTF8, TypeHint::Plaintext),
+        (TEXT_PLAIN, TypeHint::Plaintext),
+        (TEXT_PLAIN_UTF8_STRING, TypeHint::Plaintext),
         // HTML
         (TEXT_HTML, TypeHint::Html),
         (TEXT_HTML_CHARSET_UTF8, TypeHint::Html),
@@ -298,8 +301,20 @@ impl TypedData for MimeData {
         let data = self.data()?;
 
         match charset {
-            Ok(Charset::Utf8) => String::from_utf8(data.to_vec())
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err)),
+            Ok(Charset::Utf8) => {
+                let text = String::from_utf8(data.to_vec())
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+                if self.mime_type.mime.contains(TEXT_PLAIN) {
+                    // Normalize CR and CRLF into LF.
+                    //
+                    // 'text' mime types require CRLF line ending according to
+                    // RFC-2046, however the platform line terminator and what applications
+                    // expect is LF.
+                    Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
+                } else {
+                    Ok(text)
+                }
+            },
             Err(e) => Err(io::Error::other(e.to_string())),
         }
     }
