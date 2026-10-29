@@ -21,7 +21,7 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, OsError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, OsError, TransferError, UnknownTransfer,
 };
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::primary_selection::PrimarySelectionExt;
@@ -790,7 +790,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self.state.borrow_mut().fetch_data_transfer(id, type_)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         self.state.borrow_mut().data_transfer(id)
     }
 
@@ -798,7 +798,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         self.state.borrow_mut().set_valid_dnd_actions(id, actions)
     }
 
