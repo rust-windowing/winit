@@ -24,7 +24,8 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, TransferError, UnknownTransfer,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, TransferError,
+    UnknownTransfer,
 };
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
@@ -155,19 +156,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let (pb, window_id) = match self.app_state.data_transfer().pasteboards().get(id) {
-            Some(pb) => {
-                let Some(window_id) = self.app_state.data_transfer().pasteboards().window_id(id)
-                else {
-                    return Err(TransferError::Failed);
-                };
-                (pb, window_id)
-            },
+            Some((pb, window_id)) => (pb, window_id),
             None => {
                 let pb = self.clipboard_by_id(id)?;
-                let window_id =
-                    self.app_state.clipboard_window(self.mtm).ok_or(TransferError::Failed)?;
+                let window_id = self
+                    .app_state
+                    .clipboard_window(self.mtm)
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
                 (pb, window_id)
             },
         };
@@ -175,14 +172,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let type_ = match type_.cast_ref::<PasteboardType>() {
             Some(pb_type) => pb_type.clone(),
             None => {
-                let hint = type_.hint().ok_or(TransferError::Failed)?;
+                let hint = type_.hint().ok_or(FetchError::TransferType)?;
                 pb.types()
                     .iter()
                     .find(|advertised| {
                         advertised.hint().is_some_and(|haystack| haystack.matches(&hint))
                     })
                     .cloned()
-                    .ok_or(TransferError::Failed)?
+                    .ok_or(FetchError::TransferType)?
             },
         };
 
@@ -203,7 +200,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
     }
 
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
-        if let Some(pb) = self.app_state.data_transfer().pasteboards().get(id) {
+        if let Some((pb, _)) = self.app_state.data_transfer().pasteboards().get(id) {
             return Ok(Box::new(pb));
         }
 
