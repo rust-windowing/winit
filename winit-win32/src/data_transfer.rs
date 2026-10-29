@@ -44,7 +44,7 @@ use windows_sys::core::{BOOL, GUID, HRESULT, IID_IUnknown};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
-use winit_core::error::TransferError;
+use winit_core::error::{TransferError, UnknownTransfer};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::DndAction;
 use winit_core::window::WindowId;
@@ -971,14 +971,14 @@ impl DataTransferState {
     pub(crate) fn clipboard_data(
         &self,
         id: DataTransferId,
-    ) -> Result<Arc<DataObject>, TransferError> {
+    ) -> Result<Arc<DataObject>, UnknownTransfer> {
         match &*self.clipboard.borrow() {
             Some(state) if state.is_current(id) => {
                 if let Some(data) = &state.data {
                     return Ok(data.clone());
                 }
             },
-            _ => return Err(TransferError::UnknownTransfer(id)),
+            _ => return Err(UnknownTransfer(id)),
         }
 
         let data = Arc::new(snapshot_clipboard()?);
@@ -988,7 +988,7 @@ impl DataTransferState {
                 state.data = Some(data.clone());
                 Ok(data)
             },
-            _ => Err(TransferError::UnknownTransfer(id)),
+            _ => Err(UnknownTransfer(id)),
         }
     }
 

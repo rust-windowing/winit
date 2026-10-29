@@ -94,6 +94,16 @@ impl From<OsError> for CreateWindowError {
     }
 }
 
+/// Unknown [`DataTransferId`]
+#[derive(Debug)]
+pub struct UnknownTransfer(pub DataTransferId);
+impl Display for UnknownTransfer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Unknown data transfer with ID {}", self.0.into_raw())
+    }
+}
+impl Error for UnknownTransfer {}
+
 /// A data transfer / drag-and-drop error.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -112,9 +122,7 @@ impl Display for TransferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSupported(err) => err.fmt(f),
-            Self::UnknownTransfer(id) => {
-                write!(f, "Unknown data transfer with ID {}", id.into_raw())
-            },
+            Self::UnknownTransfer(id) => UnknownTransfer(*id).fmt(f),
             Self::Failed => write!(f, "Transfer request failed"),
             Self::Os(err) => err.fmt(f),
         }
@@ -128,6 +136,11 @@ impl Error for TransferError {
 impl From<NotSupportedError> for TransferError {
     fn from(value: NotSupportedError) -> Self {
         Self::NotSupported(value)
+    }
+}
+impl From<UnknownTransfer> for TransferError {
+    fn from(value: UnknownTransfer) -> Self {
+        Self::UnknownTransfer(value.0)
     }
 }
 

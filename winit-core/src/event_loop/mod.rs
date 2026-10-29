@@ -18,6 +18,7 @@ use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use crate::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+    UnknownTransfer,
 };
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
@@ -235,9 +236,8 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     ///
     /// If the ID is invalid (e.g. if the lifetime of the data transfer has expired), this will
     /// return an error.
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
-        let _ = id;
-        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        Err(UnknownTransfer(id))
     }
 
     /// Set a given set of `DndAction`s as the valid actions for the given [`DataTransferId`],
@@ -263,10 +263,9 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
-        let _ = id;
+    ) -> Result<(), UnknownTransfer> {
         let _ = actions;
-        Err(DATA_TRANSFER_NOT_SUPPORTED)
+        Err(UnknownTransfer(id))
     }
 
     /// Initiate a new drag-and-drop operation.

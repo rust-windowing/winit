@@ -40,7 +40,7 @@ use wayland_client::{Connection, Proxy, QueueHandle};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
-use winit_core::error::{NotSupportedError, TransferError};
+use winit_core::error::{NotSupportedError, TransferError, UnknownTransfer};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::{AsyncRequestSerial, DndAction, DragIcon};
 use winit_core::icon::RgbaIcon;
@@ -532,10 +532,10 @@ impl WinitState {
     pub(crate) fn data_transfer(
         &mut self,
         id: DataTransferId,
-    ) -> Result<Box<dyn DataTransfer>, TransferError> {
+    ) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         match self.data_transfer_state.session_mut(id) {
             Some(session) => Ok(Box::new(session.data().clone())),
-            None => Err(TransferError::UnknownTransfer(id)),
+            None => Err(UnknownTransfer(id)),
         }
     }
 
@@ -543,9 +543,9 @@ impl WinitState {
         &mut self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         let Some(Session::Drag(session)) = self.data_transfer_state.session_mut(id) else {
-            return Err(TransferError::UnknownTransfer(id));
+            return Err(UnknownTransfer(id));
         };
 
         session.set_actions(actions);
