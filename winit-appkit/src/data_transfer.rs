@@ -404,17 +404,13 @@ impl Pasteboards {
         transfer.window_id = window_id;
     }
 
-    pub fn get(&self, id: DataTransferId) -> Option<Pasteboard> {
-        self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, .. }| {
+    pub fn get(&self, id: DataTransferId) -> Option<(Pasteboard, WindowId)> {
+        self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, window_id }| {
             pb.get_on_main(|state| {
-                Some(Pasteboard::new(id, state.load()?, MainThreadMarker::new().unwrap()))
+                let pb = Pasteboard::new(id, state.load()?, MainThreadMarker::new().unwrap());
+                Some((pb, window_id))
             })
         })
-    }
-
-    /// Get the window ID that most-recently saw the provided data transfer.
-    pub fn window_id(&self, id: DataTransferId) -> Option<WindowId> {
-        self.inner.borrow().get(&id).map(|active_pasteboard| active_pasteboard.window_id)
     }
 }
 
