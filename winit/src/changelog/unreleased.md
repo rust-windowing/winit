@@ -40,6 +40,9 @@ changelog entry.
 
 ## Unreleased
 
+### Changed
+- `MonitorHandleProvider::scale_factor` now returns `Option<f64>`.
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
