@@ -43,3 +43,4 @@ changelog entry.
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
+- On macOS, fix an input source change during composition dropping the IME commit.

@@ -476,7 +476,13 @@ define_class!(
             {
                 let mut prev_input_source = self.ivars().input_source.borrow_mut();
                 let current_input_source = self.current_input_source();
-                if *prev_input_source != current_input_source && self.is_ime_enabled() {
+                // Some input methods, such as Kotoeri, change the selected input source in the
+                // middle of a composition. Disabling IME then would drop the text that
+                // `interpretKeyEvents` is about to commit, so wait until the marked text is gone.
+                if *prev_input_source != current_input_source
+                    && self.is_ime_enabled()
+                    && !self.hasMarkedText()
+                {
                     *prev_input_source = current_input_source;
                     drop(prev_input_source);
                     self.ivars().ime_state.set(ImeState::Disabled);
