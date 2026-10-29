@@ -272,9 +272,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                     icon.as_ref().map(|icon| (icon.offset_x, icon.offset_y)).unwrap_or_default();
                 let drag_image = icon.and_then(|icon| image_from_icon(&icon.icon).ok());
 
-                let Some(event) = delegate.window().currentEvent() else {
-                    return Err(TransferError::Failed);
-                };
+                let event = delegate.window().currentEvent().expect("could not find current event");
 
                 let dragging_rect_size = drag_image
                     .as_ref()
@@ -358,7 +356,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
                 Ok(id)
             })
-            .ok_or(TransferError::Failed)?
+            .ok_or_else(|| os_error!("failed to load window {source:?}"))?
     }
 }
 

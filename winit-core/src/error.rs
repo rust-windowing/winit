@@ -110,10 +110,6 @@ impl Error for UnknownTransfer {}
 pub enum TransferError {
     /// The request is not supported.
     NotSupported(NotSupportedError),
-    /// Unknown [`DataTransferId`]
-    UnknownTransfer(DataTransferId),
-    /// The transfer (request) failed.
-    Failed,
     /// Got unspecified OS specific error during the request.
     Os(OsError),
 }
@@ -122,8 +118,6 @@ impl Display for TransferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSupported(err) => err.fmt(f),
-            Self::UnknownTransfer(id) => UnknownTransfer(*id).fmt(f),
-            Self::Failed => write!(f, "Transfer request failed"),
             Self::Os(err) => err.fmt(f),
         }
     }
@@ -136,11 +130,6 @@ impl Error for TransferError {
 impl From<NotSupportedError> for TransferError {
     fn from(value: NotSupportedError) -> Self {
         Self::NotSupported(value)
-    }
-}
-impl From<UnknownTransfer> for TransferError {
-    fn from(value: UnknownTransfer) -> Self {
-        Self::UnknownTransfer(value.0)
     }
 }
 impl From<OsError> for TransferError {
