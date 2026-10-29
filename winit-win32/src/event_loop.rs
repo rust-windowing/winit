@@ -69,8 +69,8 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
-    UnknownTransfer,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
 };
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
@@ -531,19 +531,22 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let (data, window_id) = match self.0.data_transfer().drag_state(id) {
             Some(state) => (state.data.clone(), state.window_id),
             None => {
                 let data = self.0.data_transfer().clipboard_data(id)?;
-                let window_id = self.0.clipboard_window().ok_or(TransferError::Failed)?;
+                let window_id = self
+                    .0
+                    .clipboard_window()
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
                 (data, window_id)
             },
         };
-        let hint = type_.hint().ok_or(TransferError::Failed)?;
+        let hint = type_.hint().ok_or(FetchError::TransferType)?;
         let typed_data = WinTypedData::new(data, hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
-            .ok_or(TransferError::Failed)?;
+            .ok_or(FetchError::TransferType)?;
 
         let serial = AsyncRequestSerial::get();
 

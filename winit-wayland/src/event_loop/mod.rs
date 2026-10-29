@@ -21,7 +21,8 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, OsError, TransferError, UnknownTransfer,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, OsError, TransferError,
+    UnknownTransfer,
 };
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::primary_selection::PrimarySelectionExt;
@@ -786,7 +787,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         self.state.borrow_mut().fetch_data_transfer(id, type_)
     }
 
