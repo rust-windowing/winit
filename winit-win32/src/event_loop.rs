@@ -70,6 +70,7 @@ use winit_core::data_transfer::{
 };
 use winit_core::error::{
     CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+    UnknownTransfer,
 };
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
@@ -554,7 +555,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         if let Some(state) = self.0.data_transfer().drag_state(id) {
             return Ok(Box::new(WinDataTransfer::new(state.data.clone())));
         }
@@ -590,11 +591,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         if self.0.data_transfer().set_valid_dnd_actions(id, actions) {
             Ok(())
         } else {
-            Err(TransferError::UnknownTransfer(id))
+            Err(UnknownTransfer(id))
         }
     }
 
