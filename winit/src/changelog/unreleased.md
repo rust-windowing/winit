@@ -43,3 +43,4 @@ changelog entry.
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
+- On Wayland, fix text not being copied to some application due to missing some mime types.
