@@ -76,11 +76,10 @@ impl TypedData for SelectionReader {
 
         fn decode_utf16_bytes(bytes: &[u8]) -> io::Result<String> {
             let utf16 = bytes
-                .chunks_exact(2)
-                .map(|chunk| {
-                    let bytes: &[u8; 2] = chunk.try_into().unwrap();
-                    u16::from_ne_bytes(*bytes)
-                })
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|bytes| u16::from_ne_bytes(*bytes))
                 .collect::<Vec<_>>();
             String::from_utf16(&utf16).map_err(invalid_data)
         }
@@ -868,12 +867,14 @@ impl DataTransferState {
 
     /// From the TARGETS request, populate the relevant clipboard
     pub fn populate_targets(&mut self, selection: xproto::Atom, data: Vec<u8>) {
-        let targets_bytes = data.chunks_exact(size_of::<xproto::Atom>());
-        if !targets_bytes.remainder().is_empty() {
+        let targets_bytes = data.as_chunks::<{ size_of::<xproto::Atom>() }>();
+        if !targets_bytes.1.is_empty() {
             warn!("Trailing bytes in list of targets from X11");
         }
         let targets: Vec<_> = targets_bytes
-            .map(|bytes| xproto::Atom::from_ne_bytes(bytes.try_into().unwrap()))
+            .0
+            .iter()
+            .map(|bytes| xproto::Atom::from_ne_bytes(*bytes))
             .map(|atom| SelectionType::new(self.xconn.atoms(), atom))
             .filter(|ty| ty.hint.is_some())
             .collect();

@@ -100,7 +100,7 @@ impl WinIcon {
         let mask_stride = width.div_ceil(16) * 2;
         let mut and_mask = vec![0u8; mask_stride * rgba.height() as usize];
         let mut bgra = Vec::with_capacity(rgba.buffer().len());
-        for (i, pixel) in rgba.buffer().chunks_exact(PIXEL_SIZE).enumerate() {
+        for (i, pixel) in rgba.buffer().as_chunks::<PIXEL_SIZE>().0.iter().enumerate() {
             if pixel[3] == 0 {
                 let (x, y) = (i % width, i / width);
                 and_mask[y * mask_stride + x / 8] |= 0x80 >> (x % 8);
@@ -182,7 +182,7 @@ impl CustomCursorProvider for WinCursor {
 impl WinCursor {
     pub(crate) fn new(image: &CursorImage) -> Result<Self, CustomCursorError> {
         let mut bgra = Vec::from(image.buffer());
-        bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
+        bgra.as_chunks_mut::<4>().0.iter_mut().for_each(|chunk| chunk.swap(0, 2));
 
         let w = image.width() as i32;
         let h = image.height() as i32;

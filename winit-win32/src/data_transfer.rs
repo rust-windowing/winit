@@ -1841,7 +1841,9 @@ pub(crate) unsafe fn apply_drag_image(
     // edges. Without premultiplication, the cursor preview shows a halo on every translucent
     // pixel.
     let dst = unsafe { std::slice::from_raw_parts_mut(bits_ptr as *mut u8, rgba.len()) };
-    for (src_px, dst_px) in rgba.chunks_exact(4).zip(dst.chunks_exact_mut(4)) {
+    for (src_px, dst_px) in
+        rgba.as_chunks::<4>().0.iter().zip(dst.as_chunks_mut::<4>().0.iter_mut())
+    {
         let (r, g, b, a) = (src_px[0] as u32, src_px[1] as u32, src_px[2] as u32, src_px[3]);
         dst_px[0] = ((b * a as u32) / 255) as u8;
         dst_px[1] = ((g * a as u32) / 255) as u8;

@@ -190,15 +190,16 @@ fn image_to_buffer(
 ) -> Result<Buffer, CreateBufferError> {
     let (buffer, canvas) = pool.create_buffer(width, height, 4 * width, format)?;
 
-    for (canvas_chunk, rgba) in canvas.chunks_exact_mut(4).zip(data.chunks_exact(4)) {
+    let data_chunks = data.as_chunks::<4>();
+    let canvas_chunks = canvas.as_chunks_mut::<4>();
+    for (canvas_chunk, rgba) in canvas_chunks.0.iter_mut().zip(data_chunks.0.iter()) {
         // Alpha in buffer is premultiplied.
         let alpha = rgba[3] as f32 / 255.;
         let r = (rgba[0] as f32 * alpha) as u32;
         let g = (rgba[1] as f32 * alpha) as u32;
         let b = (rgba[2] as f32 * alpha) as u32;
         let color = ((rgba[3] as u32) << 24) + (r << 16) + (g << 8) + b;
-        let array: &mut [u8; 4] = canvas_chunk.try_into().unwrap();
-        *array = color.to_le_bytes();
+        *canvas_chunk = color.to_le_bytes();
     }
 
     Ok(buffer)
