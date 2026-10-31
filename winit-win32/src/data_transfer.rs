@@ -880,7 +880,7 @@ pub(crate) struct DragState {
 struct ClipboardState {
     sequence: u32,
     id: DataTransferId,
-    data: Option<Arc<DataObject>>,
+    data: Arc<DataObject>,
 }
 
 impl ClipboardState {
@@ -953,17 +953,20 @@ impl DataTransferState {
         })
     }
 
-    pub(crate) fn clipboard_transfer_id(&self) -> DataTransferId {
+    pub(crate) fn clipboard_transfer_id(&self) -> Result<DataTransferId, TransferError> {
         let sequence = unsafe { GetClipboardSequenceNumber() };
+
         let mut clipboard = self.clipboard.borrow_mut();
-        clipboard.take_if(|state| state.sequence != sequence);
-        clipboard
-            .get_or_insert_with(|| ClipboardState {
-                sequence,
-                id: next_data_transfer_id(),
-                data: None,
-            })
-            .id
+        if let Some(state) = clipboard.as_ref()
+            && state.sequence == sequence
+        {
+            return Ok(state.id);
+        }
+
+        let id = next_data_transfer_id();
+        let data = Arc::new(snapshot_clipboard()?);
+        *clipboard = Some(ClipboardState { sequence, id, data });
+        Ok(id)
     }
 
     pub(crate) fn clipboard_data(
@@ -971,21 +974,7 @@ impl DataTransferState {
         id: DataTransferId,
     ) -> Result<Arc<DataObject>, UnknownTransfer> {
         match &*self.clipboard.borrow() {
-            Some(state) if state.is_current(id) => {
-                if let Some(data) = &state.data {
-                    return Ok(data.clone());
-                }
-            },
-            _ => return Err(UnknownTransfer(id)),
-        }
-
-        let data = Arc::new(snapshot_clipboard()?);
-
-        match &mut *self.clipboard.borrow_mut() {
-            Some(state) if state.is_current(id) => {
-                state.data = Some(data.clone());
-                Ok(data)
-            },
+            Some(state) if state.is_current(id) => Ok(state.data.clone()),
             _ => Err(UnknownTransfer(id)),
         }
     }
