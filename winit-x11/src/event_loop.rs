@@ -872,10 +872,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
         let data_transfer = self.data_transfer_state.borrow();
 
-        if let Some(state) = data_transfer.state() {
-            if state.transfer_id == id {
-                return Ok(Box::new(Selection::new(state.types.clone())));
-            }
+        if let Some(state) = data_transfer.state()
+            && state.transfer_id == id
+        {
+            return Ok(Box::new(Selection::new(state.types.clone())));
         }
 
         if let Some(clipboard) = data_transfer.resolve_clipboard_type(id) {
@@ -894,10 +894,10 @@ impl RootActiveEventLoop for ActiveEventLoop {
     ) -> Result<AsyncRequestSerial, TransferError> {
         let mut data_transfer = self.data_transfer_state.borrow_mut();
 
-        if let Some(state) = data_transfer.state() {
-            if state.transfer_id == id {
-                return data_transfer.fetch_dnd_data_transfer(type_);
-            }
+        if let Some(state) = data_transfer.state()
+            && state.transfer_id == id
+        {
+            return data_transfer.fetch_dnd_data_transfer(type_);
         }
 
         if let Some(clipboard) = data_transfer.resolve_clipboard_type(id) {

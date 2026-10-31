@@ -74,16 +74,16 @@ impl DataObject {
             data.insert(TypeHint::Plaintext, SendData::String(text));
         }
 
-        if let Some(uris) = unsafe { read_uri_list(data_obj) }? {
-            if !uris.is_empty() {
-                data.insert(TypeHint::UriList, SendData::Uris(uris));
-            }
+        if let Some(uris) = unsafe { read_uri_list(data_obj) }?
+            && !uris.is_empty()
+        {
+            data.insert(TypeHint::UriList, SendData::Uris(uris));
         }
 
-        if let Some(png) = unsafe { read_png(data_obj) }? {
-            if !png.is_empty() {
-                data.insert(TypeHint::Image { extension_hint: Some("png") }, SendData::Bytes(png));
-            }
+        if let Some(png) = unsafe { read_png(data_obj) }?
+            && !png.is_empty()
+        {
+            data.insert(TypeHint::Image { extension_hint: Some("png") }, SendData::Bytes(png));
         }
 
         Ok(Self { data })
@@ -775,17 +775,15 @@ fn pick_effect(actions: &[DndAction], key_state: u32, source_allowed: u32) -> u3
     }
 
     // If holding a modifier would result in no valid values, ignore
-    // Need to use filter instead of if-let chains for 1.86 compatibility.
-    if let Some(new_allowed) =
-        NonZeroU32::new(allowed & !DROPEFFECT_MOVE).filter(|_| key_state & MK_CONTROL != 0)
+    if let Some(new_allowed) = NonZeroU32::new(allowed & !DROPEFFECT_MOVE)
+        && key_state & MK_CONTROL != 0
     {
         allowed = new_allowed.get();
     }
 
     // If holding a modifier would result in no valid values, ignore
-    // Need to use filter instead of if-let chains for 1.86 compatibility.
-    if let Some(new_allowed) =
-        NonZeroU32::new(allowed & !DROPEFFECT_COPY).filter(|_| key_state & MK_SHIFT != 0)
+    if let Some(new_allowed) = NonZeroU32::new(allowed & !DROPEFFECT_COPY)
+        && key_state & MK_SHIFT != 0
     {
         allowed = new_allowed.get();
     }
@@ -1487,18 +1485,16 @@ impl SourceDataObjectData {
         }
         // Shell-helper-injected formats live in `extras`; serve those first by duplicating the
         // stored HGLOBAL so the caller can `ReleaseStgMedium` independently of our storage.
-        if let Ok(extras) = me.extras.try_borrow() {
-            if let Some((stored_fmt, stored)) =
+        if let Ok(extras) = me.extras.try_borrow()
+            && let Some((stored_fmt, stored)) =
                 extras.iter().find(|(f, _)| f.cfFormat == format.cfFormat)
-            {
-                if (stored_fmt.tymed & format.tymed) != 0 {
-                    if let Some(dup) = unsafe { duplicate_stgmedium(&stored.0, format.cfFormat) } {
-                        unsafe { *pmedium = dup };
-                        return S_OK;
-                    }
-                    return E_FAIL;
-                }
+            && (stored_fmt.tymed & format.tymed) != 0
+        {
+            if let Some(dup) = unsafe { duplicate_stgmedium(&stored.0, format.cfFormat) } {
+                unsafe { *pmedium = dup };
+                return S_OK;
             }
+            return E_FAIL;
         }
         let Some(&(_, hint)) = me.formats.iter().find(|&&(cf, _)| cf == format.cfFormat) else {
             return DV_E_FORMATETC;
@@ -1545,10 +1541,10 @@ impl SourceDataObjectData {
         if me.formats.iter().any(|&(cf, _)| cf == format.cfFormat) {
             return S_OK;
         }
-        if let Ok(extras) = me.extras.try_borrow() {
-            if extras.iter().any(|(f, _)| f.cfFormat == format.cfFormat) {
-                return S_OK;
-            }
+        if let Ok(extras) = me.extras.try_borrow()
+            && extras.iter().any(|(f, _)| f.cfFormat == format.cfFormat)
+        {
+            return S_OK;
         }
         S_FALSE
     }
@@ -1845,7 +1841,9 @@ pub(crate) unsafe fn apply_drag_image(
     // edges. Without premultiplication, the cursor preview shows a halo on every translucent
     // pixel.
     let dst = unsafe { std::slice::from_raw_parts_mut(bits_ptr as *mut u8, rgba.len()) };
-    for (src_px, dst_px) in rgba.chunks_exact(4).zip(dst.chunks_exact_mut(4)) {
+    for (src_px, dst_px) in
+        rgba.as_chunks::<4>().0.iter().zip(dst.as_chunks_mut::<4>().0.iter_mut())
+    {
         let (r, g, b, a) = (src_px[0] as u32, src_px[1] as u32, src_px[2] as u32, src_px[3]);
         dst_px[0] = ((b * a as u32) / 255) as u8;
         dst_px[1] = ((g * a as u32) / 255) as u8;

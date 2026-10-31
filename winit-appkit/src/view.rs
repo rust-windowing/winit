@@ -559,10 +559,10 @@ define_class!(
         fn insert_tab(&self, _sender: Option<&AnyObject>) {
             let _entered = debug_span!("insertTab:").entered();
             let window = self.window();
-            if let Some(first_responder) = window.firstResponder() {
-                if *first_responder == ***self {
-                    window.selectNextKeyView(Some(self))
-                }
+            if let Some(first_responder) = window.firstResponder()
+                && *first_responder == ***self
+            {
+                window.selectNextKeyView(Some(self))
             }
         }
 
@@ -570,10 +570,10 @@ define_class!(
         fn insert_back_tab(&self, _sender: Option<&AnyObject>) {
             let _entered = debug_span!("insertBackTab:").entered();
             let window = self.window();
-            if let Some(first_responder) = window.firstResponder() {
-                if *first_responder == ***self {
-                    window.selectPreviousKeyView(Some(self))
-                }
+            if let Some(first_responder) = window.firstResponder()
+                && *first_responder == ***self
+            {
+                window.selectPreviousKeyView(Some(self))
             }
         }
 
@@ -1054,10 +1054,10 @@ impl WinitView {
         // Tell the input method to drop any composition in progress. Otherwise it keeps the
         // marked text and continues composing it once IME is enabled again (e.g. when focus
         // returns to a text input), even though the application has already ended it.
-        if self.ivars().marked_text.borrow().length() > 0 {
-            if let Some(input_context) = self.inputContext() {
-                input_context.discardMarkedText();
-            }
+        if self.ivars().marked_text.borrow().length() > 0
+            && let Some(input_context) = self.inputContext()
+        {
+            input_context.discardMarkedText();
         }
         // see above
         self.ivars().ime_capabilities.set(None);

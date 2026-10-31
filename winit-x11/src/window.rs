@@ -1832,11 +1832,11 @@ impl UnownedWindow {
                 );
 
                 #[allow(clippy::mutex_atomic)]
-                if SelectedCursor::Named(icon) != old_cursor && *self.cursor_visible.lock().unwrap()
+                if SelectedCursor::Named(icon) != old_cursor
+                    && *self.cursor_visible.lock().unwrap()
+                    && let Err(err) = self.xconn.set_cursor_icon(self.xwindow, Some(icon))
                 {
-                    if let Err(err) = self.xconn.set_cursor_icon(self.xwindow, Some(icon)) {
-                        tracing::error!("failed to set cursor icon: {err}");
-                    }
+                    tracing::error!("failed to set cursor icon: {err}");
                 }
             },
             Cursor::Custom(cursor) => {
@@ -1849,10 +1849,10 @@ impl UnownedWindow {
                 };
 
                 #[allow(clippy::mutex_atomic)]
-                if *self.cursor_visible.lock().unwrap() {
-                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor) {
-                        tracing::error!("failed to set window icon: {err}");
-                    }
+                if *self.cursor_visible.lock().unwrap()
+                    && let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor)
+                {
+                    tracing::error!("failed to set window icon: {err}");
                 }
 
                 *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor.clone());

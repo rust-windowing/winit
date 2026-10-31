@@ -807,10 +807,10 @@ impl<T> PendingEventQueue<T> {
     pub fn remove_pending(&self, token: PendingMessageToken) -> Vec<T> {
         let mut pending = self.pending.lock().unwrap();
         let mut was_first = false;
-        if let Some(m) = pending.first() {
-            if m.token == token {
-                was_first = true;
-            }
+        if let Some(m) = pending.first()
+            && m.token == token
+        {
+            was_first = true;
         }
         pending.retain(|m| m.token != token);
         if was_first { Self::drain_pending(&mut *pending) } else { Vec::new() }

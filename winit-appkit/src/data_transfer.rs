@@ -546,10 +546,10 @@ impl PasteboardWriterState {
         &self,
         pasteboard_type: &NSPasteboardType,
     ) -> Option<Retained<AnyObject>> {
-        if pasteboard_type == unsafe { NSPasteboardTypeFileURL } {
-            if let Some(out) = self.uri.clone().map(Into::into) {
-                return Some(out);
-            }
+        if pasteboard_type == unsafe { NSPasteboardTypeFileURL }
+            && let Some(out) = self.uri.clone().map(Into::into)
+        {
+            return Some(out);
         }
         let pb_type = PasteboardType::from(pasteboard_type.retain());
 

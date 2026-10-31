@@ -731,12 +731,7 @@ fn dur2timeout(dur: Duration) -> u32 {
     // * Greater than u32::MAX milliseconds (50 days) is rounded up to INFINITE (never time out).
     dur.as_secs()
         .checked_mul(1000)
-        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
-        .and_then(
-            |ms| {
-                if dur.subsec_nanos() % 1_000_000 > 0 { ms.checked_add(1) } else { Some(ms) }
-            },
-        )
+        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64).div_ceil(1_000_000)))
         .map(|ms| if ms > u32::MAX as u64 { INFINITE } else { ms as u32 })
         .unwrap_or(INFINITE)
 }
@@ -1663,26 +1658,25 @@ unsafe fn public_window_callback_inner(
 
                 // Google Japanese Input and ATOK have both flags, so
                 // first, receive composing result if exist.
-                if (lparam as u32 & GCS_RESULTSTR) != 0 {
-                    if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.window_state_lock().ime_state = ImeState::Enabled;
-                        userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
-                    }
+                if (lparam as u32 & GCS_RESULTSTR) != 0
+                    && let Some(text) = unsafe { ime_context.get_composed_text() }
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Enabled;
+                    userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                 }
 
                 // Next, receive preedit range for next composing if exist.
-                if (lparam as u32 & GCS_COMPSTR) != 0 {
-                    if let Some((text, first, last)) =
+                if (lparam as u32 & GCS_COMPSTR) != 0
+                    && let Some((text, first, last)) =
                         unsafe { ime_context.get_composing_text_and_cursor() }
-                    {
-                        userdata.window_state_lock().ime_state = ImeState::Preedit;
-                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Preedit;
+                    let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
-                        );
-                    }
+                    userdata.send_window_event(
+                        window,
+                        WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                    );
                 }
             }
 

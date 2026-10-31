@@ -454,10 +454,10 @@ impl WindowState {
         self.size = surface_size;
 
         // Update the stateless size.
-        if let WindowType::Window { last_configure, .. } = &mut self.window {
-            if let Some(true) = last_configure.as_ref().map(Self::is_stateless) {
-                self.stateless_size = surface_size;
-            }
+        if let WindowType::Window { last_configure, .. } = &mut self.window
+            && let Some(true) = last_configure.as_ref().map(Self::is_stateless)
+        {
+            self.stateless_size = surface_size;
         }
 
         // Update the inner frame.
