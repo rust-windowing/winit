@@ -408,7 +408,7 @@ impl Pasteboards {
         self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, window_id }| {
             pb.get_on_main(|state| {
                 let pb = Pasteboard::new(id, state.load()?, MainThreadMarker::new().unwrap());
-                Some((pb, window_id))
+                Some((pb, *window_id))
             })
         })
     }
