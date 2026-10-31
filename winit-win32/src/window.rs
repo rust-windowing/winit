@@ -1660,8 +1660,8 @@ unsafe fn init(
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            parent.unwrap_or(ptr::null_mut()),
-            menu.unwrap_or(ptr::null_mut()),
+            parent.unwrap_or_default(),
+            menu.unwrap_or_default(),
             util::get_instance_handle(),
             &mut initdata as *mut _ as *mut _,
         )
