@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
-use winit_core::error::TransferError;
+use winit_core::error::FetchError;
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::window::WindowId;
@@ -947,15 +947,15 @@ impl DataTransferState {
     pub(crate) fn fetch_dnd_data_transfer(
         &mut self,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let type_ = type_
             .cast_ref::<SelectionType>()
             .or_else(|| self.find_type_by_hint(type_.hint()?))
             .cloned()
-            .ok_or(TransferError::Failed)?;
+            .ok_or(FetchError::TransferType)?;
 
         let Some(state) = self.state.as_mut() else {
-            return Err(TransferError::Failed);
+            return Err(os_error!("no drag operation in progress").into());
         };
 
         // If it's non-empty, assume that we're still waiting on some other fetch operation.
@@ -972,9 +972,7 @@ impl DataTransferState {
             if let Err(e) =
                 self.xconn.convert_selection(state.target_window, selection, atom, selection)
             {
-                return Err(TransferError::Os(os_error!(format!(
-                    "could not convert selection: {e}"
-                ))));
+                return Err(os_error!(format!("could not convert selection: {e}")).into());
             }
         }
 
@@ -989,14 +987,14 @@ impl DataTransferState {
         clipboard: ClipboardSelectionType,
         type_: &dyn TransferType,
         xwindow: xproto::Window,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let ty = type_
             .cast_ref::<SelectionType>()
             .cloned()
             .or_else(|| {
                 self.get_clipboard(clipboard).find_type_by_hint(type_.hint()?, self.xconn.atoms())
             })
-            .ok_or(TransferError::Failed)?;
+            .ok_or(FetchError::TransferType)?;
 
         let serial = AsyncRequestSerial::get();
         let should_emit_convert_selection =

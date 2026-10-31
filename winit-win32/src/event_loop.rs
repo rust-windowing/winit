@@ -69,7 +69,8 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
 };
 use winit_core::event::{
     DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
@@ -530,19 +531,22 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let (data, window_id) = match self.0.data_transfer().drag_state(id) {
             Some(state) => (state.data.clone(), state.window_id),
             None => {
                 let data = self.0.data_transfer().clipboard_data(id)?;
-                let window_id = self.0.clipboard_window().ok_or(TransferError::Failed)?;
+                let window_id = self
+                    .0
+                    .clipboard_window()
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
                 (data, window_id)
             },
         };
-        let hint = type_.hint().ok_or(TransferError::Failed)?;
+        let hint = type_.hint().ok_or(FetchError::TransferType)?;
         let typed_data = WinTypedData::new(data, hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
-            .ok_or(TransferError::Failed)?;
+            .ok_or(FetchError::TransferType)?;
 
         let serial = AsyncRequestSerial::get();
 
@@ -554,7 +558,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         if let Some(state) = self.0.data_transfer().drag_state(id) {
             return Ok(Box::new(WinDataTransfer::new(state.data.clone())));
         }
@@ -569,7 +573,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             return Ok(None);
         }
 
-        Ok(Some(self.0.data_transfer().clipboard_transfer_id()))
+        self.0.data_transfer().clipboard_transfer_id().map(Some)
     }
 
     fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
@@ -590,11 +594,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         if self.0.data_transfer().set_valid_dnd_actions(id, actions) {
             Ok(())
         } else {
-            Err(TransferError::UnknownTransfer(id))
+            Err(UnknownTransfer(id))
         }
     }
 

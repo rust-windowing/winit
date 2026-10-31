@@ -21,7 +21,8 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
 };
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
 use winit_core::event_loop::primary_selection::PrimarySelectionExt;
@@ -869,7 +870,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         let data_transfer = self.data_transfer_state.borrow();
 
         if let Some(state) = data_transfer.state() {
@@ -884,14 +885,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
             ));
         }
 
-        Err(TransferError::UnknownTransfer(id))
+        Err(UnknownTransfer(id))
     }
 
     fn fetch_data_transfer(
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let mut data_transfer = self.data_transfer_state.borrow_mut();
 
         if let Some(state) = data_transfer.state() {
@@ -901,12 +902,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
         }
 
         if let Some(clipboard) = data_transfer.resolve_clipboard_type(id) {
-            let Some(clip_win) = self.clipboard_window() else {
-                return Err(TransferError::Failed);
-            };
+            let clip_win = self
+                .clipboard_window()
+                .ok_or_else(|| os_error!("unable to determine focused window"))?;
             data_transfer.fetch_clipboard_data_transfer(clipboard, type_, clip_win)
         } else {
-            Err(TransferError::UnknownTransfer(id))
+            Err(FetchError::UnknownTransfer(id))
         }
     }
 
@@ -914,15 +915,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         let mut data_transfer = self.data_transfer_state.borrow_mut();
 
         let Some(state) = data_transfer.state_mut() else {
-            return Err(TransferError::UnknownTransfer(id));
+            return Err(UnknownTransfer(id));
         };
 
         if state.transfer_id != id {
-            return Err(TransferError::UnknownTransfer(id));
+            return Err(UnknownTransfer(id));
         }
 
         state.accepted = !actions.is_empty();

@@ -3,7 +3,8 @@ use std::error::Error;
 use softbuffer::{Context, Surface};
 use tracing::{error, info};
 use winit::application::ApplicationHandler;
-use winit::data_transfer::{DataTransferSendBuilder, TypeHint};
+use winit::data_transfer::{DataTransferId, DataTransferSendBuilder, TypeHint};
+use winit::error::FetchError;
 use winit::event::{ButtonSource, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, AsyncRequestSerial, EventLoop, OwnedDisplayHandle};
 use winit::keyboard::Key;
@@ -55,6 +56,16 @@ impl ApplicationHandler for Application {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        fn fetch_transfer(
+            event_loop: &dyn ActiveEventLoop,
+            id: DataTransferId,
+        ) -> Result<AsyncRequestSerial, FetchError> {
+            let data_transfer = event_loop.data_transfer(id)?;
+            info!("Types: {:#?}", data_transfer.available_types());
+
+            event_loop.fetch_data_transfer(id, &TypeHint::Plaintext)
+        }
+
         match event {
             WindowEvent::KeyboardInput { event, .. } if event.state.is_pressed() => {
                 match event.logical_key {
@@ -72,21 +83,20 @@ impl ApplicationHandler for Application {
                         }
                     },
                     Key::Character(ref c) if c == "v" => {
-                        let result = event_loop.clipboard().and_then(|id| {
-                            let Some(id) = id else {
+                        let id = match event_loop.clipboard() {
+                            Ok(Some(id)) => id,
+                            Ok(None) => {
                                 info!("Clipboard is empty");
-                                return Ok(None);
-                            };
+                                return;
+                            },
+                            Err(err) => {
+                                error!("Failed to read clipboard: {err}");
+                                return;
+                            },
+                        };
 
-                            let data_transfer = event_loop.data_transfer(id)?;
-
-                            info!("Types: {:#?}", data_transfer.available_types());
-
-                            event_loop.fetch_data_transfer(id, &TypeHint::Plaintext).map(Some)
-                        });
-
-                        match result {
-                            Ok(serial) => self.last_clipboard_fetch = serial,
+                        match fetch_transfer(event_loop, id) {
+                            Ok(serial) => self.last_clipboard_fetch = Some(serial),
                             Err(err) => error!("Failed to read clipboard: {err}"),
                         }
                     },
@@ -123,21 +133,20 @@ impl ApplicationHandler for Application {
                     return;
                 };
 
-                let result = ext.primary_selection().and_then(|id| {
-                    let Some(id) = id else {
+                let id = match ext.primary_selection() {
+                    Ok(Some(id)) => id,
+                    Ok(None) => {
                         info!("Primary selection is empty");
-                        return Ok(None);
-                    };
+                        return;
+                    },
+                    Err(err) => {
+                        error!("Failed to read primary selection: {err}");
+                        return;
+                    },
+                };
 
-                    let data_transfer = event_loop.data_transfer(id)?;
-
-                    info!("Types: {:#?}", data_transfer.available_types());
-
-                    event_loop.fetch_data_transfer(id, &TypeHint::Plaintext).map(Some)
-                });
-
-                match result {
-                    Ok(serial) => self.last_clipboard_fetch = serial,
+                match fetch_transfer(event_loop, id) {
+                    Ok(serial) => self.last_clipboard_fetch = Some(serial),
                     Err(err) => error!("Failed to read primary selection: {err}"),
                 }
             },

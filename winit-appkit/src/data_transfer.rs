@@ -20,6 +20,7 @@ use objc2_foundation::{NSArray, NSData, NSObject, NSObjectProtocol, NSString, NS
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
+use winit_core::error::UnknownTransfer;
 use winit_core::event_loop::DndAction;
 use winit_core::window::WindowId;
 
@@ -403,17 +404,13 @@ impl Pasteboards {
         transfer.window_id = window_id;
     }
 
-    pub fn get(&self, id: DataTransferId) -> Option<Pasteboard> {
-        self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, .. }| {
+    pub fn get(&self, id: DataTransferId) -> Option<(Pasteboard, WindowId)> {
+        self.inner.borrow().get(&id).and_then(|ActivePasteboard { pb, window_id }| {
             pb.get_on_main(|state| {
-                Some(Pasteboard::new(id, state.load()?, MainThreadMarker::new().unwrap()))
+                let pb = Pasteboard::new(id, state.load()?, MainThreadMarker::new().unwrap());
+                Some((pb, *window_id))
             })
         })
-    }
-
-    /// Get the window ID that most-recently saw the provided data transfer.
-    pub fn window_id(&self, id: DataTransferId) -> Option<WindowId> {
-        self.inner.borrow().get(&id).map(|active_pasteboard| active_pasteboard.window_id)
     }
 }
 
@@ -456,14 +453,18 @@ impl DataTransferState {
         self.drag.borrow().as_ref().map(|state| state.id)
     }
 
-    pub(crate) fn set_valid_dnd_actions(&self, id: DataTransferId, actions: &[DndAction]) -> bool {
+    pub(crate) fn set_valid_dnd_actions(
+        &self,
+        id: DataTransferId,
+        actions: &[DndAction],
+    ) -> Result<(), UnknownTransfer> {
         match &mut *self.drag.borrow_mut() {
             Some(state) if state.id == id => {
                 state.valid_actions.clear();
                 state.valid_actions.extend_from_slice(actions);
-                true
+                Ok(())
             },
-            _ => false,
+            _ => Err(UnknownTransfer(id)),
         }
     }
 

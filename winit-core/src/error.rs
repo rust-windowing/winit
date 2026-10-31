@@ -94,16 +94,22 @@ impl From<OsError> for CreateWindowError {
     }
 }
 
+/// Unknown [`DataTransferId`]
+#[derive(Debug)]
+pub struct UnknownTransfer(pub DataTransferId);
+impl Display for UnknownTransfer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Unknown data transfer with ID {}", self.0.into_raw())
+    }
+}
+impl Error for UnknownTransfer {}
+
 /// A data transfer / drag-and-drop error.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TransferError {
     /// The request is not supported.
     NotSupported(NotSupportedError),
-    /// Unknown [`DataTransferId`]
-    UnknownTransfer(DataTransferId),
-    /// The transfer (request) failed.
-    Failed,
     /// Got unspecified OS specific error during the request.
     Os(OsError),
 }
@@ -112,10 +118,6 @@ impl Display for TransferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSupported(err) => err.fmt(f),
-            Self::UnknownTransfer(id) => {
-                write!(f, "Unknown data transfer with ID {}", id.into_raw())
-            },
-            Self::Failed => write!(f, "Transfer request failed"),
             Self::Os(err) => err.fmt(f),
         }
     }
@@ -130,8 +132,44 @@ impl From<NotSupportedError> for TransferError {
         Self::NotSupported(value)
     }
 }
-
 impl From<OsError> for TransferError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
+}
+
+/// A data transfer fetch failed.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum FetchError {
+    /// Unknown [`DataTransferId`]
+    UnknownTransfer(DataTransferId),
+    /// The requested [`TransferType`] is not available
+    TransferType,
+    /// Got unspecified OS specific error during the request.
+    Os(OsError),
+}
+
+impl Display for FetchError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownTransfer(id) => UnknownTransfer(*id).fmt(f),
+            Self::TransferType => write!(f, "Requested transfer type unavailable or not supported"),
+            Self::Os(err) => err.fmt(f),
+        }
+    }
+}
+impl Error for FetchError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Os(err) = self { err.source() } else { None }
+    }
+}
+impl From<UnknownTransfer> for FetchError {
+    fn from(value: UnknownTransfer) -> Self {
+        Self::UnknownTransfer(value.0)
+    }
+}
+impl From<OsError> for FetchError {
     fn from(value: OsError) -> Self {
         Self::Os(value)
     }

@@ -17,7 +17,8 @@ use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use crate::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
 };
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
@@ -212,32 +213,34 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
 
     /// Request to fetch a type from a [data transfer](crate::data_transfer::DataTransfer).
     ///
-    /// This may be called multiple times on the same [`DataTransferId`] with different types,
-    /// and may be called at any point during the drag operation, including during handling the
-    /// [`DragDropped`](crate::event::WindowEvent::DragDropped) event. After that event has been
-    /// received, though, the data transfer is not guaranteed to be available. The data is
-    /// _not_ guaranteed to be available during (or after) handling of
+    /// This may be called multiple times on the same [`DataTransferId`] with different types.
+    ///
+    /// For drag-and-drop transfers this may be called at any point during the drag operation,
+    /// including during handling the [`DragDropped`](crate::event::WindowEvent::DragDropped) event.
+    /// After that event has been received, though, the data transfer is not guaranteed to be
+    /// available. The data is _not_ guaranteed to be available during (or after) handling of
     /// [`DragLeft](crate::event::WindowEvent::DragLeft).
     ///
     /// Once available, the data will be supplied to the application with the
-    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived) event.
+    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived) event. For
+    /// drag-and-drop transfers, this is sent to the window receiving the drag-and-drop; for
+    /// clipboard requests, this is sent to the window which has focus at the time this method is
+    /// called (this method fails if no such window can be determined).
     fn fetch_data_transfer(
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
-        let _ = id;
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let _ = type_;
-        Err(DATA_TRANSFER_NOT_SUPPORTED)
+        Err(FetchError::UnknownTransfer(id))
     }
 
     /// Get a [data transfer](DataTransfer) by its ID.
     ///
     /// If the ID is invalid (e.g. if the lifetime of the data transfer has expired), this will
     /// return an error.
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
-        let _ = id;
-        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        Err(UnknownTransfer(id))
     }
 
     /// Set a given set of `DndAction`s as the valid actions for the given [`DataTransferId`],
@@ -263,10 +266,9 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
-        let _ = id;
+    ) -> Result<(), UnknownTransfer> {
         let _ = actions;
-        Err(DATA_TRANSFER_NOT_SUPPORTED)
+        Err(UnknownTransfer(id))
     }
 
     /// Initiate a new drag-and-drop operation.
@@ -334,8 +336,8 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     ///
     /// As the clipboard is not tied to a window, the resulting
     /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
-    /// event is delivered to the focused window, or to an unspecified window
-    /// if focus could not be determined.
+    /// event is delivered to the window focused at the time [`Self::fetch_data_transfer`] is
+    /// called.
     ///
     /// The ID is only valid until the clipboard contents change.
     fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
