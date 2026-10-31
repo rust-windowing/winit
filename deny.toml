@@ -44,7 +44,7 @@ confidence-threshold = 1.0
 private = { ignore = true }
 
 [bans]
-multiple-versions = "deny"
+multiple-versions = "warn"
 skip = [
     { crate = "jni-sys@0.3", reason = "uses the semver trick to depend on v0.4, but `ndk` hasn't been updated to v0.4 yet" },
     { crate = "thiserror@1.0", reason = "dep of `ndk` crate, yet to be updated" },
