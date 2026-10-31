@@ -69,7 +69,7 @@ pub struct RgbaIcon {
 
 impl RgbaIcon {
     pub fn new(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        if rgba.len() % PIXEL_SIZE != 0 {
+        if rgba.len().is_multiple_of(PIXEL_SIZE) {
             return Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
         }
         let pixel_count = rgba.len() / PIXEL_SIZE;
