@@ -221,11 +221,9 @@ impl XConnection {
         }
 
         // If we don't have a primary monitor, just pick one ourselves!
-        if !has_primary {
-            if let Some(ref mut fallback) = available_monitors.first_mut() {
-                // Setting this here will come in handy if we ever add an `is_primary` method.
-                fallback.primary = true;
-            }
+        if !has_primary && let Some(ref mut fallback) = available_monitors.first_mut() {
+            // Setting this here will come in handy if we ever add an `is_primary` method.
+            fallback.primary = true;
         }
 
         Ok(available_monitors)

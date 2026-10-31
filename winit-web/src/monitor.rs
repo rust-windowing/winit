@@ -51,10 +51,10 @@ impl MonitorHandle {
 
     pub fn request_lock(&self, orientation_lock: OrientationLock) -> OrientationLockFuture {
         // Short-circuit without blocking.
-        if let Some(support) = has_previous_lock_support() {
-            if !support {
-                return OrientationLockFuture::Ready(Some(Err(OrientationLockError::Unsupported)));
-            }
+        if let Some(support) = has_previous_lock_support()
+            && !support
+        {
+            return OrientationLockFuture::Ready(Some(Err(OrientationLockError::Unsupported)));
         }
 
         self.inner.queue(|inner| {
@@ -77,10 +77,10 @@ impl MonitorHandle {
 
     pub fn unlock(&self) -> Result<(), OrientationLockError> {
         // Short-circuit without blocking.
-        if let Some(support) = has_previous_lock_support() {
-            if !support {
-                return Err(OrientationLockError::Unsupported);
-            }
+        if let Some(support) = has_previous_lock_support()
+            && !support
+        {
+            return Err(OrientationLockError::Unsupported);
         }
 
         self.inner.queue(|inner| {
@@ -367,15 +367,15 @@ impl Drop for Inner {
     fn drop(&mut self) {
         if let Screen::Detailed { runner, id, screen } = &self.screen {
             // If this is the last screen with its ID, clean it up in the `MonitorHandler`.
-            if Rc::strong_count(screen) == 1 {
-                if let Some(runner) = runner.upgrade() {
-                    let mut state = runner.monitor().state.borrow_mut();
-                    let State::Detailed(detailed) = state.deref_mut() else {
-                        unreachable!("found a `ScreenDetailed` without being in `State::Detailed`")
-                    };
+            if Rc::strong_count(screen) == 1
+                && let Some(runner) = runner.upgrade()
+            {
+                let mut state = runner.monitor().state.borrow_mut();
+                let State::Detailed(detailed) = state.deref_mut() else {
+                    unreachable!("found a `ScreenDetailed` without being in `State::Detailed`")
+                };
 
-                    detailed.screens.retain(|(id_internal, _)| *id_internal != *id)
-                }
+                detailed.screens.retain(|(id_internal, _)| *id_internal != *id)
             }
         }
     }

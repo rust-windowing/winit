@@ -131,10 +131,10 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 };
 
                 // Just in case some IME sends an event for the disabled window.
-                if let Some(window) = windows.get(&window_id) {
-                    if window.lock().unwrap().text_input_state().is_none() {
-                        return;
-                    }
+                if let Some(window) = windows.get(&window_id)
+                    && window.lock().unwrap().text_input_state().is_none()
+                {
+                    return;
                 };
 
                 // The events are sent to the user separately, so

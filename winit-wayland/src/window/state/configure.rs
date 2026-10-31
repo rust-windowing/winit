@@ -155,24 +155,23 @@ impl WindowState {
             && !configure.is_maximized()
             && !configure.is_fullscreen()
             && !configure.is_tiled()
+            && let Some(increments) = self.resize_increments
         {
-            if let Some(increments) = self.resize_increments {
-                // We use min size as a base size for the increments, similar to how X11 does it.
-                //
-                // This ensures that we can always reach the min size and the increments are
-                // calculated from it.
-                let (delta_width, delta_height) = (
-                    new_size.width.saturating_sub(self.min_surface_size.width),
-                    new_size.height.saturating_sub(self.min_surface_size.height),
-                );
+            // We use min size as a base size for the increments, similar to how X11 does it.
+            //
+            // This ensures that we can always reach the min size and the increments are
+            // calculated from it.
+            let (delta_width, delta_height) = (
+                new_size.width.saturating_sub(self.min_surface_size.width),
+                new_size.height.saturating_sub(self.min_surface_size.height),
+            );
 
-                let width = self.min_surface_size.width
-                    + (delta_width / increments.width) * increments.width;
-                let height = self.min_surface_size.height
-                    + (delta_height / increments.height) * increments.height;
+            let width =
+                self.min_surface_size.width + (delta_width / increments.width) * increments.width;
+            let height = self.min_surface_size.height
+                + (delta_height / increments.height) * increments.height;
 
-                new_size = (width, height).into();
-            }
+            new_size = (width, height).into();
         }
 
         new_size

@@ -205,10 +205,9 @@ impl CursorHandler {
                 if let SelectedCursor::Icon(old_icon)
                 | SelectedCursor::Loading { previous: Previous::Icon(old_icon), .. } =
                     &this.cursor
+                    && *old_icon == icon
                 {
-                    if *old_icon == icon {
-                        return;
-                    }
+                    return;
                 }
 
                 this.cursor = SelectedCursor::Icon(icon);
@@ -223,10 +222,9 @@ impl CursorHandler {
                 if let SelectedCursor::Loading { cursor: old_cursor, .. }
                 | SelectedCursor::Image(old_cursor)
                 | SelectedCursor::Animation { cursor: old_cursor, .. } = &this.cursor
+                    && old_cursor == cursor
                 {
-                    if old_cursor == cursor {
-                        return;
-                    }
+                    return;
                 }
 
                 let state = cursor.state.get(this.main_thread).borrow();

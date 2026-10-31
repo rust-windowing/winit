@@ -13,10 +13,10 @@ impl AtomicWaker {
     pub fn register(&self, waker: &Waker) {
         let mut this = self.0.borrow_mut();
 
-        if let Some(old_waker) = this.deref() {
-            if old_waker.will_wake(waker) {
-                return;
-            }
+        if let Some(old_waker) = this.deref()
+            && old_waker.will_wake(waker)
+        {
+            return;
         }
 
         *this = Some(waker.clone());

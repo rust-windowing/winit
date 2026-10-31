@@ -1658,26 +1658,25 @@ unsafe fn public_window_callback_inner(
 
                 // Google Japanese Input and ATOK have both flags, so
                 // first, receive composing result if exist.
-                if (lparam as u32 & GCS_RESULTSTR) != 0 {
-                    if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.window_state_lock().ime_state = ImeState::Enabled;
-                        userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
-                    }
+                if (lparam as u32 & GCS_RESULTSTR) != 0
+                    && let Some(text) = unsafe { ime_context.get_composed_text() }
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Enabled;
+                    userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                 }
 
                 // Next, receive preedit range for next composing if exist.
-                if (lparam as u32 & GCS_COMPSTR) != 0 {
-                    if let Some((text, first, last)) =
+                if (lparam as u32 & GCS_COMPSTR) != 0
+                    && let Some((text, first, last)) =
                         unsafe { ime_context.get_composing_text_and_cursor() }
-                    {
-                        userdata.window_state_lock().ime_state = ImeState::Preedit;
-                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Preedit;
+                    let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
-                        );
-                    }
+                    userdata.send_window_event(
+                        window,
+                        WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                    );
                 }
             }
 
