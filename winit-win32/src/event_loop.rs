@@ -731,12 +731,7 @@ fn dur2timeout(dur: Duration) -> u32 {
     // * Greater than u32::MAX milliseconds (50 days) is rounded up to INFINITE (never time out).
     dur.as_secs()
         .checked_mul(1000)
-        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
-        .and_then(
-            |ms| {
-                if dur.subsec_nanos() % 1_000_000 > 0 { ms.checked_add(1) } else { Some(ms) }
-            },
-        )
+        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64).div_ceil(1_000_000)))
         .map(|ms| if ms > u32::MAX as u64 { INFINITE } else { ms as u32 })
         .unwrap_or(INFINITE)
 }
