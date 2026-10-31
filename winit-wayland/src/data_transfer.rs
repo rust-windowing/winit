@@ -1217,17 +1217,17 @@ impl DataDeviceHandler for WinitState {
     }
 
     fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, data_device: &WlDataDevice) {
-        if let Entry::Occupied(entry) = self.data_transfer_state.drags.entry(data_device.id()) {
-            if entry.get().phase == Phase::Hovering {
-                let session = entry.remove();
+        if let Entry::Occupied(entry) = self.data_transfer_state.drags.entry(data_device.id())
+            && entry.get().phase == Phase::Hovering
+        {
+            let session = entry.remove();
 
-                self.events_sink.push_window_event(
-                    WindowEvent::DragLeft { id: session.data.transfer_id() },
-                    session.window_id,
-                );
+            self.events_sink.push_window_event(
+                WindowEvent::DragLeft { id: session.data.transfer_id() },
+                session.window_id,
+            );
 
-                session.abort();
-            }
+            session.abort();
         }
     }
 

@@ -381,10 +381,8 @@ define_class!(
         fn window_did_change_screen(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidChangeScreen:").entered();
             let is_simple_fullscreen = self.ivars().is_simple_fullscreen.get();
-            if is_simple_fullscreen {
-                if let Some(screen) = self.window().screen() {
-                    self.window().setFrame_display(screen.frame(), true);
-                }
+            if is_simple_fullscreen && let Some(screen) = self.window().screen() {
+                self.window().setFrame_display(screen.frame(), true);
             }
         }
     }
@@ -829,10 +827,10 @@ fn new_window(
             window.setToolbarStyle(NSWindowToolbarStyle::Unified);
         }
 
-        if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
-            if let Some(button) = window.standardWindowButton(NSWindowButton::ZoomButton) {
-                button.setEnabled(false);
-            }
+        if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE)
+            && let Some(button) = window.standardWindowButton(NSWindowButton::ZoomButton)
+        {
+            button.setEnabled(false);
         }
 
         if !macos_attrs.has_shadow {
@@ -2413,12 +2411,11 @@ impl WindowExtMacOS for WindowDelegate {
             tracing::warn!("window tab groups are only available on macOS 10.13+");
             return;
         }
-        if let Some(group) = self.window().tabGroup() {
-            if let Some(windows) = self.window().tabbedWindows() {
-                if index < windows.len() {
-                    group.setSelectedWindow(Some(&windows.objectAtIndex(index)));
-                }
-            }
+        if let Some(group) = self.window().tabGroup()
+            && let Some(windows) = self.window().tabbedWindows()
+            && index < windows.len()
+        {
+            group.setSelectedWindow(Some(&windows.objectAtIndex(index)));
         }
     }
 
@@ -2443,10 +2440,10 @@ impl WindowExtMacOS for WindowDelegate {
         self.ivars().blur_material.set(blur_material);
 
         #[cfg(not(feature = "private-apple-apis"))]
-        if let Some(blur_view) = self.ivars().blur_view.borrow().as_ref() {
-            if let Some(material) = ns_visual_effect_material(blur_material) {
-                blur_view.setMaterial(material);
-            }
+        if let Some(blur_view) = self.ivars().blur_view.borrow().as_ref()
+            && let Some(material) = ns_visual_effect_material(blur_material)
+        {
+            blur_view.setMaterial(material);
         }
     }
 

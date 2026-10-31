@@ -90,12 +90,11 @@ impl Window {
                 .unwrap_or_default();
 
         let mut scale_factor = None;
-        if let Some(RawWindowHandle::Wayland(handle)) = attributes.parent_window() {
-            if let Some(s) =
+        if let Some(RawWindowHandle::Wayland(handle)) = attributes.parent_window()
+            && let Some(s) =
                 state.windows.borrow().get(&WindowId::from_raw(handle.surface.as_ptr() as usize))
-            {
-                scale_factor = Some(s.lock().unwrap().scale_factor());
-            }
+        {
+            scale_factor = Some(s.lock().unwrap().scale_factor());
         }
         let scale_factor = scale_factor.unwrap_or(1.0);
 
