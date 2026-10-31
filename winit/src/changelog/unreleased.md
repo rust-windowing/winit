@@ -38,6 +38,10 @@ with it, the migration guide should be added below the entry, like:
 The migration guide could reference other migration examples in the current
 changelog entry.
 
+### Changed
+
+- Bump MSRV from `1.86` to `1.88`.
+
 ## Unreleased
 
 ### Fixed
