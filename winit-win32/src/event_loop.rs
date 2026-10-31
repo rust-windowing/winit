@@ -573,7 +573,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             return Ok(None);
         }
 
-        Ok(Some(self.0.data_transfer().clipboard_transfer_id()))
+        self.0.data_transfer().clipboard_transfer_id().map(Some)
     }
 
     fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
