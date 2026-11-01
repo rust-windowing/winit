@@ -3034,3 +3034,115 @@ mod tests {
         assert_eq!(inverted_wheel_delta(-120), 1.0);
     }
 }
+
+/// The frame history pairing, with synthetic history arrays: `GetPointerFramePenInfoHistory`
+/// cannot be driven from a unit test (it needs a real WM_POINTER frame), so the merge that turns
+/// per-sample records into per-sample event data is tested directly.
+#[cfg(test)]
+mod pointer_history_tests {
+    use super::*;
+
+    /// A pen pointer id that no device will report, so the compatibility fallback (which asks
+    /// user32 for the current pen info and fails) is deterministic in a test.
+    const PEN: u32 = 0xdead;
+    const TOUCH: u32 = 0xbeef;
+
+    fn pen_info(
+        pointer_id: u32,
+        pressure: u32,
+        tilt: (i32, i32),
+        rotation: u32,
+    ) -> POINTER_PEN_INFO {
+        let mut info: POINTER_PEN_INFO = unsafe { mem::zeroed() };
+        info.pointerInfo.pointerId = pointer_id;
+        info.pointerInfo.pointerType = PT_PEN;
+        info.penMask = PEN_MASK_PRESSURE | PEN_MASK_TILT_X | PEN_MASK_TILT_Y | PEN_MASK_ROTATION;
+        info.pressure = pressure;
+        info.tiltX = tilt.0;
+        info.tiltY = tilt.1;
+        info.rotation = rotation;
+        info
+    }
+
+    fn touch_info(pointer_id: u32, pressure: u32) -> POINTER_TOUCH_INFO {
+        let mut info: POINTER_TOUCH_INFO = unsafe { mem::zeroed() };
+        info.pointerInfo.pointerId = pointer_id;
+        info.pointerInfo.pointerType = PT_TOUCH;
+        info.pressure = pressure;
+        info
+    }
+
+    /// The reported force is the sample's own pressure, not the frame's last one.
+    #[test]
+    fn each_pen_sample_keeps_its_own_pressure_tilt_and_twist() {
+        let samples = [
+            pen_info(PEN, 64, (10, -20), 90),
+            pen_info(PEN, 256, (21, -31), 180),
+            pen_info(PEN, 640, (32, -42), 270),
+            pen_info(PEN, 1024, (43, -53), 359),
+        ];
+
+        for (i, sample) in samples.iter().enumerate() {
+            let (_, data) = pen_sample_at(Some(&samples), i, PEN);
+            assert_eq!(data.force, normalize_pointer_pressure(sample.pressure), "sample {i}");
+            let tilt = TabletToolTilt { x: sample.tiltX as i8, y: sample.tiltY as i8 };
+            assert_eq!(data.tilt, Some(tilt));
+            assert_eq!(data.twist, Some(sample.rotation as u16));
+        }
+
+        // The point of the fix: consecutive samples differ.
+        let first = pen_sample_at(Some(&samples), 0, PEN).1;
+        let last = pen_sample_at(Some(&samples), 3, PEN).1;
+        assert_ne!(first.force, last.force);
+        assert_ne!(first.tilt, last.tilt);
+    }
+
+    /// A frame can hold a pen and a finger. A column mismatch must fall back to the current
+    /// pointer info, never hand a neighbouring pointer's pressure to the pen.
+    #[test]
+    fn a_neighbouring_column_is_never_read_as_the_pen() {
+        // entries x pointers, pointer major within a row: [touch, pen], [touch, pen]. The typed
+        // history covers every pointer in the frame, so a touch column holds a record with the
+        // finger's id and no pen data.
+        let finger = |pointer_id| pen_info(pointer_id, 0, (0, 0), 0);
+        let frame = [
+            finger(TOUCH),
+            pen_info(PEN, 100, (5, 5), 10),
+            finger(TOUCH),
+            pen_info(PEN, 500, (6, 6), 20),
+        ];
+
+        // Only the pen columns carry pen records; the accepted index is the pen's own.
+        let (_, pen) = pen_sample_at(Some(&frame), 1, PEN);
+        assert_eq!(pen.force, normalize_pointer_pressure(100));
+
+        // Asking for the pen at a touch column must not return the touch's data or the pen's
+        // other sample: the guard falls back to the current pen info.
+        let fallback = tablet_tool_info_for_pen(PEN);
+        assert_eq!(pen_sample_at(Some(&frame), 0, PEN), fallback);
+        assert_eq!(pen_sample_at(Some(&frame), 2, PEN), fallback);
+    }
+
+    /// No history (an old Windows, a failed call, mismatched dimensions): every sample falls
+    /// back to the current pointer info, which is the behaviour before the fix.
+    #[test]
+    fn without_history_every_sample_falls_back_to_current_info() {
+        let current = tablet_tool_info_for_pen(PEN);
+        assert_eq!(pen_sample_at(None, 0, PEN), current);
+        assert_eq!(pen_sample_at(None, 7, PEN), current);
+        assert_eq!(pen_sample_at(Some(&[]), 0, PEN), current);
+    }
+
+    /// The same pairing for touch force.
+    #[test]
+    fn each_touch_sample_keeps_its_own_force() {
+        let samples = [touch_info(TOUCH, 64), touch_info(TOUCH, 512), touch_info(TOUCH, 1024)];
+
+        let forces: Vec<_> =
+            (0..samples.len()).map(|i| touch_force_at(Some(&samples), i, TOUCH)).collect();
+        let expected: Vec<_> =
+            samples.iter().map(|s| normalize_pointer_pressure(s.pressure)).collect();
+        assert_eq!(forces, expected);
+        assert_eq!(touch_force_at(Some(&samples), 0, PEN), force_for_touch(PEN));
+    }
+}
