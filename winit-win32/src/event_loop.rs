@@ -2943,7 +2943,10 @@ fn pen_sample_at(
     pointer_id: u32,
 ) -> (u32, TabletToolData) {
     match history.and_then(|history| history.get(index)) {
-        // Guard against any column mismatch between the generic and typed frame histories.
+        // Guard against any column mismatch between the generic and typed frame histories. If
+        // the two ever order a frame's pointers differently, the record at `index` belongs to
+        // another pointer; falling back to the current value is safer than reporting that
+        // pointer's pressure as this one's.
         Some(pen_info) if pen_info.pointerInfo.pointerId == pointer_id => {
             (pen_info.penFlags, tablet_tool_data_from_pen_info(pen_info))
         },
@@ -2959,7 +2962,8 @@ fn touch_force_at(
     pointer_id: u32,
 ) -> Option<Force> {
     match history.and_then(|history| history.get(index)) {
-        // Guard against any column mismatch between the generic and typed frame histories.
+        // Guard against any column mismatch between the generic and typed frame histories, as
+        // in `pen_sample_at`.
         Some(touch_info) if touch_info.pointerInfo.pointerId == pointer_id => {
             normalize_pointer_pressure(touch_info.pressure)
         },
