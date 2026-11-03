@@ -238,6 +238,18 @@ pub type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointer_count: *mut u32,
     pointer_info: *mut POINTER_INFO,
 ) -> BOOL;
+pub type GetPointerFramePenInfoHistory = unsafe extern "system" fn(
+    pointer_id: u32,
+    entries_count: *mut u32,
+    pointer_count: *mut u32,
+    pen_info: *mut POINTER_PEN_INFO,
+) -> BOOL;
+pub type GetPointerFrameTouchInfoHistory = unsafe extern "system" fn(
+    pointer_id: u32,
+    entries_count: *mut u32,
+    pointer_count: *mut u32,
+    touch_info: *mut POINTER_TOUCH_INFO,
+) -> BOOL;
 
 pub type SkipPointerFrameMessages = unsafe extern "system" fn(pointer_id: u32) -> BOOL;
 pub type GetPointerDeviceRects = unsafe extern "system" fn(
@@ -296,6 +308,12 @@ pub(crate) static SET_PROCESS_DPI_AWARE: LazyLock<Option<SetProcessDPIAware>> =
     LazyLock::new(|| get_function!("user32.dll", SetProcessDPIAware));
 pub(crate) static GET_POINTER_FRAME_INFO_HISTORY: LazyLock<Option<GetPointerFrameInfoHistory>> =
     LazyLock::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
+pub(crate) static GET_POINTER_FRAME_PEN_INFO_HISTORY: LazyLock<
+    Option<GetPointerFramePenInfoHistory>,
+> = LazyLock::new(|| get_function!("user32.dll", GetPointerFramePenInfoHistory));
+pub(crate) static GET_POINTER_FRAME_TOUCH_INFO_HISTORY: LazyLock<
+    Option<GetPointerFrameTouchInfoHistory>,
+> = LazyLock::new(|| get_function!("user32.dll", GetPointerFrameTouchInfoHistory));
 pub(crate) static SKIP_POINTER_FRAME_MESSAGES: LazyLock<Option<SkipPointerFrameMessages>> =
     LazyLock::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
 pub(crate) static GET_POINTER_DEVICE_RECTS: LazyLock<Option<GetPointerDeviceRects>> =
