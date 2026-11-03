@@ -193,7 +193,7 @@ impl KeyContext<'_> {
         let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
         let (logical_key, location) = event.key();
         let text = event.text();
-        let (key_without_modifiers, _) = event.key_without_modifiers();
+        let key_without_modifiers = event.context.key_without_modifiers(keycode);
         let text_with_all_modifiers = event.text_with_all_modifiers();
 
         KeyEvent {
@@ -205,6 +205,20 @@ impl KeyContext<'_> {
             repeat,
             text_with_all_modifiers,
             key_without_modifiers,
+        }
+    }
+
+    /// The key produced by the keycode at the first shift level of its current layout.
+    pub fn key_without_modifiers(&mut self, keycode: u32) -> Key {
+        let layout = self.state.layout(keycode);
+        let keysym = self.keymap.first_keysym_by_level(layout, keycode);
+
+        match keymap::keysym_to_key(keysym) {
+            Key::Unidentified(native) => self
+                .keysym_to_utf8_raw(keysym)
+                .map(Key::Character)
+                .unwrap_or(Key::Unidentified(native)),
+            key => key,
         }
     }
 
@@ -289,22 +303,6 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
                 .map(Key::Character)
                 .unwrap_or(key);
             (key, location)
-        }
-    }
-
-    pub fn key_without_modifiers(&mut self) -> (Key, KeyLocation) {
-        // This will become a pointer to an array which libxkbcommon owns, so we don't need to
-        // deallocate it.
-        let layout = self.context.state.layout(self.keycode);
-        let keysym = self.context.keymap.first_keysym_by_level(layout, self.keycode);
-
-        match self.keysym_to_key(keysym) {
-            Ok((key, location)) => (key, location),
-            Err((key, location)) => {
-                let key =
-                    self.context.keysym_to_utf8_raw(keysym).map(Key::Character).unwrap_or(key);
-                (key, location)
-            },
         }
     }
 

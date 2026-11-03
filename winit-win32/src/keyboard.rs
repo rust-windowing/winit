@@ -496,8 +496,6 @@ impl PartialKeyEventInfo {
         state: ElementState,
         layouts: &mut MutexGuard<'_, LayoutCache>,
     ) -> Self {
-        const NO_MODS: WindowsModifiers = WindowsModifiers::empty();
-
         let (_, layout) = layouts.get_current_layout();
         let lparam_struct = destructure_key_lparam(lparam);
         let vkey = wparam as VIRTUAL_KEY;
@@ -550,24 +548,7 @@ impl PartialKeyEventInfo {
         let key_without_modifiers = if let Some(key) = code_as_key {
             key
         } else {
-            match layout.get_key(NO_MODS, false, vkey, &physical_key) {
-                // We convert dead keys into their character.
-                // The reason for this is that `key_without_modifiers` is designed for key-bindings,
-                // but the US International layout treats `'` (apostrophe) as a dead key and the
-                // regular US layout treats it a character. In order for a single binding
-                // configuration to work with both layouts, we forward each dead key as a character.
-                Key::Dead(k) => {
-                    if let Some(ch) = k {
-                        // I'm avoiding the heap allocation. I don't want to talk about it :(
-                        let mut utf8 = [0; 4];
-                        let s = ch.encode_utf8(&mut utf8);
-                        Key::Character(SmolStr::new(s))
-                    } else {
-                        Key::Unidentified(NativeKey::Unidentified)
-                    }
-                },
-                key => key,
-            }
+            layout.key_without_modifiers(vkey, &physical_key)
         };
 
         PartialKeyEventInfo {

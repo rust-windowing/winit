@@ -1505,7 +1505,8 @@ impl EventProcessor {
             app,
         );
 
-        self.update_mods_from_query(window_id, app);
+        self.update_mods_from_query();
+        self.send_xkb_modifiers(window_id, app);
 
         // The deviceid for this event is for a keyboard instead of a pointer,
         // so we have to do a little extra work.
@@ -1546,9 +1547,8 @@ impl EventProcessor {
             // Clear the modifiers when unfocusing the window.
             if let Some(xkb_state) = self.xkb_context.state_mut() {
                 xkb_state.update_modifiers(0, 0, 0, 0, 0, 0);
-                let mods = xkb_state.modifiers();
-                self.send_modifiers(window_id, mods.into(), true, app);
             }
+            self.send_xkb_modifiers(window_id, app);
 
             // Issue key release events for all pressed keys
             Self::handle_pressed_keys(
@@ -1852,11 +1852,20 @@ impl EventProcessor {
         }
     }
 
-    fn update_mods_from_query(
+    /// Send the xkb state's modifiers, even if they did not change.
+    fn send_xkb_modifiers(
         &mut self,
         window_id: winit_core::window::WindowId,
         app: &mut dyn ApplicationHandler,
     ) {
+        if let Some(xkb_state) = self.xkb_context.state_mut() {
+            let mods = xkb_state.modifiers();
+            self.send_modifiers(window_id, mods.into(), true, app);
+        }
+    }
+
+    /// Update the xkb state's modifiers and group from the server, without sending them.
+    fn update_mods_from_query(&mut self) {
         let xkb_state = match self.xkb_context.state_mut() {
             Some(xkb_state) => xkb_state,
             None => return,
@@ -1880,9 +1889,6 @@ impl EventProcessor {
                 );
             }
         }
-
-        let mods = xkb_state.modifiers();
-        self.send_modifiers(window_id, mods.into(), true, app)
     }
 
     pub(crate) fn update_mods_from_core_event(
