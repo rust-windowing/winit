@@ -496,7 +496,6 @@ impl EventLoop {
                                 text_with_all_modifiers: text,
                                 key_without_modifiers: keycodes::to_logical(key_char, keycode),
                             },
-                            is_synthetic: false,
                         };
 
                         app.window_event(&self.window_target, GLOBAL_WINDOW, event);

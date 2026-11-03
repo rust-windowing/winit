@@ -76,6 +76,14 @@ fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
     Key::Character(SmolStr::new(string))
 }
 
+/// The key the given key produces with no modifiers active.
+pub fn key_without_modifiers(physical_key: PhysicalKey, scancode: u16) -> Key {
+    match code_to_key(physical_key, scancode) {
+        Key::Unidentified(_) => get_modifierless_char(scancode),
+        key => key,
+    }
+}
+
 /// Create `KeyEvent` for the given `NSEvent`.
 ///
 /// This function shouldn't be called when the IME input is in process.
@@ -104,16 +112,13 @@ pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bo
         Some(SmolStr::new(characters))
     };
 
-    let key_from_code = code_to_key(physical_key, scancode);
-    let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
-        // `get_modifierless_char/key_without_modifiers` ignores ALL modifiers.
-        let key_without_modifiers = get_modifierless_char(scancode);
-
+    let key_without_modifiers = key_without_modifiers(physical_key, scancode);
+    let logical_key = if matches!(code_to_key(physical_key, scancode), Key::Unidentified(_)) {
         let modifiers = ns_event.modifierFlags();
         let has_ctrl = modifiers.contains(NSEventModifierFlags::Control);
         let has_cmd = modifiers.contains(NSEventModifierFlags::Command);
 
-        let logical_key = match text_with_all_modifiers.as_ref() {
+        match text_with_all_modifiers.as_ref() {
             // Only checking for ctrl and cmd here, not checking for alt because we DO want to
             // include its effect in the key. For example if -on the German layout- one
             // presses alt+8, the logical key should be "{"
@@ -131,11 +136,9 @@ pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bo
                 // Character ignoring ALL modifiers.
                 _ => key_without_modifiers.clone(),
             },
-        };
-
-        (logical_key, key_without_modifiers)
+        }
     } else {
-        (key_from_code.clone(), key_from_code)
+        key_without_modifiers.clone()
     };
 
     let text = if is_press { logical_key.to_text().map(SmolStr::new) } else { None };
@@ -307,8 +310,7 @@ pub(super) fn ralt_pressed(event: &NSEvent) -> bool {
     event.modifierFlags().contains(NX_DEVICERALTKEYMASK)
 }
 
-pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
-    let flags = event.modifierFlags();
+pub(super) fn mods_from_flags(flags: NSEventModifierFlags) -> Modifiers {
     let mut state = ModifiersState::empty();
     let mut pressed_mods = ModifiersKeys::empty();
 
@@ -329,6 +331,10 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     pressed_mods.set(ModifiersKeys::RMETA, flags.contains(NX_DEVICERCMDKEYMASK));
 
     Modifiers::new(state, pressed_mods)
+}
+
+pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
+    mods_from_flags(event.modifierFlags())
 }
 
 pub(super) fn dummy_event() -> Option<Retained<NSEvent>> {

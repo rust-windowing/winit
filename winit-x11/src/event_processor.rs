@@ -1116,10 +1116,8 @@ impl EventProcessor {
 
         // Update state to track key repeats and determine whether this key was a repeat.
         //
-        // Note, when a key is held before focusing on this window the first
-        // (non-synthetic) event will not be flagged as a repeat (also note that the
-        // synthetic press event that is generated before this when the window gains focus
-        // will also not be flagged as a repeat).
+        // Note, when a key is held before focusing on this window the first event will not be
+        // flagged as a repeat.
         //
         // Only keys that can repeat should change the held_key_press state since a
         // continuously held repeatable key may continue repeating after the press of a
@@ -1172,8 +1170,7 @@ impl EventProcessor {
 
             if let Some(mut key_processor) = self.xkb_context.key_context() {
                 let event = key_processor.process_key_event(keycode, state, repeat);
-                let event =
-                    WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
+                let event = WindowEvent::KeyboardInput { device_id: None, event };
                 app.window_event(&self.target, window_id, event);
             }
 
@@ -1496,16 +1493,14 @@ impl EventProcessor {
 
         app.window_event(&self.target, window_id, WindowEvent::Focused(true));
 
-        // Issue key press events for all pressed keys
-        Self::handle_pressed_keys(
-            &self.target,
-            window_id,
-            ElementState::Pressed,
-            &mut self.xkb_context,
-            app,
-        );
+        // The xkb state was cleared when focus was lost; refresh it before looking up keys in it.
+        self.update_mods_from_query();
+        let keymap = self.target.xconn.query_keymap();
+        let keycodes = keymap.into_iter().filter(|k| *k >= KEYCODE_OFFSET).map(u32::from);
+        let held_keys = self.xkb_context.held_keys(keycodes);
+        app.window_event(&self.target, window_id, WindowEvent::KeysHeldAtFocus(held_keys));
 
-        self.update_mods_from_query(window_id, app);
+        self.send_xkb_modifiers(window_id, app);
 
         // The deviceid for this event is for a keyboard instead of a pointer,
         // so we have to do a little extra work.
@@ -1546,18 +1541,8 @@ impl EventProcessor {
             // Clear the modifiers when unfocusing the window.
             if let Some(xkb_state) = self.xkb_context.state_mut() {
                 xkb_state.update_modifiers(0, 0, 0, 0, 0, 0);
-                let mods = xkb_state.modifiers();
-                self.send_modifiers(window_id, mods.into(), true, app);
             }
-
-            // Issue key release events for all pressed keys
-            Self::handle_pressed_keys(
-                &self.target,
-                window_id,
-                ElementState::Released,
-                &mut self.xkb_context,
-                app,
-            );
+            self.send_xkb_modifiers(window_id, app);
 
             // Clear this so detecting key repeats is consistently handled when the
             // window regains focus.
@@ -1852,11 +1837,20 @@ impl EventProcessor {
         }
     }
 
-    fn update_mods_from_query(
+    /// Send the xkb state's modifiers, even if they did not change.
+    fn send_xkb_modifiers(
         &mut self,
         window_id: winit_core::window::WindowId,
         app: &mut dyn ApplicationHandler,
     ) {
+        if let Some(xkb_state) = self.xkb_context.state_mut() {
+            let mods = xkb_state.modifiers();
+            self.send_modifiers(window_id, mods.into(), true, app);
+        }
+    }
+
+    /// Update the xkb state's modifiers and group from the server, without sending them.
+    fn update_mods_from_query(&mut self) {
         let xkb_state = match self.xkb_context.state_mut() {
             Some(xkb_state) => xkb_state,
             None => return,
@@ -1880,9 +1874,6 @@ impl EventProcessor {
                 );
             }
         }
-
-        let mods = xkb_state.modifiers();
-        self.send_modifiers(window_id, mods.into(), true, app)
     }
 
     pub(crate) fn update_mods_from_core_event(
@@ -1974,38 +1965,6 @@ impl EventProcessor {
         if self.modifiers.replace(modifiers) != modifiers || force {
             let event = WindowEvent::ModifiersChanged(self.modifiers.get().into());
             app.window_event(&self.target, window_id, event);
-        }
-    }
-
-    fn handle_pressed_keys(
-        target: &ActiveEventLoop,
-        window_id: winit_core::window::WindowId,
-        state: ElementState,
-        xkb_context: &mut Context,
-        app: &mut dyn ApplicationHandler,
-    ) {
-        // Update modifiers state and emit key events based on which keys are currently pressed.
-        let xcb = target.xconn.xcb_connection().get_raw_xcb_connection();
-
-        let keymap = match xkb_context.keymap_mut() {
-            Some(keymap) => keymap,
-            None => return,
-        };
-
-        // Send the keys using the synthetic state to not alter the main state.
-        let mut xkb_state = match XkbState::new_x11(xcb, keymap) {
-            Some(xkb_state) => xkb_state,
-            None => return,
-        };
-        let mut key_processor = match xkb_context.key_context_with_state(&mut xkb_state) {
-            Some(key_processor) => key_processor,
-            None => return,
-        };
-
-        for keycode in target.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
-            let event = key_processor.process_key_event(keycode as u32, state, false);
-            let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: true };
-            app.window_event(target, window_id, event);
         }
     }
 

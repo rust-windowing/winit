@@ -37,6 +37,18 @@ extern "C-unwind" fn send_event(app: &NSApplication, sel: Sel, event: &NSEvent) 
     // but that doesn't really matter here.
     let event_type = event.r#type();
     let modifier_flags = event.modifierFlags();
+
+    // macOS sends a key's release to the application that received its press. A repeat does not
+    // tell whether this application received the press.
+    let app_state = AppState::get(mtm);
+    match event_type {
+        NSEventType::KeyDown if !event.isARepeat() => {
+            app_state.set_key_pressed(event.keyCode(), true)
+        },
+        NSEventType::KeyUp => app_state.set_key_pressed(event.keyCode(), false),
+        _ => (),
+    }
+
     if event_type == NSEventType::KeyUp && modifier_flags.contains(NSEventModifierFlags::Command) {
         if let Some(key_window) = app.keyWindow() {
             key_window.sendEvent(event);
@@ -46,7 +58,6 @@ extern "C-unwind" fn send_event(app: &NSApplication, sel: Sel, event: &NSEvent) 
 
     // Events are generally scoped to the window level, so the best way
     // to get device events is to listen for them on NSApplication.
-    let app_state = AppState::get(mtm);
     maybe_dispatch_device_event(&app_state, event);
 
     let original = ORIGINAL.get(mtm).get().expect("no existing sendEvent: handler set");

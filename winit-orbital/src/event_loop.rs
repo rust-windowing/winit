@@ -421,7 +421,6 @@ impl EventLoop {
                         key_without_modifiers,
                         text_with_all_modifiers,
                     },
-                    is_synthetic: false,
                 };
 
                 app.window_event(window_target, window_id, event);
