@@ -1118,7 +1118,7 @@ impl WinitView {
         self.ivars().app_state.retain_pressed_keys(is_key_held);
     }
 
-    /// Queue the keys held down, for when the window gains focus.
+    /// Queue the keys and modifiers held down, for when the window gains focus.
     pub(super) fn queue_keyboard_state(&self) {
         self.forget_released_keys();
         let app_state = &self.ivars().app_state;
@@ -1167,6 +1167,11 @@ impl WinitView {
         drop(phys_modifiers);
 
         self.queue_event(WindowEvent::KeysHeldAtFocus(keys));
+
+        // Sent even if unchanged, so that gaining focus always reports the modifiers: pointer
+        // events can already have updated them while the window was not key.
+        self.ivars().modifiers.set(modifiers);
+        self.queue_event(WindowEvent::ModifiersChanged(modifiers));
     }
 
     pub(super) fn set_option_as_alt(&self, value: OptionAsAlt) {

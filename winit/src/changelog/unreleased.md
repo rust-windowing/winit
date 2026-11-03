@@ -59,4 +59,6 @@ changelog entry.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On macOS, fix the release of a modifier key held when the window gains focus
   not being reported.
+- On macOS, fix modifiers held when a window gains focus not being reported
+  until they change.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
