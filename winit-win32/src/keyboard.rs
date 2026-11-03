@@ -12,17 +12,17 @@ use unicode_segmentation::UnicodeSegmentation;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows_sys::Win32::System::SystemServices::LANG_KOREAN;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, HKL, MAPVK_VK_TO_VSC_EX,
-    MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CANCEL, VK_CAPITAL,
-    VK_CLEAR, VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME,
-    VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT,
-    VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6,
-    VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT,
-    VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SUBTRACT, VK_UP,
+    GetAsyncKeyState, GetKeyboardLayout, GetKeyboardState, HKL, MAPVK_VK_TO_VSC_EX,
+    MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CANCEL, VK_CLEAR,
+    VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME, VK_INSERT,
+    VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NUMLOCK,
+    VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
+    VK_NUMPAD8, VK_NUMPAD9, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU,
+    VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_SUBTRACT, VK_UP,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     MSG, PM_NOREMOVE, PeekMessageW, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
-    WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    WM_KEYUP, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 use winit_core::event::{ElementState, HeldKey, KeyEvent};
 use winit_core::keyboard::{
@@ -34,11 +34,6 @@ use crate::keyboard_layout::{LAYOUT_CACHE, Layout, LayoutCache, WindowsModifiers
 use crate::util::{loword, primarylangid};
 
 pub type ExScancode = u16;
-
-pub struct MessageAsKeyEvent {
-    pub event: KeyEvent,
-    pub is_synthetic: bool,
-}
 
 /// Stores information required to make `KeyEvent`s.
 ///
@@ -62,7 +57,7 @@ pub struct MessageAsKeyEvent {
 /// text input. The "sequence" only consists of one WM_KEYUP / WM_SYSKEYUP event.
 pub struct KeyEventBuilder {
     event_info: Mutex<Option<PartialKeyEventInfo>>,
-    pending: PendingEventQueue<MessageAsKeyEvent>,
+    pending: PendingEventQueue<KeyEvent>,
 }
 impl Default for KeyEventBuilder {
     fn default() -> Self {
@@ -80,27 +75,15 @@ impl KeyEventBuilder {
         wparam: WPARAM,
         lparam: LPARAM,
         result: &mut ProcResult,
-    ) -> Vec<MessageAsKeyEvent> {
+    ) -> Vec<KeyEvent> {
         enum MatchResult {
             Nothing,
             TokenToRemove(PendingMessageToken),
-            MessagesToDispatch(Vec<MessageAsKeyEvent>),
+            MessagesToDispatch(Vec<KeyEvent>),
         }
 
         let mut matcher = || -> MatchResult {
             match msg_kind {
-                WM_SETFOCUS => {
-                    // synthesize keydown events
-                    let kbd_state = get_async_kbd_state();
-                    let key_events = Self::synthesize_kbd_state(ElementState::Pressed, &kbd_state);
-                    MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
-                },
-                WM_KILLFOCUS => {
-                    // synthesize keyup events
-                    let kbd_state = get_kbd_state();
-                    let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
-                    MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
-                },
                 WM_KEYDOWN | WM_SYSKEYDOWN => {
                     if msg_kind == WM_SYSKEYDOWN && wparam as VIRTUAL_KEY == VK_F4 {
                         // Don't dispatch Alt+F4 to the application.
@@ -144,10 +127,9 @@ impl KeyEventBuilder {
                     }
                     if let Some(event_info) = finished_event_info {
                         let ev = event_info.finalize();
-                        return MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                            pending_token,
-                            MessageAsKeyEvent { event: ev, is_synthetic: false },
-                        ));
+                        return MatchResult::MessagesToDispatch(
+                            self.pending.complete_pending(pending_token, ev),
+                        );
                     }
                     MatchResult::TokenToRemove(pending_token)
                 },
@@ -158,10 +140,9 @@ impl KeyEventBuilder {
                     // to this key press
                     let event_info = self.event_info.lock().unwrap().take().unwrap();
                     let ev = event_info.finalize();
-                    MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                        pending_token,
-                        MessageAsKeyEvent { event: ev, is_synthetic: false },
-                    ))
+                    MatchResult::MessagesToDispatch(
+                        self.pending.complete_pending(pending_token, ev),
+                    )
                 },
                 WM_CHAR | WM_SYSCHAR => {
                     let mut event_info = self.event_info.lock().unwrap();
@@ -250,10 +231,9 @@ impl KeyEventBuilder {
                             event_info.text = PartialText::Text(key.to_text().map(SmolStr::new));
                         }
                         let ev = event_info.finalize();
-                        MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                            pending_token,
-                            MessageAsKeyEvent { event: ev, is_synthetic: false },
-                        ))
+                        MatchResult::MessagesToDispatch(
+                            self.pending.complete_pending(pending_token, ev),
+                        )
                     }
                 },
                 WM_KEYUP | WM_SYSKEYUP => {
@@ -287,10 +267,9 @@ impl KeyEventBuilder {
                     }
                     if let Some(event_info) = valid_event_info {
                         let event = event_info.finalize();
-                        return MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                            pending_token,
-                            MessageAsKeyEvent { event, is_synthetic: false },
-                        ));
+                        return MatchResult::MessagesToDispatch(
+                            self.pending.complete_pending(pending_token, event),
+                        );
                     }
                     MatchResult::TokenToRemove(pending_token)
                 },
@@ -303,155 +282,6 @@ impl KeyEventBuilder {
             MatchResult::MessagesToDispatch(m) => m,
             MatchResult::Nothing => Vec::new(),
         }
-    }
-
-    // Allowing nominimal_bool lint because the `is_key_pressed` macro triggers this warning
-    // and I don't know of another way to resolve it and also keeping the macro
-    #[allow(clippy::nonminimal_bool)]
-    fn synthesize_kbd_state(
-        key_state: ElementState,
-        kbd_state: &[u8; 256],
-    ) -> Vec<MessageAsKeyEvent> {
-        let mut key_events = Vec::new();
-
-        let mut layouts = LAYOUT_CACHE.lock().unwrap();
-        let (locale_id, _) = layouts.get_current_layout();
-
-        macro_rules! is_key_pressed {
-            ($vk:expr) => {
-                kbd_state[$vk as usize] & 0x80 != 0
-            };
-        }
-
-        // Is caps-lock active? Note that this is different from caps-lock
-        // being held down.
-        let caps_lock_on = kbd_state[VK_CAPITAL as usize] & 1 != 0;
-        let num_lock_on = kbd_state[VK_NUMLOCK as usize] & 1 != 0;
-
-        // We are synthesizing the press event for caps-lock first for the following reasons:
-        // 1. If caps-lock is *not* held down but *is* active, then we have to synthesize all
-        //    printable keys, respecting the caps-lock state.
-        // 2. If caps-lock is held down, we could choose to synthesize its keypress after every
-        //    other key, in which case all other keys *must* be synthesized as if the caps-lock
-        //    state was be the opposite of what it currently is.
-        // --
-        // For the sake of simplicity we are choosing to always synthesize
-        // caps-lock first, and always use the current caps-lock state
-        // to determine the produced text
-        if is_key_pressed!(VK_CAPITAL) {
-            let event = Self::create_synthetic(
-                VK_CAPITAL,
-                key_state,
-                caps_lock_on,
-                num_lock_on,
-                locale_id as HKL,
-                &mut layouts,
-            );
-            if let Some(event) = event {
-                key_events.push(event);
-            }
-        }
-        let do_non_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
-            for vk in 0..256 {
-                match vk {
-                    VK_CONTROL | VK_LCONTROL | VK_RCONTROL | VK_SHIFT | VK_LSHIFT | VK_RSHIFT
-                    | VK_MENU | VK_LMENU | VK_RMENU | VK_CAPITAL => continue,
-                    _ => (),
-                }
-                if !is_key_pressed!(vk) {
-                    continue;
-                }
-                let event = Self::create_synthetic(
-                    vk,
-                    key_state,
-                    caps_lock_on,
-                    num_lock_on,
-                    locale_id as HKL,
-                    layouts,
-                );
-                if let Some(event) = event {
-                    key_events.push(event);
-                }
-            }
-        };
-        let do_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
-            const CLEAR_MODIFIER_VKS: [VIRTUAL_KEY; 6] =
-                [VK_LCONTROL, VK_LSHIFT, VK_LMENU, VK_RCONTROL, VK_RSHIFT, VK_RMENU];
-            for vk in CLEAR_MODIFIER_VKS.iter() {
-                if is_key_pressed!(*vk) {
-                    let event = Self::create_synthetic(
-                        *vk,
-                        key_state,
-                        caps_lock_on,
-                        num_lock_on,
-                        locale_id as HKL,
-                        layouts,
-                    );
-                    if let Some(event) = event {
-                        key_events.push(event);
-                    }
-                }
-            }
-        };
-
-        // Be cheeky and sequence modifier and non-modifier
-        // key events such that non-modifier keys are not affected
-        // by modifiers (except for caps-lock)
-        match key_state {
-            ElementState::Pressed => {
-                do_non_modifier(&mut key_events, &mut layouts);
-                do_modifier(&mut key_events, &mut layouts);
-            },
-            ElementState::Released => {
-                do_modifier(&mut key_events, &mut layouts);
-                do_non_modifier(&mut key_events, &mut layouts);
-            },
-        }
-
-        key_events
-    }
-
-    fn create_synthetic(
-        vk: VIRTUAL_KEY,
-        key_state: ElementState,
-        caps_lock_on: bool,
-        num_lock_on: bool,
-        locale_id: HKL,
-        layouts: &mut MutexGuard<'_, LayoutCache>,
-    ) -> Option<MessageAsKeyEvent> {
-        let scancode = unsafe { MapVirtualKeyExW(vk as u32, MAPVK_VK_TO_VSC_EX, locale_id) };
-        if scancode == 0 {
-            return None;
-        }
-        let scancode = scancode as ExScancode;
-        let physical_key = scancode_to_physicalkey(scancode as u32);
-        let mods =
-            if caps_lock_on { WindowsModifiers::CAPS_LOCK } else { WindowsModifiers::empty() };
-        let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
-        let logical_key = layout.get_key(mods, num_lock_on, vk, &physical_key);
-        let key_without_modifiers =
-            layout.get_key(WindowsModifiers::empty(), false, vk, &physical_key);
-        let text = if key_state == ElementState::Pressed {
-            logical_key.to_text().map(SmolStr::new)
-        } else {
-            None
-        };
-        let event_info = PartialKeyEventInfo {
-            vkey: vk,
-            logical_key: PartialLogicalKey::This(logical_key.clone()),
-            key_without_modifiers,
-            key_state,
-            is_repeat: false,
-            physical_key,
-            location: get_location(scancode, locale_id),
-            utf16parts: Vec::with_capacity(8),
-            text: PartialText::Text(text.clone()),
-        };
-
-        let mut event = event_info.finalize();
-        event.logical_key = logical_key;
-        event.text_with_all_modifiers = text;
-        Some(MessageAsKeyEvent { event, is_synthetic: true })
     }
 }
 
@@ -657,24 +487,17 @@ fn get_kbd_state() -> [u8; 256] {
     }
 }
 
-/// Gets the current keyboard state regardless of whether the corresponding keyboard events have
-/// been removed from the event queue. See also: get_kbd_state
+/// Gets which keys are currently down, regardless of whether the corresponding keyboard events
+/// have been removed from the event queue. Only the down bit (`0x80`) is set; toggle states are
+/// not reported. See also: get_kbd_state
 #[allow(clippy::uninit_assumed_init)]
 fn get_async_kbd_state() -> [u8; 256] {
     unsafe {
         let mut kbd_state: [u8; 256] = [0; 256];
         for (vk, state) in kbd_state.iter_mut().enumerate() {
-            let vk = vk as VIRTUAL_KEY;
             let async_state = GetAsyncKeyState(vk as i32);
             let is_down = (async_state & (1 << 15)) != 0;
             *state = if is_down { 0x80 } else { 0 };
-
-            if matches!(vk, VK_CAPITAL | VK_NUMLOCK | VK_SCROLL) {
-                // Toggle states aren't reported by `GetAsyncKeyState`
-                let toggle_state = GetKeyState(vk as i32);
-                let is_active = (toggle_state & 1) != 0;
-                *state |= u8::from(is_active);
-            }
         }
         kbd_state
     }
@@ -836,21 +659,6 @@ impl<T> PendingEventQueue<T> {
         } else {
             Vec::new()
         }
-    }
-
-    pub fn complete_multi(&self, msgs: Vec<T>) -> Vec<T> {
-        let mut pending = self.pending.lock().unwrap();
-        if pending.is_empty() {
-            return msgs;
-        }
-        pending.reserve(msgs.len());
-        for msg in msgs {
-            pending.push(IdentifiedPendingMessage {
-                token: self.next_token(),
-                msg: PendingMessage::Complete(msg),
-            });
-        }
-        Vec::new()
     }
 
     /// Returns all finished pending events

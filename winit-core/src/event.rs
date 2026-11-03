@@ -180,8 +180,17 @@ pub enum WindowEvent {
     /// Windows are unfocused upon creation, but will usually be focused by the system soon
     /// afterwards.
     ///
-    /// Gaining focus is followed by [`KeysHeldAtFocus`] on platforms that support it.
+    /// Gaining focus is followed by [`KeysHeldAtFocus`] on platforms that support it. Losing focus
+    /// sends no releases for the keys held at that moment: every key should be treated as
+    /// released.
     ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** A key's release is sent to the application that received its press, so the
+    ///   release of a key held when another application is activated is still sent, as a
+    ///   [`KeyboardInput`] release, to the window that lost focus.
+    ///
+    /// [`KeyboardInput`]: Self::KeyboardInput
     /// [`KeysHeldAtFocus`]: Self::KeysHeldAtFocus
     Focused(bool),
 
@@ -191,7 +200,8 @@ pub enum WindowEvent {
     /// It is sent right after [`Focused(true)`], and before any [`ModifiersChanged`] sent when
     /// gaining focus.
     ///
-    /// This is not input: no key was pressed. A listed key's release arrives as an ordinary
+    /// This is not input: no key was pressed, and no [`KeyboardInput`] press is sent for these
+    /// keys, though a key still held may auto-repeat. A listed key's release arrives as an ordinary
     /// [`KeyboardInput`] release. The keys are in no particular order, and each key is listed at
     /// most once. The state of the modifiers is reported by [`ModifiersChanged`].
     ///
@@ -206,8 +216,6 @@ pub enum WindowEvent {
     /// - **Wayland:** Only sent when the window gains focus from its first seat. A listed key does
     ///   not repeat. A key's [`key_without_modifiers`] uses the keyboard layout the compositor last
     ///   reported, which is out of date if the layout changed while the window was unfocused.
-    /// - **Windows / X11:** The held keys are also sent as [`KeyboardInput`] presses with
-    ///   `is_synthetic` set.
     /// - **Windows:** A key sharing its virtual key with another key, such as Enter and numpad
     ///   Enter, is listed with [`PhysicalKey::Unidentified`], as which of them is held is unknown.
     /// - **X11:** The first repeat of a listed key is a [`KeyboardInput`] press with [`repeat`] set
@@ -227,23 +235,9 @@ pub enum WindowEvent {
     /// ## Platform-specific
     /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
     ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
-    ///   events which are not marked as `is_synthetic`.
+    ///   events, indistinguishable from real ones.
     /// - **iOS:** Unsupported.
-    KeyboardInput {
-        device_id: Option<DeviceId>,
-        event: KeyEvent,
-
-        /// If `true`, the event was generated synthetically by winit
-        /// in one of the following circumstances:
-        ///
-        /// * Synthetic key press events are generated for all keys pressed when a window gains
-        ///   focus. Likewise, synthetic key release events are generated for all keys pressed when
-        ///   a window goes out of focus. ***Currently, this is only functional on X11 and
-        ///   Windows***
-        ///
-        /// Otherwise, this value is always `false`.
-        is_synthetic: bool,
-    },
+    KeyboardInput { device_id: Option<DeviceId>, event: KeyEvent },
 
     /// The keyboard modifiers have changed.
     ModifiersChanged(Modifiers),

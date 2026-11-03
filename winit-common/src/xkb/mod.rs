@@ -173,21 +173,6 @@ impl Context {
             })
             .collect()
     }
-
-    /// Key builder context with the user provided xkb state.
-    ///
-    /// Should be used when the original context must not be altered.
-    #[cfg(feature = "x11")]
-    pub fn key_context_with_state<'a>(
-        &'a mut self,
-        state: &'a mut XkbState,
-    ) -> Option<KeyContext<'a>> {
-        let keymap = self.keymap.as_mut()?;
-        let compose_state1 = self.compose_state1.as_mut();
-        let compose_state2 = self.compose_state2.as_mut();
-        let scratch_buffer = &mut self.scratch_buffer;
-        Some(KeyContext { state, keymap, compose_state1, compose_state2, scratch_buffer })
-    }
 }
 
 pub struct KeyContext<'a> {

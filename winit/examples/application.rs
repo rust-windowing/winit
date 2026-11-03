@@ -467,7 +467,7 @@ impl ApplicationHandler for Application {
                 },
                 _ => (),
             },
-            WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
+            WindowEvent::KeyboardInput { event, .. } => {
                 let mods = window.modifiers;
 
                 // Dispatch actions only on press.

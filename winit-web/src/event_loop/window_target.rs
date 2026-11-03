@@ -148,7 +148,6 @@ impl ActiveEventLoop {
                                 text_with_all_modifiers: text,
                                 key_without_modifiers: logical_key,
                             },
-                            is_synthetic: false,
                         },
                     })
                     .chain(modifiers_changed),
@@ -183,7 +182,6 @@ impl ActiveEventLoop {
                                 text_with_all_modifiers: text,
                                 key_without_modifiers: logical_key,
                             },
-                            is_synthetic: false,
                         },
                     })
                     .chain(modifiers_changed),

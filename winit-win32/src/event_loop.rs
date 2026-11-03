@@ -1261,11 +1261,7 @@ unsafe fn public_window_callback_inner(
         let events =
             userdata.key_event_builder.process_message(window, msg, wparam, lparam, &mut result);
         for event in events {
-            userdata.send_window_event(window, KeyboardInput {
-                device_id: None,
-                event: event.event,
-                is_synthetic: event.is_synthetic,
-            });
+            userdata.send_window_event(window, KeyboardInput { device_id: None, event });
         }
     };
     userdata

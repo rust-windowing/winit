@@ -545,11 +545,7 @@ define_class!(
 
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, event.isARepeat());
-                self.queue_event(WindowEvent::KeyboardInput {
-                    device_id: None,
-                    event: key_event,
-                    is_synthetic: false,
-                });
+                self.queue_event(WindowEvent::KeyboardInput { device_id: None, event: key_event });
             }
         }
 
@@ -565,7 +561,6 @@ define_class!(
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: None,
                     event: create_key_event(&event, false, false),
-                    is_synthetic: false,
                 });
             }
         }
@@ -613,11 +608,7 @@ define_class!(
             self.update_modifiers(&event, false);
             let event = create_key_event(&event, true, event.isARepeat());
 
-            self.queue_event(WindowEvent::KeyboardInput {
-                device_id: None,
-                event,
-                is_synthetic: false,
-            });
+            self.queue_event(WindowEvent::KeyboardInput { device_id: None, event });
         }
 
         // In the past (?), `mouseMoved:` events were not generated when the
@@ -1246,20 +1237,12 @@ impl WinitView {
                         let mut event = event.clone();
                         event.location = KeyLocation::Left;
                         event.physical_key = get_left_modifier_code(&event.logical_key).into();
-                        events.push_back(WindowEvent::KeyboardInput {
-                            device_id: None,
-                            event,
-                            is_synthetic: false,
-                        });
+                        events.push_back(WindowEvent::KeyboardInput { device_id: None, event });
                     }
                     if phys_mod.contains(ModLocationMask::RIGHT) {
                         event.location = KeyLocation::Right;
                         event.physical_key = get_right_modifier_code(&event.logical_key).into();
-                        events.push_back(WindowEvent::KeyboardInput {
-                            device_id: None,
-                            event,
-                            is_synthetic: false,
-                        });
+                        events.push_back(WindowEvent::KeyboardInput { device_id: None, event });
                     }
                     *phys_mod = ModLocationMask::empty();
                 } else {
@@ -1286,11 +1269,7 @@ impl WinitView {
                         event.state = if is_pressed { Pressed } else { Released };
                     }
 
-                    events.push_back(WindowEvent::KeyboardInput {
-                        device_id: None,
-                        event,
-                        is_synthetic: false,
-                    });
+                    events.push_back(WindowEvent::KeyboardInput { device_id: None, event });
                 }
 
                 drop(phys_mod_state);

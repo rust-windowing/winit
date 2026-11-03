@@ -383,7 +383,7 @@ fn key_input(
 
     if let Some(mut key_context) = keyboard_state.xkb_context.key_context() {
         let event = key_context.process_key_event(keycode, state, repeat);
-        let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
+        let event = WindowEvent::KeyboardInput { device_id: None, event };
         event_sink.push_window_event(event, window_id);
     }
 }

@@ -54,6 +54,18 @@ changelog entry.
 - On Windows, `ModifiersChanged` sent when gaining focus now follows
   `Focused(true)`.
 
+### Removed
+
+- Remove `is_synthetic` from `WindowEvent::KeyboardInput`. On Windows and X11,
+  key presses are no longer sent for the keys held when a window gains focus,
+  nor key releases for the keys held when it loses focus.
+
+  Applications that did not check `is_synthetic` acted on these presses as if
+  the keys had just been pressed. Patterns binding `is_synthetic` must remove
+  it. To know which keys are held when a window gains focus, match on
+  `WindowEvent::KeysHeldAtFocus` instead. When a window loses focus, treat every
+  key as released.
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
