@@ -181,7 +181,7 @@ jobs:
       run: cargo $CMD build $OPTIONS
 
     - name: Test winit core
-      run: cargo test -p winit-core
+      run: cargo test --manifest-path winit-core/Cargo.toml
 
     - name: Test winit Android
       if: contains(matrix.platform.target, 'android')
