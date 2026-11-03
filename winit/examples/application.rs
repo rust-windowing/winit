@@ -424,6 +424,14 @@ impl ApplicationHandler for Application {
                     info!("Window={window_id:?} unfocused");
                 }
             },
+            WindowEvent::KeysHeldAtFocus(keys) => {
+                for key in keys {
+                    info!(
+                        "Window={window_id:?} focused with {:?} ({:?}) held",
+                        key.physical_key, key.key_without_modifiers
+                    );
+                }
+            },
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 info!("Window={window_id:?} changed scale to {scale_factor}");
             },

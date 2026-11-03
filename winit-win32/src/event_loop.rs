@@ -97,7 +97,7 @@ use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::event_loop::runner::PendingDrag;
 use crate::icon::WinCursor;
 use crate::ime::ImeContext;
-use crate::keyboard::KeyEventBuilder;
+use crate::keyboard::{self, KeyEventBuilder};
 use crate::keyboard_layout::LAYOUT_CACHE;
 use crate::monitor::{self, MonitorHandle};
 use crate::util::{WIN10_BUILD_VERSION, wrap_device_id};
@@ -1118,11 +1118,12 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
 }
 
 unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
-    use winit_core::event::WindowEvent::Focused;
-
-    update_modifiers(window, userdata);
+    use winit_core::event::WindowEvent::{Focused, KeysHeldAtFocus};
 
     userdata.send_window_event(window, Focused(true));
+    userdata.send_window_event(window, KeysHeldAtFocus(keyboard::held_keys()));
+
+    update_modifiers(window, userdata);
 }
 
 unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {

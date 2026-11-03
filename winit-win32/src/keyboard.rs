@@ -13,18 +13,18 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows_sys::Win32::System::SystemServices::LANG_KOREAN;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, HKL, MAPVK_VK_TO_VSC_EX,
-    MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CAPITAL, VK_CLEAR,
-    VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME, VK_INSERT,
-    VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NUMLOCK,
-    VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
-    VK_NUMPAD8, VK_NUMPAD9, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT,
-    VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SUBTRACT, VK_UP,
+    MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CANCEL, VK_CAPITAL,
+    VK_CLEAR, VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME,
+    VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT,
+    VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6,
+    VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT,
+    VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SUBTRACT, VK_UP,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     MSG, PM_NOREMOVE, PeekMessageW, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
     WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
-use winit_core::event::{ElementState, KeyEvent};
+use winit_core::event::{ElementState, HeldKey, KeyEvent};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
@@ -680,6 +680,79 @@ fn get_async_kbd_state() -> [u8; 256] {
     }
 }
 
+/// Gets the keys currently held down, as [`HeldKey`]s for the current layout.
+pub(crate) fn held_keys() -> Vec<HeldKey> {
+    let kbd_state = get_async_kbd_state();
+    let mut layouts = LAYOUT_CACHE.lock().unwrap();
+    let (_, layout) = layouts.get_current_layout();
+
+    let mut keys: Vec<HeldKey> = Vec::new();
+    for vk in 0..256 {
+        // The left and right variants of these are reported on their own.
+        if matches!(vk, VK_SHIFT | VK_CONTROL | VK_MENU) {
+            continue;
+        }
+        if kbd_state[vk as usize] & 0x80 == 0 {
+            continue;
+        }
+        let scancode =
+            unsafe { MapVirtualKeyExW(vk as u32, MAPVK_VK_TO_VSC_EX, layout.hkl as HKL) };
+        // Mouse buttons have virtual keys but no scancode.
+        if scancode == 0 {
+            continue;
+        }
+        let physical_key = held_physical_key(vk, scancode);
+        let key_without_modifiers = layout.key_without_modifiers(vk, &physical_key);
+        push_held_key(&mut keys, HeldKey { physical_key, key_without_modifiers });
+    }
+
+    if layout.has_alt_graph {
+        remove_alt_graph_fake_control(&mut keys);
+    }
+    keys
+}
+
+/// The physical key held down for `vkey`, `scancode` being what `MapVirtualKeyExW` maps it to.
+///
+/// A virtual key shared by several physical keys is mapped to one of them only, so which one is
+/// held is unknown.
+fn held_physical_key(vkey: VIRTUAL_KEY, scancode: u32) -> PhysicalKey {
+    if is_shared_vkey(vkey) {
+        PhysicalKey::Unidentified(NativeKeyCode::Unidentified)
+    } else {
+        scancode_to_physicalkey(scancode)
+    }
+}
+
+/// Whether more than one physical key produces `vkey`.
+///
+/// Enter and numpad Enter share `VK_RETURN`, and the navigation keys share their virtual keys with
+/// the numpad. Ctrl+NumLock produces `VK_PAUSE` and Ctrl+Pause `VK_NUMLOCK`, and both Ctrl+Pause
+/// and Ctrl+ScrollLock produce `VK_CANCEL`; see `PartialKeyEventInfo::from_message`.
+fn is_shared_vkey(vkey: VIRTUAL_KEY) -> bool {
+    matches!(vkey, VK_RETURN | VK_PAUSE | VK_NUMLOCK | VK_CANCEL) || is_numpad_navigation_vkey(vkey)
+}
+
+/// Adds `key` unless it is already listed. A key whose physical key is unidentified is only told
+/// apart from others by its logical key.
+fn push_held_key(keys: &mut Vec<HeldKey>, key: HeldKey) {
+    let is_listed = match key.physical_key {
+        PhysicalKey::Unidentified(NativeKeyCode::Unidentified) => keys.contains(&key),
+        _ => keys.iter().any(|listed| listed.physical_key == key.physical_key),
+    };
+    if !is_listed {
+        keys.push(key);
+    }
+}
+
+/// Removes left Ctrl if right Alt is held. On a layout with AltGr, the system reports a fake left
+/// Ctrl press along with AltGr; see `is_current_fake`.
+fn remove_alt_graph_fake_control(keys: &mut Vec<HeldKey>) {
+    if keys.iter().any(|key| key.physical_key == PhysicalKey::Code(KeyCode::AltRight)) {
+        keys.retain(|key| key.physical_key != PhysicalKey::Code(KeyCode::ControlLeft));
+    }
+}
+
 /// On windows, AltGr == Ctrl + Alt
 ///
 /// Due to this equivalence, the system generates a fake Ctrl key-press (and key-release) preceding
@@ -860,8 +933,7 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
         VK_LSHIFT | VK_LCONTROL | VK_LMENU | VK_LWIN => KeyLocation::Left,
         VK_RSHIFT | VK_RCONTROL | VK_RMENU | VK_RWIN => KeyLocation::Right,
         VK_RETURN if extended => KeyLocation::Numpad,
-        VK_INSERT | VK_DELETE | VK_END | VK_DOWN | VK_NEXT | VK_LEFT | VK_CLEAR | VK_RIGHT
-        | VK_HOME | VK_UP | VK_PRIOR => {
+        _ if is_numpad_navigation_vkey(vkey) => {
             if extended {
                 KeyLocation::Standard
             } else {
@@ -873,6 +945,25 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
         | VK_MULTIPLY | VK_SUBTRACT | VK_ADD | ABNT_C2 => KeyLocation::Numpad,
         _ => KeyLocation::Standard,
     }
+}
+
+/// Whether `vkey` is produced both by a numpad key with NumLock off and by a key outside the
+/// numpad, the extended flag of the scancode telling them apart.
+fn is_numpad_navigation_vkey(vkey: VIRTUAL_KEY) -> bool {
+    matches!(
+        vkey,
+        VK_INSERT
+            | VK_DELETE
+            | VK_END
+            | VK_DOWN
+            | VK_NEXT
+            | VK_LEFT
+            | VK_CLEAR
+            | VK_RIGHT
+            | VK_HOME
+            | VK_UP
+            | VK_PRIOR
+    )
 }
 
 pub fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
@@ -1242,4 +1333,68 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
 
         _ => return PhysicalKey::Unidentified(NativeKeyCode::Windows(scancode as u16)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn held_key(code: KeyCode) -> HeldKey {
+        HeldKey {
+            physical_key: PhysicalKey::Code(code),
+            key_without_modifiers: Key::Unidentified(NativeKey::Unidentified),
+        }
+    }
+
+    #[test]
+    fn alt_graph_removes_left_control() {
+        let mut keys = vec![
+            held_key(KeyCode::ControlLeft),
+            held_key(KeyCode::KeyA),
+            held_key(KeyCode::AltRight),
+            held_key(KeyCode::ControlRight),
+        ];
+        remove_alt_graph_fake_control(&mut keys);
+        assert_eq!(keys, [
+            held_key(KeyCode::KeyA),
+            held_key(KeyCode::AltRight),
+            held_key(KeyCode::ControlRight)
+        ]);
+    }
+
+    #[test]
+    fn left_control_without_alt_graph_is_kept() {
+        let mut keys = vec![held_key(KeyCode::ControlLeft), held_key(KeyCode::AltLeft)];
+        remove_alt_graph_fake_control(&mut keys);
+        assert_eq!(keys, [held_key(KeyCode::ControlLeft), held_key(KeyCode::AltLeft)]);
+    }
+
+    #[test]
+    fn shared_vkey_has_unidentified_physical_key() {
+        let unidentified = PhysicalKey::Unidentified(NativeKeyCode::Unidentified);
+        assert_eq!(held_physical_key(VK_RETURN, 0x001c), unidentified);
+        assert_eq!(held_physical_key(VK_LEFT, 0x004b), unidentified);
+        assert_eq!(held_physical_key(VK_PAUSE, 0x0045), unidentified);
+        assert_eq!(held_physical_key(VK_CANCEL, 0xe046), unidentified);
+        assert_eq!(held_physical_key(VK_RMENU, 0xe038), PhysicalKey::Code(KeyCode::AltRight));
+    }
+
+    #[test]
+    fn unidentified_keys_are_told_apart_by_logical_key() {
+        let unidentified = |key| HeldKey {
+            physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+            key_without_modifiers: Key::Named(key),
+        };
+        let mut keys = Vec::new();
+        push_held_key(&mut keys, unidentified(NamedKey::Enter));
+        push_held_key(&mut keys, unidentified(NamedKey::ArrowLeft));
+        push_held_key(&mut keys, unidentified(NamedKey::Enter));
+        push_held_key(&mut keys, held_key(KeyCode::KeyA));
+        push_held_key(&mut keys, held_key(KeyCode::KeyA));
+        assert_eq!(keys, [
+            unidentified(NamedKey::Enter),
+            unidentified(NamedKey::ArrowLeft),
+            held_key(KeyCode::KeyA)
+        ]);
+    }
 }

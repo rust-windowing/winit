@@ -179,7 +179,48 @@ pub enum WindowEvent {
     ///
     /// Windows are unfocused upon creation, but will usually be focused by the system soon
     /// afterwards.
+    ///
+    /// Gaining focus is followed by [`KeysHeldAtFocus`] on platforms that support it.
+    ///
+    /// [`KeysHeldAtFocus`]: Self::KeysHeldAtFocus
     Focused(bool),
+
+    /// The keys held down when the window gained focus.
+    ///
+    /// This lets the application know which keys are already held when the window gains focus.
+    /// It is sent right after [`Focused(true)`], and before any [`ModifiersChanged`] sent when
+    /// gaining focus.
+    ///
+    /// This is not input: no key was pressed. A listed key's release arrives as an ordinary
+    /// [`KeyboardInput`] release. The keys are in no particular order, and each key is listed at
+    /// most once. The state of the modifiers is reported by [`ModifiersChanged`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Shift, Control, Option and Command are listed whenever they are held. Any other
+    ///   key is listed only if this application received its press, as macOS sends a key's release
+    ///   to the application that received its press. Caps Lock and Fn are never listed. A modifier
+    ///   released while the window is being activated may be reported only by [`ModifiersChanged`],
+    ///   without a [`KeyboardInput`] release, as its release can reach the previously active
+    ///   application.
+    /// - **Wayland:** Only sent when the window gains focus from its first seat. A listed key does
+    ///   not repeat. A key's [`key_without_modifiers`] uses the keyboard layout the compositor last
+    ///   reported, which is out of date if the layout changed while the window was unfocused.
+    /// - **Windows / X11:** The held keys are also sent as [`KeyboardInput`] presses with
+    ///   `is_synthetic` set.
+    /// - **Windows:** A key sharing its virtual key with another key, such as Enter and numpad
+    ///   Enter, is listed with [`PhysicalKey::Unidentified`], as which of them is held is unknown.
+    /// - **X11:** The first repeat of a listed key is a [`KeyboardInput`] press with [`repeat`] set
+    ///   to `false`.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    ///
+    /// [`KeyboardInput`]: Self::KeyboardInput
+    /// [`Focused(true)`]: Self::Focused
+    /// [`ModifiersChanged`]: Self::ModifiersChanged
+    /// [`key_without_modifiers`]: HeldKey::key_without_modifiers
+    /// [`repeat`]: KeyEvent::repeat
+    /// [`PhysicalKey::Unidentified`]: crate::keyboard::PhysicalKey::Unidentified
+    KeysHeldAtFocus(Vec<HeldKey>),
 
     /// An event from the keyboard has been received.
     ///
@@ -941,6 +982,18 @@ pub struct KeyEvent {
     /// - **Android:** Unimplemented, this field is always the same value as `logical_key`.
     /// - **iOS:** Unimplemented, this field is always the same value as `logical_key`.
     /// - **Web:** Unsupported, this field is always the same value as `logical_key`.
+    pub key_without_modifiers: keyboard::Key,
+}
+
+/// Describes a key held down when a window gained focus.
+///
+/// See [`WindowEvent::KeysHeldAtFocus`].
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct HeldKey {
+    /// The physical key, as in [`KeyEvent::physical_key`].
+    pub physical_key: keyboard::PhysicalKey,
+
+    /// The key this key produces without modifiers, as in [`KeyEvent::key_without_modifiers`].
     pub key_without_modifiers: keyboard::Key,
 }
 
@@ -1713,12 +1766,17 @@ mod tests {
             use crate::event::{PointerKind, PointerSource};
             use crate::event_loop::DndAction;
             use crate::data_transfer::DataTransferId;
+            use crate::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
             let dnd_data = DataTransferId::from_raw(123);
 
             with_window_event(CloseRequested);
             with_window_event(Destroyed);
             with_window_event(Focused(true));
+            with_window_event(KeysHeldAtFocus(vec![event::HeldKey {
+                physical_key: PhysicalKey::Code(KeyCode::ShiftLeft),
+                key_without_modifiers: Key::Named(NamedKey::Shift),
+            }]));
             with_window_event(Moved((0, 0).into()));
             with_window_event(SurfaceResized((0, 0).into()));
             with_window_event(DragEntered { id: dnd_data, position: None });

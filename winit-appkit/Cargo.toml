@@ -80,6 +80,8 @@ objc2-core-graphics = { workspace = true, features = [
     "CGDisplayConfiguration",
     "CGDisplayFade",
     "CGError",
+    "CGEventSource",
+    "CGEventTypes",
     "CGRemoteOperation",
     "CGWindowLevel",
 ] }

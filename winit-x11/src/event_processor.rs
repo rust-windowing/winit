@@ -1496,6 +1496,13 @@ impl EventProcessor {
 
         app.window_event(&self.target, window_id, WindowEvent::Focused(true));
 
+        // The xkb state was cleared when focus was lost; refresh it before looking up keys in it.
+        self.update_mods_from_query();
+        let keymap = self.target.xconn.query_keymap();
+        let keycodes = keymap.into_iter().filter(|k| *k >= KEYCODE_OFFSET).map(u32::from);
+        let held_keys = self.xkb_context.held_keys(keycodes);
+        app.window_event(&self.target, window_id, WindowEvent::KeysHeldAtFocus(held_keys));
+
         // Issue key press events for all pressed keys
         Self::handle_pressed_keys(
             &self.target,
@@ -1505,7 +1512,6 @@ impl EventProcessor {
             app,
         );
 
-        self.update_mods_from_query();
         self.send_xkb_modifiers(window_id, app);
 
         // The deviceid for this event is for a keyboard instead of a pointer,

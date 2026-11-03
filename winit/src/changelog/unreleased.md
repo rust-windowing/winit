@@ -44,7 +44,19 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `WindowEvent::KeysHeldAtFocus` and `HeldKey`, reporting the keys held when
+  a window gains focus, implemented on Windows, X11, Wayland, and macOS.
+
+### Changed
+
+- On Windows, `ModifiersChanged` sent when gaining focus now follows
+  `Focused(true)`.
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
+- On macOS, fix the release of a modifier key held when the window gains focus
+  not being reported.
 - On Wayland, fix text not being copied to some application due to missing some mime types.

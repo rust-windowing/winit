@@ -59,7 +59,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     warn!("unknown keymap format 0x{:x}", value)
                 },
             },
-            WlKeyboardEvent::Enter { surface, .. } => {
+            WlKeyboardEvent::Enter { surface, keys, .. } => {
                 let window_id = crate::make_wid(&surface);
 
                 // Mark the window as focused.
@@ -84,6 +84,11 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 // The keyboard focus is considered as general focus.
                 if was_unfocused {
                     state.events_sink.push_window_event(WindowEvent::Focused(true), window_id);
+
+                    let held_keys = keyboard_state.xkb_context.held_keys(enter_keycodes(&keys));
+                    state
+                        .events_sink
+                        .push_window_event(WindowEvent::KeysHeldAtFocus(held_keys), window_id);
                 }
 
                 // HACK: this is just for GNOME not fixing their ordering issue of modifiers.
@@ -380,5 +385,21 @@ fn key_input(
         let event = key_context.process_key_event(keycode, state, repeat);
         let event = WindowEvent::KeyboardInput { device_id: None, event, is_synthetic: false };
         event_sink.push_window_event(event, window_id);
+    }
+}
+
+/// The xkb keycodes of the keys in `wl_keyboard.enter`'s array of evdev keycodes.
+fn enter_keycodes(keys: &[u8]) -> impl Iterator<Item = u32> + '_ {
+    keys.as_chunks::<4>().0.iter().map(|key| u32::from_ne_bytes(*key) + 8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enter_keycodes_decodes_native_endian_evdev_keycodes() {
+        let keys: Vec<u8> = [42u32, 30].iter().flat_map(|key| key.to_ne_bytes()).collect();
+        assert_eq!(enter_keycodes(&keys).collect::<Vec<_>>(), [50, 38]);
     }
 }

@@ -8,11 +8,12 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, Message, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
-    NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventModifierFlags,
+    NSEventPhase, NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
     NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGRect;
+use objc2_core_graphics::{CGEventSource, CGEventSourceStateID};
 use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
@@ -20,17 +21,19 @@ use objc2_foundation::{
 use tracing::{debug_span, trace_span};
 use winit_common::text::utf16_to_utf8_offset;
 use winit_core::event::{
-    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
+    DeviceEvent, ElementState, HeldKey, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta,
     PointerKind, PointerSource, ScrollSource, TouchPhase, WindowEvent,
 };
-use winit_core::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
+use winit_core::keyboard::{
+    Key, KeyCode, KeyLocation, ModifiersKeyState, ModifiersState, NamedKey,
+};
 use winit_core::window::ImeCapabilities;
 
 use super::app_state::AppState;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
-    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey,
+    code_to_key, code_to_location, create_key_event, event_mods, key_without_modifiers,
+    lalt_pressed, mods_from_flags, ralt_pressed, scancode_to_physicalkey,
 };
 use super::window::window_id;
 use crate::OptionAsAlt;
@@ -89,6 +92,25 @@ fn key_to_modifier(key: &Key) -> Option<ModifiersState> {
         Key::Named(NamedKey::Shift) => Some(ModifiersState::SHIFT),
         _ => None,
     }
+}
+
+fn is_key_held(scancode: u16) -> bool {
+    CGEventSource::key_state(CGEventSourceStateID::CombinedSessionState, scancode)
+}
+
+/// The left and right keys of the modifier `key` that `modifiers` reports pressed.
+fn pressed_sides(modifiers: &Modifiers, key: &Key) -> ModLocationMask {
+    let (left, right) = match key {
+        Key::Named(NamedKey::Alt) => (modifiers.lalt_state(), modifiers.ralt_state()),
+        Key::Named(NamedKey::Control) => (modifiers.lcontrol_state(), modifiers.rcontrol_state()),
+        Key::Named(NamedKey::Shift) => (modifiers.lshift_state(), modifiers.rshift_state()),
+        Key::Named(NamedKey::Meta) => (modifiers.lsuper_state(), modifiers.rsuper_state()),
+        _ => unreachable!(),
+    };
+    let mut sides = ModLocationMask::empty();
+    sides.set(ModLocationMask::LEFT, left == ModifiersKeyState::Pressed);
+    sides.set(ModLocationMask::RIGHT, right == ModifiersKeyState::Pressed);
+    sides
 }
 
 fn get_right_modifier_code(key: &Key) -> KeyCode {
@@ -1088,6 +1110,63 @@ impl WinitView {
             self.ivars().modifiers.set(Modifiers::default());
             self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
         }
+    }
+
+    /// Forget keys that are no longer held, so that a key whose release was missed is not taken, at
+    /// a later focus gain, for one this application received.
+    pub(super) fn forget_released_keys(&self) {
+        self.ivars().app_state.retain_pressed_keys(is_key_held);
+    }
+
+    /// Queue the keys held down, for when the window gains focus.
+    pub(super) fn queue_keyboard_state(&self) {
+        self.forget_released_keys();
+        let app_state = &self.ivars().app_state;
+
+        let flags = CGEventSource::flags_state(CGEventSourceStateID::CombinedSessionState);
+        let modifiers = mods_from_flags(NSEventModifierFlags(flags.0 as usize));
+
+        let mut keys = Vec::new();
+        let mut scanned_modifiers: Vec<(Key, ModLocationMask)> = Vec::new();
+        for scancode in (0..128).filter(|&scancode| is_key_held(scancode)) {
+            let physical_key = scancode_to_physicalkey(scancode as u32);
+            let key_without_modifiers = key_without_modifiers(physical_key, scancode);
+            if key_to_modifier(&key_without_modifiers).is_some() {
+                let side = ModLocationMask::from_location(code_to_location(physical_key));
+                match scanned_modifiers.iter_mut().find(|(key, _)| *key == key_without_modifiers) {
+                    Some((_, sides)) => *sides |= side,
+                    None => scanned_modifiers.push((key_without_modifiers, side)),
+                }
+            } else if app_state.is_key_pressed(scancode) {
+                // Modifier changes are sent to the active application, but any other key's
+                // release is sent to the application that received its press.
+                keys.push(HeldKey { physical_key, key_without_modifiers });
+            }
+        }
+
+        // A modifier key's release is only reported if its press is recorded here.
+        let mut phys_modifiers = self.ivars().phys_modifiers.borrow_mut();
+        phys_modifiers.clear();
+        for (key_without_modifiers, scanned_sides) in scanned_modifiers {
+            // The per-key state can report a modifier held under its other side's keycode (right
+            // Shift as left), so the side comes from the flags' device bits, and from the scanned
+            // keys only when the flags carry none.
+            let flag_sides = pressed_sides(&modifiers, &key_without_modifiers);
+            let sides = if flag_sides.is_empty() { scanned_sides } else { flag_sides };
+            for (side, code) in [
+                (ModLocationMask::LEFT, get_left_modifier_code(&key_without_modifiers)),
+                (ModLocationMask::RIGHT, get_right_modifier_code(&key_without_modifiers)),
+            ] {
+                if sides.contains(side) {
+                    let key_without_modifiers = key_without_modifiers.clone();
+                    keys.push(HeldKey { physical_key: code.into(), key_without_modifiers });
+                }
+            }
+            phys_modifiers.insert(key_without_modifiers, sides);
+        }
+        drop(phys_modifiers);
+
+        self.queue_event(WindowEvent::KeysHeldAtFocus(keys));
     }
 
     pub(super) fn set_option_as_alt(&self, value: OptionAsAlt) {

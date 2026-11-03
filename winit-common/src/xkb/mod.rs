@@ -7,8 +7,8 @@ use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use smol_str::SmolStr;
-use winit_core::event::{ElementState, KeyEvent};
-use winit_core::keyboard::{Key, KeyLocation};
+use winit_core::event::{ElementState, HeldKey, KeyEvent};
+use winit_core::keyboard::{Key, KeyLocation, NativeKey};
 use xkbcommon_dl::{
     self as xkb, XkbCommon, XkbCommonCompose, xkb_compose_status, xkb_context, xkb_context_flags,
     xkbcommon_compose_handle, xkbcommon_handle,
@@ -155,6 +155,23 @@ impl Context {
         let compose_state2 = self.compose_state2.as_mut();
         let scratch_buffer = &mut self.scratch_buffer;
         Some(KeyContext { state, keymap, compose_state1, compose_state2, scratch_buffer })
+    }
+
+    /// Describe the keys with the given raw keycodes as held keys, using the current state.
+    ///
+    /// Without a keymap, each key's `key_without_modifiers` is unidentified.
+    pub fn held_keys(&mut self, keycodes: impl IntoIterator<Item = u32>) -> Vec<HeldKey> {
+        let mut key_context = self.key_context();
+        keycodes
+            .into_iter()
+            .map(|keycode| HeldKey {
+                physical_key: keymap::raw_keycode_to_physicalkey(keycode),
+                key_without_modifiers: match key_context.as_mut() {
+                    Some(key_context) => key_context.key_without_modifiers(keycode),
+                    None => Key::Unidentified(NativeKey::Unidentified),
+                },
+            })
+            .collect()
     }
 
     /// Key builder context with the user provided xkb state.
