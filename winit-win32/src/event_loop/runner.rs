@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fmt, mem, panic};
 
 use dpi::PhysicalSize;
@@ -13,6 +13,7 @@ use windows_sys::Win32::System::Ole::{
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetFocus;
 use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+use winit_common::timestamp_handler::TimeStampExtender;
 use winit_core::application::ApplicationHandler;
 use winit_core::data_transfer::DataTransferId;
 use winit_core::event::{DeviceEvent, DeviceId, StartCause, SurfaceSizeWriter, WindowEvent};
@@ -87,6 +88,10 @@ pub(crate) struct EventLoopRunner {
     /// handler has had its chance to read the data.
     pending_source_drag_cleanup: Cell<Option<DataTransferId>>,
 
+    /// Shared by all windows of this event loop, so that their event times stay comparable
+    /// after the 32-bit tick count wraps.
+    timestamp_extender: Cell<TimeStampExtender>,
+
     panic_error: Cell<Option<PanicError>>,
 }
 
@@ -142,7 +147,17 @@ impl EventLoopRunner {
             source_drag: Cell::new(None),
             pending_drag: RefCell::new(None),
             pending_source_drag_cleanup: Cell::new(None),
+            timestamp_extender: Cell::new(TimeStampExtender::default()),
         }
+    }
+
+    /// Extend a 32-bit millisecond tick count (as returned by `GetMessageTime`) to a
+    /// monotonic [`Duration`].
+    pub(crate) fn extend_timestamp(&self, timestamp_millis: u32) -> Duration {
+        let mut timestamp_extender = self.timestamp_extender.get();
+        let duration = timestamp_extender.extend_timestamp_millisecond(timestamp_millis);
+        self.timestamp_extender.set(timestamp_extender);
+        duration
     }
 
     pub(super) fn try_execute_drag_drop(self: &Rc<Self>) {
@@ -283,6 +298,9 @@ impl EventLoopRunner {
             source_drag,
             pending_drag,
             pending_source_drag_cleanup,
+            // Keep extending across runs, so event times stay comparable for windows that
+            // outlive a run.
+            timestamp_extender: _,
         } = self;
         interrupt_msg_dispatch.set(false);
         runner_state.set(RunnerState::Uninitialized);
