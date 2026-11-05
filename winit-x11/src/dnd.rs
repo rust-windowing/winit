@@ -259,13 +259,17 @@ impl Dnd {
         target_window: xproto::Window,
         types: Arc<[SelectionType]>,
     ) -> &DragState {
-        self.state.get_or_insert(DragState {
+        self.state.insert(DragState {
             version,
             types,
             source_window,
             target_window,
             ..Default::default()
         })
+    }
+
+    pub fn reset_state(&mut self) -> Option<DragState> {
+        self.state.take()
     }
 
     pub unsafe fn send_finished(
