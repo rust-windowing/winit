@@ -7,7 +7,7 @@ use std::time::Duration;
 use tracing::warn;
 
 use sctk::reexports::client::delegate_dispatch;
-use sctk::reexports::client::protocol::wl_pointer::WlPointer;
+use sctk::reexports::client::protocol::wl_pointer::{AxisSource, WlPointer};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, Dispatch};
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
@@ -24,7 +24,7 @@ use sctk::seat::pointer::{PointerData, PointerEvent, PointerEventKind, PointerHa
 use dpi::{LogicalPosition, PhysicalPosition};
 use winit_core::event::{
     ButtonSource, ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
-    TouchPhase, WindowEvent,
+    ScrollSource, TouchPhase, WindowEvent,
 };
 
 use crate::WindowId;
@@ -203,7 +203,7 @@ impl PointerHandler for WinitState {
                         window_id,
                     );
                 },
-                PointerEventKind::Axis { horizontal, vertical, time, .. } => {
+                PointerEventKind::Axis { horizontal, vertical, time, source } => {
                     // Get the current phase.
                     let mut pointer_data = pointer.winit_data().data().inner.lock().unwrap();
 
@@ -250,6 +250,14 @@ impl PointerHandler for WinitState {
                         )
                     };
 
+                    let source = match source {
+                        Some(AxisSource::Wheel | AxisSource::WheelTilt) => ScrollSource::Wheel,
+                        Some(AxisSource::Finger) => ScrollSource::Finger,
+                        // `Continuous` may be synthesized kinetic scrolling, but also other
+                        // things, so we can't say.
+                        _ => ScrollSource::Unknown,
+                    };
+
                     self.events_sink.push_window_event(
                         WindowEvent::MouseWheel {
                             device_id: None,
@@ -258,6 +266,7 @@ impl PointerHandler for WinitState {
                             ),
                             delta,
                             phase,
+                            source,
                         },
                         window_id,
                     )

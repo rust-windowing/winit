@@ -38,7 +38,7 @@ macro_rules! os_error {
     ($error:expr) => {{ winit_core::error::OsError::new(line!(), file!(), $error) }};
 }
 
-mod dnd;
+mod data_transfer;
 mod event_loop;
 mod output;
 mod popup;
@@ -47,7 +47,7 @@ mod state;
 mod types;
 mod window;
 
-pub use self::dnd::{DataOffer, DragSource, MimeData, MimeType};
+pub use self::data_transfer::{DataOffer, DragSource, MimeData, MimeType};
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::popup::Popup;
 pub use self::window::Window;
@@ -130,7 +130,7 @@ impl WindowAttributesWayland {
     ///
     /// The activation token allows the compositor to grant focus to the new window,
     /// overriding focus-stealing prevention. Obtain a token via
-    /// [`ActiveEventLoop::request_activation_token`].
+    /// [`Window::request_activation_token`].
     #[inline]
     pub fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.activation_token = Some(token);
@@ -190,15 +190,16 @@ fn image_to_buffer(
 ) -> Result<Buffer, CreateBufferError> {
     let (buffer, canvas) = pool.create_buffer(width, height, 4 * width, format)?;
 
-    for (canvas_chunk, rgba) in canvas.chunks_exact_mut(4).zip(data.chunks_exact(4)) {
+    let data_chunks = data.as_chunks::<4>();
+    let canvas_chunks = canvas.as_chunks_mut::<4>();
+    for (canvas_chunk, rgba) in canvas_chunks.0.iter_mut().zip(data_chunks.0.iter()) {
         // Alpha in buffer is premultiplied.
         let alpha = rgba[3] as f32 / 255.;
         let r = (rgba[0] as f32 * alpha) as u32;
         let g = (rgba[1] as f32 * alpha) as u32;
         let b = (rgba[2] as f32 * alpha) as u32;
         let color = ((rgba[3] as u32) << 24) + (r << 16) + (g << 8) + b;
-        let array: &mut [u8; 4] = canvas_chunk.try_into().unwrap();
-        *array = color.to_le_bytes();
+        *canvas_chunk = color.to_le_bytes();
     }
 
     Ok(buffer)

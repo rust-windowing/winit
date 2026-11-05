@@ -182,16 +182,16 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Retained<NSCursor> {
     let info: Retained<NSDictionary<NSObject, NSObject>> =
         unsafe { NSDictionary::dictionaryWithContentsOfFile(&info_path) }.unwrap();
     let mut x = 0.0;
-    if let Some(n) = info.objectForKey(ns_string!("hotx")) {
-        if let Ok(n) = n.downcast::<NSNumber>() {
-            x = n.as_cgfloat();
-        }
+    if let Some(n) = info.objectForKey(ns_string!("hotx"))
+        && let Ok(n) = n.downcast::<NSNumber>()
+    {
+        x = n.as_cgfloat();
     }
     let mut y = 0.0;
-    if let Some(n) = info.objectForKey(ns_string!("hoty")) {
-        if let Ok(n) = n.downcast::<NSNumber>() {
-            y = n.as_cgfloat();
-        }
+    if let Some(n) = info.objectForKey(ns_string!("hoty"))
+        && let Ok(n) = n.downcast::<NSNumber>()
+    {
+        y = n.as_cgfloat();
     }
 
     let hotspot = NSPoint::new(x, y);

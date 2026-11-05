@@ -131,10 +131,10 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 };
 
                 // Just in case some IME sends an event for the disabled window.
-                if let Some(window) = windows.get(&window_id) {
-                    if window.lock().unwrap().text_input_state().is_none() {
-                        return;
-                    }
+                if let Some(window) = windows.get(&window_id)
+                    && window.lock().unwrap().text_input_state().is_none()
+                {
+                    return;
                 };
 
                 // The events are sent to the user separately, so
@@ -161,24 +161,20 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                     );
                 }
 
-                // Clear preedit, unless all we'll be doing next is sending a new preedit and
-                // the last preedit wasn't empty.
-                if text_input_data.pending_commit.is_some()
-                    || (text_input_data.pending_preedit.is_none()
-                        && !text_input_data.last_preedit_empty)
+                // Send `Commit`.
+                if let Some(text) = text_input_data.pending_commit.take() {
+                    text_input_data.last_preedit_empty = true;
+                    state
+                        .events_sink
+                        .push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
+                } else if text_input_data.pending_preedit.is_none()
+                    && !text_input_data.last_preedit_empty
                 {
+                    text_input_data.last_preedit_empty = true;
                     state.events_sink.push_window_event(
                         WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                         window_id,
                     );
-                    text_input_data.last_preedit_empty = true;
-                }
-
-                // Send `Commit`.
-                if let Some(text) = text_input_data.pending_commit.take() {
-                    state
-                        .events_sink
-                        .push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
                 }
 
                 // Send preedit.

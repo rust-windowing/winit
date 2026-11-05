@@ -13,13 +13,14 @@ use std::{fmt, mem, panic, ptr};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use windows_sys::Win32::Foundation::{
-    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
+    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, S_OK, WAIT_FAILED, WPARAM,
 };
 use windows_sys::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, MonitorFromWindow,
     RDW_INTERNALPAINT, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
 };
-use windows_sys::Win32::System::Ole::RevokeDragDrop;
+use windows_sys::Win32::System::DataExchange::CountClipboardFormats;
+use windows_sys::Win32::System::Ole::{OleSetClipboard, RevokeDragDrop};
 use windows_sys::Win32::System::Threading::{
     CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, CreateWaitableTimerExW, GetCurrentThreadId, INFINITE,
     SetWaitableTimer, TIMER_ALL_ACCESS,
@@ -68,11 +69,12 @@ use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, NotSupportedError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
 };
 use winit_core::event::{
-    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
-    TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
+    TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -88,7 +90,9 @@ pub(super) use self::runner::{Event, EventLoopRunner};
 use super::SelectedCursor;
 use super::window::set_skip_taskbar;
 use crate::dark_mode::try_theme;
-use crate::dnd::{DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData};
+use crate::data_transfer::{
+    DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData,
+};
 use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::event_loop::runner::PendingDrag;
 use crate::icon::WinCursor;
@@ -290,6 +294,7 @@ impl EventLoop {
         };
 
         self.runner.loop_destroyed();
+        self.runner.data_transfer().flush_clipboard_blocking();
 
         self.runner.reset_runner();
 
@@ -317,6 +322,7 @@ impl EventLoop {
 
         if let Some(code) = self.runner.exit_code() {
             self.runner.loop_destroyed();
+            self.runner.data_transfer().flush_clipboard_blocking();
 
             // Immediately reset the internal state for the loop to allow
             // the loop to be run more than once.
@@ -443,6 +449,8 @@ impl EventLoopProvider for EventLoop {
 
 impl Drop for EventLoop {
     fn drop(&mut self) {
+        self.runner.data_transfer().flush_clipboard_blocking();
+
         unsafe {
             DestroyWindow(self.runner.thread_msg_target);
         }
@@ -534,44 +542,75 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
-        let Some(state) = self.0.drag_state(id) else {
-            return Err(TransferError::UnknownTransfer(id));
+    ) -> Result<AsyncRequestSerial, FetchError> {
+        let (data, window_id) = match self.0.data_transfer().drag_state(id) {
+            Some(state) => (state.data.clone(), state.window_id),
+            None => {
+                let data = self.0.data_transfer().clipboard_data(id)?;
+                let window_id = self
+                    .0
+                    .clipboard_window()
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
+                (data, window_id)
+            },
         };
-        let hint = type_.hint().ok_or(TransferError::Failed)?;
-        let typed_data = WinTypedData::new(state.data.clone(), hint)
+        let hint = type_.hint().ok_or(FetchError::TransferType)?;
+        let typed_data = WinTypedData::new(data, hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
-            .ok_or(TransferError::Failed)?;
+            .ok_or(FetchError::TransferType)?;
 
         let serial = AsyncRequestSerial::get();
 
         self.0.send_event(Event::Window {
-            window_id: state.window_id,
+            window_id,
             event: WindowEvent::DataTransferReceived { id, serial, value: typed_data },
         });
 
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
-        let Some(state) = self.0.drag_state(id) else {
-            return Err(TransferError::UnknownTransfer(id));
-        };
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        if let Some(state) = self.0.data_transfer().drag_state(id) {
+            return Ok(Box::new(WinDataTransfer::new(state.data.clone())));
+        }
 
-        Ok(Box::new(WinDataTransfer::new(state.data.clone())))
+        let data = self.0.data_transfer().clipboard_data(id)?;
+
+        Ok(Box::new(WinDataTransfer::new(data)))
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
+        if unsafe { CountClipboardFormats() } == 0 {
+            return Ok(None);
+        }
+
+        self.0.data_transfer().clipboard_transfer_id().map(Some)
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
+        crate::data_transfer::ensure_ole_initialized().map_err(|err| os_error!(err))?;
+
+        let data_object = SourceDataObject::new(send_data);
+        let hr = unsafe { OleSetClipboard(data_object.interface_ptr()) };
+        if hr != S_OK {
+            return Err(os_error!(format!("OleSetClipboard failed: 0x{hr:08x}")).into());
+        }
+
+        self.0.data_transfer().set_owns_clipboard();
+
+        Ok(())
     }
 
     fn set_valid_dnd_actions(
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
-        let mut state = self.0.drag_state.borrow_mut();
-        let Some(state) = state.as_mut().filter(|s| s.id == id) else {
-            return Err(TransferError::UnknownTransfer(id));
-        };
-        state.actions = actions.to_vec();
-        Ok(())
+    ) -> Result<(), UnknownTransfer> {
+        if self.0.data_transfer().set_valid_dnd_actions(id, actions) {
+            Ok(())
+        } else {
+            Err(UnknownTransfer(id))
+        }
     }
 
     fn start_drag(
@@ -581,7 +620,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         allowed_actions: &[DndAction],
         icon: Option<DragIcon>,
     ) -> Result<DataTransferId, TransferError> {
-        let allowed_effects = crate::dnd::dnd_actions_to_dropeffect_mask(allowed_actions);
+        let allowed_effects = crate::data_transfer::dnd_actions_to_dropeffect_mask(allowed_actions);
         // Win32 would happily run a modal `DoDragDrop` with `allowed_effects == 0`, but every
         // target would see "no action allowed" and the drag would end in a guaranteed cancel
         // after burning a full modal pump. Fail fast instead - the caller asked for a drag
@@ -592,7 +631,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             );
         }
 
-        let id = crate::dnd::next_data_transfer_id();
+        let id = crate::data_transfer::next_data_transfer_id();
         let data_object = SourceDataObject::new(send_data);
         let drop_source = DropSource::new();
 
@@ -601,7 +640,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         if let Some(icon) = icon {
             if let Some(rgba) = icon.icon.cast_ref::<winit_core::icon::RgbaIcon>() {
                 let result = unsafe {
-                    crate::dnd::apply_drag_image(
+                    crate::data_transfer::apply_drag_image(
                         data_object.interface_ptr() as *mut _,
                         rgba.width(),
                         rgba.height(),
@@ -707,12 +746,7 @@ fn dur2timeout(dur: Duration) -> u32 {
     // * Greater than u32::MAX milliseconds (50 days) is rounded up to INFINITE (never time out).
     dur.as_secs()
         .checked_mul(1000)
-        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
-        .and_then(
-            |ms| {
-                if dur.subsec_nanos() % 1_000_000 > 0 { ms.checked_add(1) } else { Some(ms) }
-            },
-        )
+        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64).div_ceil(1_000_000)))
         .map(|ms| if ms > u32::MAX as u64 { INFINITE } else { ms as u32 })
         .unwrap_or(INFINITE)
 }
@@ -1359,6 +1393,7 @@ unsafe fn public_window_callback_inner(
 
         WM_NCDESTROY => {
             unsafe { util::set_window_long(window, GWL_USERDATA, 0) };
+            userdata.event_loop_runner.unregister_window(WindowId::from_raw(window as usize));
             userdata.userdata_removed.set(true);
             result = ProcResult::Value(0);
         },
@@ -1640,31 +1675,25 @@ unsafe fn public_window_callback_inner(
 
                 // Google Japanese Input and ATOK have both flags, so
                 // first, receive composing result if exist.
-                if (lparam as u32 & GCS_RESULTSTR) != 0 {
-                    if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.window_state_lock().ime_state = ImeState::Enabled;
-
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        );
-                        userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
-                    }
+                if (lparam as u32 & GCS_RESULTSTR) != 0
+                    && let Some(text) = unsafe { ime_context.get_composed_text() }
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Enabled;
+                    userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                 }
 
                 // Next, receive preedit range for next composing if exist.
-                if (lparam as u32 & GCS_COMPSTR) != 0 {
-                    if let Some((text, first, last)) =
+                if (lparam as u32 & GCS_COMPSTR) != 0
+                    && let Some((text, first, last)) =
                         unsafe { ime_context.get_composing_text_and_cursor() }
-                    {
-                        userdata.window_state_lock().ime_state = ImeState::Preedit;
-                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Preedit;
+                    let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
-                        );
-                    }
+                    userdata.send_window_event(
+                        window,
+                        WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                    );
                 }
             }
 
@@ -1683,10 +1712,6 @@ unsafe fn public_window_callback_inner(
                     // trying receiving composing result and commit if exists.
                     let ime_context = unsafe { ImeContext::current(window) };
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        );
                         userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                     }
                 }
@@ -1876,6 +1901,7 @@ unsafe fn public_window_callback_inner(
                 event_time: userdata.message_time(),
                 delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
+                source: ScrollSource::Unknown,
             });
 
             result = ProcResult::Value(0);
@@ -1910,6 +1936,7 @@ unsafe fn public_window_callback_inner(
                 event_time: userdata.message_time(),
                 delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
+                source: ScrollSource::Unknown,
             });
 
             result = ProcResult::Value(0);

@@ -474,6 +474,7 @@ impl EventLoop {
                     event_time: None,
                     delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                     phase: event::TouchPhase::Moved,
+                    source: event::ScrollSource::Unknown,
                 });
             },
             EventOption::Quit(QuitEvent {}) => {

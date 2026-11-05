@@ -68,10 +68,7 @@ use super::monitor::{self, MonitorHandle, flip_window_screen_coordinates, get_di
 use super::util::cgerr;
 use super::view::WinitView;
 use super::window::{WinitPanel, WinitWindow, window_id};
-use crate::app_state::DragState;
-use crate::dnd::{
-    dnd_action_to_ns_drag_operation, ns_drag_operation_to_dnd_action, preferred_drag_operation,
-};
+use crate::data_transfer::ns_drag_operation_to_dnd_action;
 use crate::{BlurMaterial, OptionAsAlt, WindowAttributesMacOS, WindowExtMacOS};
 
 #[derive(Debug)]
@@ -384,10 +381,8 @@ define_class!(
         fn window_did_change_screen(&self, _: Option<&AnyObject>) {
             let _entered = debug_span!("windowDidChangeScreen:").entered();
             let is_simple_fullscreen = self.ivars().is_simple_fullscreen.get();
-            if is_simple_fullscreen {
-                if let Some(screen) = self.window().screen() {
-                    self.window().setFrame_display(screen.frame(), true);
-                }
+            if is_simple_fullscreen && let Some(screen) = self.window().screen() {
+                self.window().setFrame_display(screen.frame(), true);
             }
         }
     }
@@ -444,26 +439,15 @@ define_class!(
             let source_operations = sender.draggingSourceOperationMask();
 
             let transfer_id = DataTransferId::from_raw(sender.draggingSequenceNumber() as i64);
-            vars.app_state.pasteboards().insert(transfer_id, &pb, window_id);
-
-            vars.app_state
-                .drag_state()
-                .replace(Some(DragState { id: transfer_id, valid_actions: vec![] }));
+            let data_transfer = vars.app_state.data_transfer();
+            data_transfer.register_drag(transfer_id, &pb, window_id);
 
             self.queue_event(WindowEvent::DragEntered {
                 id: transfer_id,
                 position: Some(position),
             });
 
-            let drag_state = vars.app_state.drag_state().borrow();
-
-            drag_state
-                .as_ref()
-                .and_then(|drag_state| {
-                    preferred_drag_operation(source_operations, &drag_state.valid_actions)
-                })
-                .map(dnd_action_to_ns_drag_operation)
-                .unwrap_or(NSDragOperation::empty())
+            data_transfer.proposed_drag_operation(source_operations)
         }
 
         #[unsafe(method(wantsPeriodicDraggingUpdates))]
@@ -480,9 +464,8 @@ define_class!(
 
             let vars = self.ivars();
 
-            let Some(transfer_id) =
-                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
-            else {
+            let data_transfer = vars.app_state.data_transfer();
+            let Some(transfer_id) = data_transfer.current_drag_id() else {
                 return NSDragOperation::empty();
             };
 
@@ -491,14 +474,14 @@ define_class!(
 
             let source_operations = sender.draggingSourceOperationMask();
 
-            vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+            data_transfer.pasteboards().set_pasteboard(transfer_id, &pb);
 
             let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+            let proposed_action = data_transfer.proposed_drag_action(source_operations);
 
             self.queue_event(WindowEvent::DragPosition {
                 id: transfer_id,
@@ -506,15 +489,7 @@ define_class!(
                 proposed_action,
             });
 
-            let drag_state = vars.app_state.drag_state().borrow();
-
-            drag_state
-                .as_ref()
-                .and_then(|drag_state| {
-                    preferred_drag_operation(source_operations, &drag_state.valid_actions)
-                })
-                .map(dnd_action_to_ns_drag_operation)
-                .unwrap_or(NSDragOperation::empty())
+            data_transfer.proposed_drag_operation(source_operations)
         }
 
         /// Invoked when the image is released
@@ -531,9 +506,8 @@ define_class!(
 
             let vars = self.ivars();
 
-            let Some(transfer_id) =
-                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
-            else {
+            let data_transfer = vars.app_state.data_transfer();
+            let Some(transfer_id) = data_transfer.current_drag_id() else {
                 return false.into();
             };
 
@@ -543,14 +517,14 @@ define_class!(
             let source_operations = sender.draggingSourceOperationMask();
             // let operations = ns_drag_operation_to_dnd_actions(source_operations);
 
-            vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+            data_transfer.pasteboards().set_pasteboard(transfer_id, &pb);
 
             let dl = sender.draggingLocation();
             let dl = self.view().convertPoint_fromView(dl, None);
             let position =
                 LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
-            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+            let proposed_action = data_transfer.proposed_drag_action(source_operations);
 
             self.queue_event(WindowEvent::DragPosition {
                 id: transfer_id,
@@ -559,7 +533,7 @@ define_class!(
             });
 
             // Check again, in case the application updated
-            let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+            let proposed_action = data_transfer.proposed_drag_action(source_operations);
 
             self.queue_event(WindowEvent::DragDropped { id: transfer_id, proposed_action });
 
@@ -575,8 +549,11 @@ define_class!(
             let _entered = debug_span!("concludeDragOperation:").entered();
             let vars = self.ivars();
 
-            vars.app_state.pasteboards().remove_deloaded_pasteboards();
-            vars.app_state.drag_state().take();
+            let data_transfer = vars.app_state.data_transfer();
+            data_transfer.pasteboards().remove_deloaded_pasteboards();
+            if let Some(id) = data_transfer.current_drag_id() {
+                data_transfer.remove_drag(id);
+            }
         }
 
         /// Invoked when the dragging operation is cancelled
@@ -586,9 +563,8 @@ define_class!(
 
             let vars = self.ivars();
 
-            let Some(transfer_id) =
-                vars.app_state.drag_state().borrow().as_ref().map(|state| state.id)
-            else {
+            let data_transfer = vars.app_state.data_transfer();
+            let Some(transfer_id) = data_transfer.current_drag_id() else {
                 return;
             };
 
@@ -597,7 +573,7 @@ define_class!(
                     sender.draggingPasteboard(),
                     MainThreadMarker::new().unwrap(),
                 );
-                vars.app_state.pasteboards().set_pasteboard(transfer_id, &pb);
+                data_transfer.pasteboards().set_pasteboard(transfer_id, &pb);
 
                 let dl = sender.draggingLocation();
                 let dl = self.view().convertPoint_fromView(dl, None);
@@ -605,7 +581,7 @@ define_class!(
                     LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(self.scale_factor());
 
                 let source_operations = sender.draggingSourceOperationMask();
-                let proposed_action = vars.app_state.proposed_drag_action(source_operations);
+                let proposed_action = data_transfer.proposed_drag_action(source_operations);
 
                 self.queue_event(WindowEvent::DragPosition {
                     id: transfer_id,
@@ -616,7 +592,7 @@ define_class!(
 
             self.queue_event(WindowEvent::DragLeft { id: transfer_id });
 
-            vars.app_state.drag_state().take();
+            data_transfer.remove_drag(transfer_id);
         }
     }
 
@@ -851,10 +827,10 @@ fn new_window(
             window.setToolbarStyle(NSWindowToolbarStyle::Unified);
         }
 
-        if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
-            if let Some(button) = window.standardWindowButton(NSWindowButton::ZoomButton) {
-                button.setEnabled(false);
-            }
+        if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE)
+            && let Some(button) = window.standardWindowButton(NSWindowButton::ZoomButton)
+        {
+            button.setEnabled(false);
         }
 
         if !macos_attrs.has_shadow {
@@ -2435,12 +2411,11 @@ impl WindowExtMacOS for WindowDelegate {
             tracing::warn!("window tab groups are only available on macOS 10.13+");
             return;
         }
-        if let Some(group) = self.window().tabGroup() {
-            if let Some(windows) = self.window().tabbedWindows() {
-                if index < windows.len() {
-                    group.setSelectedWindow(Some(&windows.objectAtIndex(index)));
-                }
-            }
+        if let Some(group) = self.window().tabGroup()
+            && let Some(windows) = self.window().tabbedWindows()
+            && index < windows.len()
+        {
+            group.setSelectedWindow(Some(&windows.objectAtIndex(index)));
         }
     }
 
@@ -2465,10 +2440,10 @@ impl WindowExtMacOS for WindowDelegate {
         self.ivars().blur_material.set(blur_material);
 
         #[cfg(not(feature = "private-apple-apis"))]
-        if let Some(blur_view) = self.ivars().blur_view.borrow().as_ref() {
-            if let Some(material) = ns_visual_effect_material(blur_material) {
-                blur_view.setMaterial(material);
-            }
+        if let Some(blur_view) = self.ivars().blur_view.borrow().as_ref()
+            && let Some(material) = ns_visual_effect_material(blur_material)
+        {
+            blur_view.setMaterial(material);
         }
     }
 
