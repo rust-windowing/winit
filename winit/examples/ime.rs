@@ -41,8 +41,9 @@ struct App {
 struct TextInputState {
     ime_enabled: bool,
     /// The contents of the emulated text field for IME purposes (not displayed).
-    /// (text, cursor position in bytes).
     contents: String,
+    /// The cursor position (in bytes) in the text field
+    cursor: usize,
     /// The purpose of the contents the emulated text field expects
     purpose: ImePurpose,
     /// The behaviour hints for the IME regarding the emulated text field
@@ -51,19 +52,56 @@ struct TextInputState {
 
 impl TextInputState {
     fn text_and_cursor(&self) -> (&str, usize) {
-        (&self.contents, self.contents.len())
+        (&self.contents, self.cursor)
     }
 
     fn append_text(&mut self, text: &str) {
-        self.contents.push_str(text);
+        self.contents.insert_str(self.cursor, text);
+        self.cursor += text.len();
     }
 
-    fn set_text(&mut self, text: String) {
+    fn set_text(&mut self, text: String, cursor: usize) {
         self.contents = text;
+        self.cursor = cursor;
+    }
+
+    fn cursor_left(&mut self) {
+        self.cursor = self.cursor.saturating_sub(1);
+        while self.cursor > 0
+            && utf8_leading_byte_size(self.contents.as_bytes()[self.cursor]).is_none()
+        {
+            self.cursor -= 1;
+        }
+    }
+
+    fn cursor_right(&mut self) {
+        if self.cursor == self.contents.len() {
+            return;
+        }
+        self.cursor += utf8_leading_byte_size(self.contents.as_bytes()[self.cursor])
+            .expect("cursor should be positioned on a UTF-8 leading byte");
     }
 
     fn pop(&mut self) {
-        self.contents.pop();
+        let old_pos = self.cursor;
+        self.cursor_left();
+        self.contents.drain(self.cursor..old_pos);
+    }
+}
+
+/// Returns `None` if the byte is not a leading byte
+fn utf8_leading_byte_size(b: u8) -> Option<usize> {
+    if b & 0b1100_0000 == 0b1000_0000 {
+        return None;
+    }
+    if b <= 0x7f {
+        Some(1)
+    } else if b <= 0b110_11111 {
+        Some(2)
+    } else if b <= 0b1110_1111 {
+        Some(3)
+    } else {
+        Some(4)
     }
 }
 
@@ -200,6 +238,24 @@ impl App {
                 self.input_state.pop();
                 self.print_input_state();
             },
+            Key::Named(NamedKey::ArrowLeft) => {
+                self.input_state.cursor_left();
+                if self.input_state.ime_enabled {
+                    self.window()
+                        .request_ime_update(ImeRequest::Update(self.get_ime_update()))
+                        .unwrap();
+                }
+                self.print_input_state();
+            },
+            Key::Named(NamedKey::ArrowRight) => {
+                self.input_state.cursor_right();
+                if self.input_state.ime_enabled {
+                    self.window()
+                        .request_ime_update(ImeRequest::Update(self.get_ime_update()))
+                        .unwrap();
+                }
+                self.print_input_state();
+            },
             _ => {
                 if let Some(text) = event.text {
                     self.input_state.append_text(&text);
@@ -226,7 +282,7 @@ impl App {
                 self.print_input_state();
             },
             Ime::DeleteSurrounding { before_bytes, after_bytes } => {
-                let (text, cursor) = &self.input_state.text_and_cursor();
+                let (text, cursor) = self.input_state.text_and_cursor();
 
                 // To anyone copying this, keep in mind that this doesn't take text
                 // selection into account. The deletion happens
@@ -240,8 +296,12 @@ impl App {
                         t.push_str(&text[delete_end..]);
                         t
                     };
-                    self.input_state.set_text(new_text);
+                    self.input_state.set_text(new_text, delete_start);
                     info!("IME deleted bytes: {before_bytes}, {after_bytes}");
+                    surface
+                        .window()
+                        .request_ime_update(ImeRequest::Update(self.get_ime_update()))
+                        .unwrap();
                     self.print_input_state();
                 } else {
                     error!("Buggy IME tried to delete with indices not on char boundary.");
@@ -274,8 +334,7 @@ impl App {
     }
 
     fn get_ime_update(&self) -> ImeRequestData {
-        let text = &self.input_state.contents;
-        let cursor = text.len();
+        let (text, cursor) = self.input_state.text_and_cursor();
         // A rudimentary text field emulation: the caret moves right by a constant amount for each
         // code point.
 
@@ -360,6 +419,7 @@ Use CTRL+h to cycle content hint permutations.
         input_state: TextInputState {
             ime_enabled: true,
             contents: String::new(),
+            cursor: 0,
             purpose: ImePurpose::Normal,
             // While we don't show text and thus we use ImeHint::HIDDEN
             // it may cause the IME to not do layout switch, etc at all.
