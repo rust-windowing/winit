@@ -4,7 +4,7 @@ use std::{fmt, io, ptr};
 use bitflags::bitflags;
 use dpi::{PhysicalPosition, PhysicalSize, Size};
 use windows_sys::Win32::Foundation::{HWND, RECT};
-use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
+use windows_sys::Win32::Graphics::Gdi::{InvalidateRgn, RDW_INVALIDATE, RedrawWindow};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AdjustWindowRectEx, EnableMenuItem, GWL_EXSTYLE, GWL_STYLE, GetMenu, GetSystemMenu,
     GetWindowLongW, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED,
@@ -487,6 +487,15 @@ impl WindowFlags {
                 // Refresh the window frame
                 SetWindowPos(window, ptr::null_mut(), 0, 0, 0, 0, flags);
                 SendMessageW(window, event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(), 0, 0);
+
+                // The frame has just been worked out again, and the system
+                // paints the caption of the window's own style over the window
+                // while it does. An application that only repaints when
+                // something else changes will not paint over that, and the
+                // caption stays on the window until it does, so ask for a
+                // repaint of the client area, which is where the
+                // application's own drawing goes.
+                RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INVALIDATE);
             }
         }
     }
