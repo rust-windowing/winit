@@ -1,4 +1,6 @@
 use core::fmt;
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, Weak};
 
@@ -36,6 +38,13 @@ pub(crate) struct WindowCommon {
 }
 
 impl WindowCommon {
+    /// The window's `xdg_toplevel`, or [`None`] for a popup or a destroyed window.
+    pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        let state = self.state.upgrade()?;
+        let state = state.lock().unwrap();
+        NonNull::new(state.xdg_toplevel()?.id().as_ptr().cast())
+    }
+
     pub(crate) fn id(&self) -> WindowId {
         self.window_id
     }

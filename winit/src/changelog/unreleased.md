@@ -44,6 +44,16 @@ changelog entry.
 
 ## Unreleased
 
+### Changed
+
+- On Wayland, a window created with a parent window now calls `xdg_toplevel.set_parent` with that
+  parent, and is closed together with its parent.
+- On Wayland, `Window::surface()` now returns `Option<WlSurface>`, which is `None` once the window
+  has been destroyed, e.g. because its parent was closed.
+- On Wayland, creating a window whose parent is not a Wayland window, not a window created by the
+  same event loop, or a popup now fails with `CreateWindowError::InvalidAttribute`. Previously,
+  the parent was silently ignored.
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
