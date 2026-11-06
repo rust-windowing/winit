@@ -23,6 +23,8 @@ fn main() {
         x11_platform: { all(feature = "x11", free_unix, not(redox)) },
         wayland_platform: { all(feature = "wayland", free_unix, not(redox)) },
         orbital_platform: { redox },
+        builtin_platform: { any(android_platform, web_platform, macos_platform, ios_platform,
+            windows_platform, x11_platform, wayland_platform, orbital_platform) },
     }
 
     // Winit defined cfgs.

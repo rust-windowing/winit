@@ -18,14 +18,6 @@ use self::linux as platform;
 #[allow(unused_imports)]
 pub use self::platform::*;
 
-#[cfg(all(
-    not(ios_platform),
-    not(windows_platform),
-    not(macos_platform),
-    not(android_platform),
-    not(x11_platform),
-    not(wayland_platform),
-    not(web_platform),
-    not(orbital_platform),
-))]
-compile_error!("The platform you're compiling for is not supported by winit");
+#[cfg(not(builtin_platform))]
+#[path = "external.rs"]
+mod platform;
