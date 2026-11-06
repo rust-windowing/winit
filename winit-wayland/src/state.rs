@@ -345,6 +345,10 @@ impl ShmHandler for WinitState {
 impl WindowHandler for WinitState {
     fn request_close(&mut self, _: &Connection, _: &QueueHandle<Self>, window: &Window) {
         let window_id = super::make_wid(window.wl_surface());
+        if !self.windows.get_mut().contains_key(&window_id) {
+            tracing::debug!("got close request for dead window {window_id:?}, ignoring it");
+            return;
+        }
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 
@@ -402,9 +406,12 @@ impl PopupHandler for WinitState {
 
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
         let window_id = super::make_wid(popup.wl_surface());
-        let window_requests = self.window_requests.get_mut().iter().find(|r| *r.0 == window_id);
-        if let Some(window_requests) = window_requests {
-            window_requests.1.closed.store(true, Ordering::Relaxed);
+        if !self.windows.get_mut().contains_key(&window_id) {
+            tracing::debug!("got popup_done for dead popup {window_id:?}, ignoring it");
+            return;
+        }
+        if let Some(window_requests) = self.window_requests.get_mut().get(&window_id) {
+            window_requests.closed.store(true, Ordering::Relaxed);
         }
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }

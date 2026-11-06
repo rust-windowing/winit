@@ -374,6 +374,13 @@ impl EventLoop {
 
         for mut compositor_update in compositor_updates.drain(..) {
             let window_id = compositor_update.window_id;
+
+            // Never send events for a window the event loop no longer manages: it already got
+            // `Destroyed`, and the lookups below expect the window to be present.
+            if !self.with_state(|state| state.windows.get_mut().contains_key(&window_id)) {
+                continue;
+            }
+
             if compositor_update.scale_changed {
                 let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
