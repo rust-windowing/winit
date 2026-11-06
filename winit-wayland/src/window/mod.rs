@@ -73,12 +73,24 @@ pub(crate) fn finish_window_setup(
     let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
     let event_queue = wayland_source.queue();
 
+    let cleanup_on_error = |state: &mut WinitState| {
+        state.windows.get_mut().remove(&window_id);
+        state.window_requests.get_mut().remove(&window_id);
+        state.window_compositor_updates.retain(|u| u.window_id != window_id);
+    };
+
     // Do a roundtrip.
-    event_queue.roundtrip(state).map_err(|err| os_error!(err))?;
+    if let Err(e) = event_queue.roundtrip(state).map_err(|err| os_error!(err)) {
+        cleanup_on_error(state);
+        return Err(e.into());
+    }
 
     // XXX Wait for the initial configure to arrive.
     while !window_state.lock().unwrap().is_configured() {
-        event_queue.blocking_dispatch(state).map_err(|err| os_error!(err))?;
+        if let Err(e) = event_queue.blocking_dispatch(state).map_err(|err| os_error!(err)) {
+            cleanup_on_error(state);
+            return Err(e.into());
+        }
 
         // The compositor may dismiss the surface before it ever sends a configure. Detect
         // that and bail out instead of looping forever.
@@ -88,9 +100,7 @@ pub(crate) fn finish_window_setup(
                 .iter()
                 .any(|u| u.window_id == window_id && u.close_window)
         {
-            state.windows.get_mut().remove(&window_id);
-            state.window_requests.get_mut().remove(&window_id);
-            state.window_compositor_updates.retain(|u| u.window_id != window_id);
+            cleanup_on_error(state);
             return Err(os_error!(DismissedError(dismissed_error)).into());
         }
     }
