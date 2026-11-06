@@ -85,6 +85,7 @@ impl Drop for Window {
             self.set_fullscreen(None);
         }
 
+        self.maybe_wait_on_main(|delegate| delegate.end_modal_sheet());
         self.window.get_on_main(|window| autoreleasepool(|_| window.close()))
     }
 }

@@ -94,7 +94,7 @@ pub(crate) fn finish_window_setup(
     Ok((window_id, window_requests))
 }
 
-/// Constructing a window/popup failed: the compositor dismissed the surface before it
+/// Constructing a window/popup/dialog failed: the compositor dismissed the surface before it
 /// ever sent an initial configure.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct DismissedError(&'static str);
@@ -195,8 +195,12 @@ impl Window {
             let parent_xdg_toplevel = {
                 match &parent_window_state.window {
                     WindowType::Window { window, .. } => window.xdg_toplevel().clone(),
+                    WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().clone(),
                     WindowType::Popup { .. } => {
-                        return Err(InvalidInput::new("Parent of a window must be a window").into());
+                        return Err(InvalidInput::new(
+                            "Parent of a window must be a window or a dialog",
+                        )
+                        .into());
                     },
                 }
             };

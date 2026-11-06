@@ -70,6 +70,32 @@ pub enum WindowType {
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
+    /// A native modal or non-modal dialog anchored to a parent window, requiring a parent set
+    /// via [`WindowAttributes::with_parent_window`].
+    ///
+    /// See [`WindowAttributes::with_modal`] to control whether the dialog is modal.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** An `xdg_toplevel` with its parent set via `xdg_toplevel.set_parent`, extended
+    ///   with the `xdg-dialog-v1` protocol. If the compositor doesn't support `xdg-dialog-v1` (no
+    ///   `xdg_wm_dialog_v1` global), a normal window with the same parent is created instead. In
+    ///   that case [`WindowAttributes::with_modal`] has no effect, and the created window's
+    ///   [`Window::window_type`] returns [`WindowType::Window`] rather than [`WindowType::Dialog`].
+    /// - **Windows:** An owned window (see MSDN's [owned windows]) that is always on top of its
+    ///   parent. When modal, the parent is disabled via `EnableWindow` while the dialog is visible,
+    ///   and re-enabled and reactivated once no modal dialog on it is visible anymore (hidden or
+    ///   closed). Positions (via [`WindowAttributes::with_position`], [`Window::outer_position`]
+    ///   and [`Window::set_outer_position`]) are relative to the parent's client area; without an
+    ///   initial position, the dialog is centered over its parent. Moving a modal dialog moves its
+    ///   parent along with it, so the dialog keeps its position relative to the parent.
+    /// - **macOS:** A non-modal dialog is a child window of its parent (moving along with it),
+    ///   positioned like on Windows. A modal dialog is presented as a sheet attached to its parent,
+    ///   which AppKit positions itself, so it can't be moved and any position is ignored.
+    /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
+    ///
+    /// [owned windows]: https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows
+    Dialog,
 }
 
 /// The positioner state backing a window's anchor-based placement.
@@ -147,9 +173,7 @@ pub struct WindowAttributes {
     pub surface_resize_increments: Option<Size>,
     /// The initial position of the window in screen coordinates.
     ///
-    /// For popups, this position is relative to the parent window.
-    ///
-    /// **Wayland:** See `WindowAttributesWayland` for more options to position a popup.
+    /// For popups and dialogs, this position is relative to the parent window.
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
@@ -178,6 +202,7 @@ pub struct WindowAttributes {
     pub window_type: WindowType,
     /// See [`WindowAttributes::with_positioner`].
     pub positioner: Option<WindowPositioner>,
+    pub modal: bool,
 }
 
 impl WindowAttributes {
@@ -468,11 +493,21 @@ impl WindowAttributes {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows** : A child window has the WS_CHILD style and is confined
-    ///   to the client area of its parent window. For more information, see
+    /// - **Windows** : For [`WindowType::Window`], a child window has the WS_CHILD style and is
+    ///   confined to the client area of its parent window. For more information, see
     ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    ///   For [`WindowType::Popup`] and [`WindowType::Dialog`], the window instead becomes an
+    ///   *owned* window (no WS_CHILD style) positioned relative to, and always on top of, this
+    ///   parent -- see [`WindowType::Dialog`]'s platform-specific notes.
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Android / iOS / Wayland / Web:** Unsupported.
+    /// - **Wayland:** The parent must be a Wayland window created by the same event loop, otherwise
+    ///   creating the window fails with [`CreateWindowError::InvalidAttribute`]. For
+    ///   [`WindowType::Window`] and [`WindowType::Dialog`], the parent must be a window or a dialog
+    ///   (not a popup). It is set with `xdg_toplevel.set_parent`, and the child is closed together
+    ///   with its parent.
+    /// - **Android / iOS / Web:** Unsupported.
+    ///
+    /// [`CreateWindowError::InvalidAttribute`]: crate::error::CreateWindowError::InvalidAttribute
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,
@@ -532,6 +567,28 @@ impl WindowAttributes {
         self.positioner = Some(positioner);
         self
     }
+
+    /// Sets whether a [`WindowType::Dialog`] is modal, i.e. blocks interaction with its parent
+    /// while open. Has no effect on other [`WindowType`]s.
+    ///
+    /// The default is non-modal.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Implemented via the `xdg-dialog-v1` protocol's modal state
+    ///   (`xdg_dialog_v1.set_modal`). Ignored if the compositor doesn't support `xdg-dialog-v1`,
+    ///   since a normal window is then created instead of a dialog (see [`WindowType::Dialog`]).
+    /// - **Windows:** Implemented by disabling the parent window (`EnableWindow`) while the dialog
+    ///   is visible. The dialog can't be minimized, since a minimized dialog has no taskbar button
+    ///   to restore it from while the parent stays disabled.
+    /// - **macOS:** Implemented by presenting the dialog as a sheet on its parent window.
+    /// - **X11, Web, Android, iOS, Orbital:** No effect, since [`WindowType::Dialog`] is not
+    ///   implemented.
+    #[inline]
+    pub fn with_modal(mut self, modal: bool) -> Self {
+        self.modal = modal;
+        self
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -561,6 +618,7 @@ impl Clone for WindowAttributes {
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
             window_type: self.window_type,
             positioner: self.positioner,
+            modal: self.modal,
         }
     }
 }
@@ -593,6 +651,7 @@ impl Default for WindowAttributes {
             blur: Default::default(),
             window_type: Default::default(),
             positioner: Default::default(),
+            modal: Default::default(),
         }
     }
 }
@@ -834,9 +893,10 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// The coordinates can be negative if the top-left hand corner of the window is outside
     /// of the visible screen region, or on another monitor than the primary.
     ///
-    /// For a [`WindowType::Popup`] with a parent, the position is instead reported relative to the
-    /// top-left hand corner of the parent window's content area, mirroring the coordinate system
-    /// used by [`Window::set_outer_position`].
+    /// For a [`WindowType::Popup`] or [`WindowType::Dialog`] with a parent, the position is instead
+    /// reported relative to the top-left hand corner of the parent window's content area,
+    /// mirroring the coordinate system used by [`Window::set_outer_position`] and
+    /// [`WindowAttributes::with_position`].
     ///
     /// ## Platform-specific
     ///
@@ -1136,6 +1196,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Windows:** [`WindowButtons::MINIMIZE`] is ignored for a modal [`WindowType::Dialog`],
+    ///   which can't be minimized (see [`WindowAttributes::with_modal`]).
     /// - **Wayland / X11 / Orbital:** Not implemented.
     /// - **Web / iOS / Android:** Unsupported.
     fn set_enabled_buttons(&self, buttons: WindowButtons);

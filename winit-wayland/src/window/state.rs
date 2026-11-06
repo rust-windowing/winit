@@ -309,6 +309,7 @@ impl WindowState {
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError> {
         let xdg_toplevel = match &self.window {
             WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
             WindowType::Popup { .. } => {
                 return Err(RequestError::NotSupported(NotSupportedError::new(
                     "drag_resize_window is not supported for WindowType::Popup",
@@ -334,6 +335,7 @@ impl WindowState {
     pub fn drag_window(&self) -> Result<(), RequestError> {
         let xdg_toplevel = match &self.window {
             WindowType::Window { window, .. } => window.xdg_toplevel(),
+            WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel(),
             WindowType::Popup { .. } => {
                 return Err(RequestError::NotSupported(NotSupportedError::new(
                     "drag_window is not supported for WindowType::Popup",
@@ -437,6 +439,11 @@ impl WindowState {
                     self.resize(surface_size.to_logical(self.scale_factor()))
                 }
             },
+            WindowType::Dialog { last_configure, .. } => {
+                if last_configure.as_ref().map(Self::is_stateless).unwrap_or(true) {
+                    self.resize(surface_size.to_logical(self.scale_factor()))
+                }
+            },
             WindowType::Popup { popup, xdg_positioner, .. } => {
                 let size = surface_size.to_logical(self.scale_factor());
                 xdg_positioner.set_size(size.width, size.height);
@@ -454,7 +461,8 @@ impl WindowState {
         self.size = surface_size;
 
         // Update the stateless size.
-        if let WindowType::Window { last_configure, .. } = &mut self.window
+        if let WindowType::Window { last_configure, .. } | WindowType::Dialog { last_configure, .. } =
+            &mut self.window
             && let Some(true) = last_configure.as_ref().map(Self::is_stateless)
         {
             self.stateless_size = surface_size;
@@ -508,7 +516,8 @@ impl WindowState {
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let is_fullscreen = match &self.window {
-            WindowType::Window { last_configure, .. } => last_configure
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure
                 .as_ref()
                 .map(|last_configure| last_configure.is_fullscreen())
                 .unwrap_or_default(),
@@ -545,6 +554,7 @@ impl WindowState {
     pub(crate) fn is_maximized(&self) -> bool {
         let last_configure = match &self.window {
             WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Dialog { last_configure, .. } => last_configure,
             WindowType::Popup { .. } => return false,
         };
         last_configure

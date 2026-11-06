@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `WindowType::Dialog` and `WindowAttributes::with_modal()`, implemented on Wayland, Windows and macOS. On Wayland, a normal window with the same parent is created if the compositor lacks `xdg-dialog-v1`.
+
 ### Changed
 
 - On Wayland, a window created with a parent window now calls `xdg_toplevel.set_parent` with that
