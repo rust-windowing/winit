@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
-use rwh_06::RawWindowHandle;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
@@ -35,25 +34,15 @@ impl Popup {
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
     ) -> Result<Self, CreateWindowError> {
-        let parent_window_handle = attributes
-            .parent_window()
-            .ok_or(InvalidInput::new("Popup without a parent is not supported"))?;
-        let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
-            return Err(InvalidInput::new("A Popup requires a parent wayland window handle").into());
-        };
-
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
+        let parent = WindowParent::from_attributes(&state, &attributes)?
+            .ok_or(InvalidInput::new("Popup without a parent is not supported"))?;
+        let parent_state = parent.state.clone();
         let monitors = state.monitors.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
         let xdg_positioner = XdgPositioner::new(&state.xdg_shell).map_err(|e| os_error!(e))?;
-        let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
-        let window_states = state.windows.borrow();
-        let Some(parent_state) = window_states.get(&parent_window_id) else {
-            return Err(InvalidInput::new("Unknown parent window id").into());
-        };
-        let parent = WindowParent { id: parent_window_id, state: parent_state.clone() };
 
         let WindowPositioner {
             anchor,
@@ -132,7 +121,6 @@ impl Popup {
         )
         .map_err(|e| os_error!(e))?;
         drop(parent_window_state);
-        drop(window_states);
 
         let mut popup_state = WindowState::new(
             event_loop_window_target,
@@ -211,12 +199,7 @@ impl Popup {
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
 
-        let windows = state.windows.borrow();
-        if let Some(parent_window_state) = windows.get(&parent_window_id) {
-            let mut parent_window_state = parent_window_state.lock().unwrap();
-            parent_window_state.add_child(super::make_wid(popup.wl_surface()));
-            drop(parent_window_state);
-        };
+        parent_state.lock().unwrap().add_child(window_id);
 
         Ok(Self {
             common: WindowCommon {

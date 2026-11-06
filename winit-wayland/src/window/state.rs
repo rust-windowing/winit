@@ -25,9 +25,9 @@ use tracing::{info, warn};
 use wayland_client::protocol::wl_seat::WlSeat;
 use wayland_protocols::xdg::shell::client::xdg_toplevel;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{ResizeDirection, Theme, WindowId};
+use winit_core::window::{ResizeDirection, Theme, WindowAttributes, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::seat::{
@@ -68,6 +68,27 @@ pub struct WindowParent {
     /// When the parent is closed, the event loop closes its children as well; their Wayland
     /// objects, and then the parent's, are destroyed once the application drops the children.
     pub state: Arc<Mutex<WindowState>>,
+}
+
+impl WindowParent {
+    /// Resolves the parent window set in `attributes`, or [`None`] if no parent is set.
+    ///
+    /// Fails if the parent is not a Wayland window, or not a window of this event loop.
+    pub fn from_attributes(
+        state: &WinitState,
+        attributes: &WindowAttributes,
+    ) -> Result<Option<Self>, CreateWindowError> {
+        let Some(parent_window_handle) = attributes.parent_window() else { return Ok(None) };
+        let rwh_06::RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
+            return Err(InvalidInput::new("The parent must be a Wayland window handle").into());
+        };
+
+        let id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
+        let Some(parent_state) = state.windows.borrow().get(&id).cloned() else {
+            return Err(InvalidInput::new("Unknown parent window id").into());
+        };
+        Ok(Some(Self { id, state: parent_state }))
+    }
 }
 
 impl fmt::Debug for WindowParent {

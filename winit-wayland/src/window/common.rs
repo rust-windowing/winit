@@ -24,8 +24,11 @@ pub(crate) struct WindowCommon {
     /// Keeps the window's state alive for as long as this handle exists, independently of
     /// whatever the event loop's `windows` map does with its own reference.
     ///
-    /// A popup holds in addition an arc to the parent to ensure that the popups
-    /// get destroyed in the correct order
+    /// The state, and with it the `wl_surface` that the raw window handle hands out, must live
+    /// until this handle is dropped: graphics libraries keep using that pointer for as long as
+    /// they hold the window. A window or popup with a parent in turn keeps its parent's state
+    /// alive (see [`WindowParent`](crate::window::state::WindowParent)), so a parent is never
+    /// destroyed before its children.
     pub(crate) state: Arc<Mutex<WindowState>>,
 
     pub(crate) window_id: WindowId,

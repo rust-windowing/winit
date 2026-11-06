@@ -7,7 +7,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use rwh_06::RawWindowHandle;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::window::WindowDecorations;
@@ -118,6 +117,10 @@ impl std::error::Error for DismissedError {}
 type SetupResults =
     (Arc<Mutex<WindowState>>, WindowId, Arc<WindowRequests>, Option<XdgActivationV1>);
 
+/// The resolved parent of an `xdg_toplevel`-based surface: the parent itself, its `xdg_toplevel`,
+/// and its scale factor.
+pub(crate) type ToplevelParent = (WindowParent, xdg_toplevel::XdgToplevel, f64);
+
 impl Window {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
@@ -125,6 +128,9 @@ impl Window {
     ) -> Result<Self, CreateWindowError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
+
+        // Resolve the parent before creating any Wayland objects.
+        let parent = Self::parent_from_attributes(&state, &attributes)?;
 
         let monitors = state.monitors.clone();
 
@@ -147,8 +153,9 @@ impl Window {
             event_loop_window_target,
             &mut state,
             attributes,
-            state::WindowType::Window { window, last_configure: None },
+            WindowType::Window { window, last_configure: None },
             &surface,
+            parent,
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
@@ -177,56 +184,49 @@ impl Window {
         })
     }
 
+    /// Resolves the parent set in `attributes` for an `xdg_toplevel`-based surface, or [`None`]
+    /// if no parent is set.
+    ///
+    /// Fails if the parent is not a Wayland window of this event loop, or has no `xdg_toplevel`
+    /// (a popup).
     pub(crate) fn parent_from_attributes(
-        state: &mut WinitState,
+        state: &WinitState,
         attributes: &WindowAttributes,
-    ) -> Result<Option<(WindowParent, xdg_toplevel::XdgToplevel, f64)>, CreateWindowError> {
-        let Some(parent_window_handle) = attributes.parent_window() else { return Ok(None) };
-
-        let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
-            return Err(
-                InvalidInput::new("A Window requires a parent wayland window handle").into()
-            );
+    ) -> Result<Option<ToplevelParent>, CreateWindowError> {
+        let Some(parent) = WindowParent::from_attributes(state, attributes)? else {
+            return Ok(None);
         };
 
-        let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
-
-        let (parent_state, parent_xdg_toplevel, scale_factor) = {
-            let windows = state.windows.borrow();
-            let Some(parent_state) = windows.get(&parent_window_id) else {
-                return Err(InvalidInput::new("Unknown parent window id").into());
+        let (xdg_toplevel, scale_factor) = {
+            let parent_state = parent.state.lock().unwrap();
+            let Some(xdg_toplevel) = parent_state.xdg_toplevel() else {
+                return Err(InvalidInput::new("Parent of a window must be a window").into());
             };
-            let parent_window_state = parent_state.lock().unwrap();
-            let scale_factor = parent_window_state.scale_factor();
-            let parent_xdg_toplevel = {
-                match &parent_window_state.window {
-                    WindowType::Window { window, .. } => window.xdg_toplevel().clone(),
-                    WindowType::Popup { .. } => {
-                        return Err(InvalidInput::new("Parent of a window must be a window").into());
-                    },
-                }
-            };
-            (parent_state.clone(), parent_xdg_toplevel, scale_factor)
+            (xdg_toplevel.clone(), parent_state.scale_factor())
         };
-        let parent = WindowParent { id: parent_window_id, state: parent_state };
-        Ok(Some((parent, parent_xdg_toplevel, scale_factor)))
+
+        Ok(Some((parent, xdg_toplevel, scale_factor)))
     }
 
+    /// Sets up an `xdg_toplevel`-based surface: applies `attributes`, sets the `parent`, registers
+    /// the surface with the event loop and waits for its initial configure.
+    ///
+    /// `parent` is the result of [`Self::parent_from_attributes`] for the same `attributes`.
     pub(crate) fn setup(
         event_loop_window_target: &ActiveEventLoop,
         state: &mut WinitState,
         mut attributes: WindowAttributes,
-        window_type: state::WindowType,
+        window_type: WindowType,
         surface: &WlSurface,
+        parent: Option<ToplevelParent>,
     ) -> Result<SetupResults, CreateWindowError> {
-        let (parent, parent_xdg_toplevel, scale_factor) =
-            match Self::parent_from_attributes(state, &attributes)? {
-                Some((parent, xdg_toplevel, scale_factor)) => {
-                    (Some(parent), Some(xdg_toplevel), scale_factor)
-                },
-                None => (None, None, 1.0),
-            };
-        let parent_window_id = parent.as_ref().map(|parent| parent.id);
+        let (parent, parent_xdg_toplevel, scale_factor) = match parent {
+            Some((parent, xdg_toplevel, scale_factor)) => {
+                (Some(parent), Some(xdg_toplevel), scale_factor)
+            },
+            None => (None, None, 1.0),
+        };
+        let parent_state = parent.as_ref().map(|parent| parent.state.clone());
 
         let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
         let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
@@ -271,14 +271,19 @@ impl Window {
         // Non-resizable implies that the min and max sizes are set to the same value.
         window_state.set_resizable(attributes.resizable);
 
-        // Set startup mode.
-        let xdg_toplevel = window_state.xdg_toplevel().unwrap(); // a window is always an xdg toplevel
+        let xdg_toplevel = window_state
+            .xdg_toplevel()
+            .expect("setup is only used for xdg_toplevel-based surfaces");
+
+        // Set the parent.
         xdg_toplevel.set_parent(parent_xdg_toplevel.as_ref());
 
         // Set the app_id.
         if let Some(name) = app_name.map(|name| name.general) {
             xdg_toplevel.set_app_id(name);
         }
+
+        // Set startup mode.
         match attributes.fullscreen {
             Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
@@ -314,7 +319,6 @@ impl Window {
 
         // Add the window and window requests into the state.
         let window_state = Arc::new(Mutex::new(window_state));
-
         let (window_id, window_requests) = finish_window_setup(
             event_loop_window_target,
             state,
@@ -324,11 +328,8 @@ impl Window {
             None,
         )?;
 
-        if let Some(parent_window_id) = parent_window_id {
-            let windows = state.windows.borrow();
-            if let Some(parent_window_state) = windows.get(&parent_window_id) {
-                parent_window_state.lock().unwrap().add_child(window_id);
-            }
+        if let Some(parent_state) = parent_state {
+            parent_state.lock().unwrap().add_child(window_id);
         }
 
         Ok((window_state, window_id, window_requests, xdg_activation))
