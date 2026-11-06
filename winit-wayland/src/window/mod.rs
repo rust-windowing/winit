@@ -87,11 +87,6 @@ pub(crate) fn finish_window_setup(
 
     // XXX Wait for the initial configure to arrive.
     while !window_state.lock().unwrap().is_configured() {
-        if let Err(e) = event_queue.blocking_dispatch(state).map_err(|err| os_error!(err)) {
-            cleanup_on_error(state);
-            return Err(e.into());
-        }
-
         // The compositor may dismiss the surface before it ever sends a configure. Detect
         // that and bail out instead of looping forever.
         if let Some(dismissed_error) = dismissed_error
@@ -102,6 +97,11 @@ pub(crate) fn finish_window_setup(
         {
             cleanup_on_error(state);
             return Err(os_error!(DismissedError(dismissed_error)).into());
+        }
+
+        if let Err(e) = event_queue.blocking_dispatch(state).map_err(|err| os_error!(err)) {
+            cleanup_on_error(state);
+            return Err(e.into());
         }
     }
 

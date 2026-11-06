@@ -456,7 +456,11 @@ impl EventLoop {
         for event in buffer_sink.drain() {
             match event {
                 Event::WindowEvent { window_id, event } => {
-                    app.window_event(&self.active_event_loop, window_id, event)
+                    // Never send events for a window the event loop no longer manages: it
+                    // already got `Destroyed`, or its creation failed.
+                    if self.with_state(|state| state.windows.get_mut().contains_key(&window_id)) {
+                        app.window_event(&self.active_event_loop, window_id, event)
+                    }
                 },
                 Event::DeviceEvent { event } => {
                     app.device_event(&self.active_event_loop, None, event)
@@ -471,7 +475,11 @@ impl EventLoop {
         for event in buffer_sink.drain() {
             match event {
                 Event::WindowEvent { window_id, event } => {
-                    app.window_event(&self.active_event_loop, window_id, event)
+                    // Never send events for a window the event loop no longer manages: it
+                    // already got `Destroyed`, or its creation failed.
+                    if self.with_state(|state| state.windows.get_mut().contains_key(&window_id)) {
+                        app.window_event(&self.active_event_loop, window_id, event)
+                    }
                 },
                 Event::DeviceEvent { event } => {
                     app.device_event(&self.active_event_loop, None, event)
