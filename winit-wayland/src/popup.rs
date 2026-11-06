@@ -219,7 +219,7 @@ impl Popup {
 
         Ok(Self {
             common: WindowCommon {
-                state: Arc::downgrade(&popup_state),
+                state: popup_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
                 handles: Handles {
@@ -245,8 +245,7 @@ impl CoreWindow for Popup {
     }
 
     fn positioner(&self) -> WindowPositioner {
-        let Some(state) = self.common.state.upgrade() else { return WindowPositioner::default() };
-        if let WindowType::Popup { positioner, .. } = &state.lock().unwrap().window {
+        if let WindowType::Popup { positioner, .. } = &self.common.state.lock().unwrap().window {
             *positioner
         } else {
             WindowPositioner::default()
@@ -254,11 +253,7 @@ impl CoreWindow for Popup {
     }
 
     fn set_positioner(&self, new_positioner: WindowPositioner) {
-        let Some(state) = self.common.state.upgrade() else {
-            return;
-        };
-
-        let mut state = state.lock().unwrap();
+        let mut state = self.common.state.lock().unwrap();
         let scale_factor = state.scale_factor();
 
         if let WindowType::Popup { popup, xdg_positioner, parent_origin, positioner, .. } =
@@ -320,12 +315,7 @@ impl CoreWindow for Popup {
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let s = self
-            .common
-            .state
-            .upgrade()
-            .ok_or_else(|| os_error!(PopupError("the popup has been destroyed")))?;
-        let state = s.lock().unwrap();
+        let state = self.common.state.lock().unwrap();
         if let WindowType::Popup { last_configure: Some(configure), .. } = &state.window {
             let (x, y) = configure.position;
             return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
@@ -334,8 +324,7 @@ impl CoreWindow for Popup {
     }
 
     fn set_outer_position(&self, position: Position) {
-        let Some(s) = self.common.state.upgrade() else { return };
-        let mut state = s.lock().unwrap();
+        let mut state = self.common.state.lock().unwrap();
         let scale_factor = state.scale_factor();
         if let WindowType::Popup { popup, xdg_positioner, positioner, parent_origin, .. } =
             &mut state.window

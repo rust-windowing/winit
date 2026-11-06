@@ -47,9 +47,8 @@ changelog entry.
 ### Changed
 
 - On Wayland, a window created with a parent window now calls `xdg_toplevel.set_parent` with that
-  parent, and is closed together with its parent.
-- On Wayland, `Window::surface()` now returns `Option<WlSurface>`, which is `None` once the window
-  has been destroyed, e.g. because its parent was closed.
+  parent, and is closed together with its parent: it receives `WindowEvent::Destroyed` and no
+  further events. The window stays visible until the application drops it.
 - On Wayland, creating a window whose parent is not a Wayland window, not a window created by the
   same event loop, or a popup now fails with `CreateWindowError::InvalidAttribute`. Previously,
   the parent was silently ignored.

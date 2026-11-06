@@ -41,6 +41,10 @@ pub(crate) mod common;
 #[derive(Debug)]
 pub struct Window {
     pub(crate) common: WindowCommon,
+
+    /// The window's `wl_surface`. It stays alive as long as this window, because
+    /// [`WindowCommon::state`] holds a strong reference to the SCTK window that owns it.
+    surface: WlSurface,
 }
 
 /// Registers `window_state` with the event loop, waits for its initial configure, and wakes the
@@ -148,11 +152,9 @@ impl Window {
         // Setup the event sync to insert `WindowEvents` right from the window.
         let window_events_sink = state.window_events_sink.clone();
 
-        let state_weak = Arc::downgrade(&window_state);
-
         Ok(Self {
             common: WindowCommon {
-                state: state_weak,
+                state: window_state,
                 window_id,
                 display,
                 handles: Handles {
@@ -168,6 +170,7 @@ impl Window {
                     attention_requested: Arc::new(AtomicBool::new(false)),
                 },
             },
+            surface,
         })
     }
 
@@ -333,27 +336,20 @@ impl Window {
             None => return Err(NotSupportedError::new("xdg_activation_v1 is not available").into()),
         };
 
-        let surface = self
-            .surface()
-            .ok_or_else(|| os_error!(std::io::Error::other("the window has been destroyed")))?;
         let serial = AsyncRequestSerial::get();
 
         let data = XdgActivationTokenData::Obtain((self.common.id(), serial));
         let xdg_activation_token =
             xdg_activation.get_activation_token(&self.common.handles.queue_handle, data);
-        xdg_activation_token.set_surface(&surface);
+        xdg_activation_token.set_surface(self.surface());
         xdg_activation_token.commit();
 
         Ok(serial)
     }
 
-    /// The window's `wl_surface`, or [`None`] if the window has already been destroyed, e.g.
-    /// because its parent was closed.
     #[inline]
-    pub fn surface(&self) -> Option<WlSurface> {
-        let state = self.common.state.upgrade()?;
-        let surface = state.lock().unwrap().window.wl_surface().clone();
-        Some(surface)
+    pub fn surface(&self) -> &WlSurface {
+        &self.surface
     }
 }
 
@@ -471,9 +467,7 @@ impl CoreWindow for Window {
             return;
         }
 
-        if let Some(state) = self.common.state.upgrade()
-            && let Some(xdg_toplevel) = state.lock().unwrap().xdg_toplevel()
-        {
+        if let Some(xdg_toplevel) = self.common.state.lock().unwrap().xdg_toplevel() {
             xdg_toplevel.set_minimized();
         }
     }
