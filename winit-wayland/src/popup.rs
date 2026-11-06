@@ -206,7 +206,7 @@ impl Popup {
             &mut state,
             popup.wl_surface(),
             &popup_state,
-            "Popup was dismissed by the compositor before configure",
+            Some("Popup was dismissed by the compositor before configure"),
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();

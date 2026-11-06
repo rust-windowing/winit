@@ -51,13 +51,16 @@ pub struct Window {
 /// event loop for the first redraw.
 ///
 /// If `dismissed_error` is set, the wait loop bails out early with that message when the
-/// compositor closes the surface before ever sending a configure
+/// compositor closes the surface before ever sending a configure, and the surface is removed from
+/// the event loop again. Use it for popups, where `xdg_popup.popup_done` is final. Pass `None`
+/// for a toplevel: `xdg_toplevel.close` is only a request, the toplevel will still be configured,
+/// and the queued close is delivered as `WindowEvent::CloseRequested` once the window exists.
 pub(crate) fn finish_window_setup(
     event_loop_window_target: &ActiveEventLoop,
     state: &mut WinitState,
     surface: &WlSurface,
     window_state: &Arc<Mutex<WindowState>>,
-    dismissed_error: &'static str,
+    dismissed_error: Option<&'static str>,
 ) -> Result<(WindowId, Arc<WindowRequests>), CreateWindowError> {
     let window_id = super::make_wid(surface);
     state.windows.get_mut().insert(window_id, window_state.clone());
@@ -80,10 +83,11 @@ pub(crate) fn finish_window_setup(
 
         // The compositor may dismiss the surface before it ever sends a configure. Detect
         // that and bail out instead of looping forever.
-        if state
-            .window_compositor_updates
-            .iter()
-            .any(|u| u.window_id == window_id && u.close_window)
+        if let Some(dismissed_error) = dismissed_error
+            && state
+                .window_compositor_updates
+                .iter()
+                .any(|u| u.window_id == window_id && u.close_window)
         {
             state.windows.get_mut().remove(&window_id);
             state.window_requests.get_mut().remove(&window_id);
@@ -145,7 +149,6 @@ impl Window {
             attributes,
             state::WindowType::Window { window, last_configure: None },
             &surface,
-            "Window was dismissed by the compositor before configure",
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
@@ -215,7 +218,6 @@ impl Window {
         mut attributes: WindowAttributes,
         window_type: state::WindowType,
         surface: &WlSurface,
-        dismissed_error: &'static str,
     ) -> Result<SetupResults, CreateWindowError> {
         let (parent, parent_xdg_toplevel, scale_factor) =
             match Self::parent_from_attributes(state, &attributes)? {
@@ -318,7 +320,8 @@ impl Window {
             state,
             surface,
             &window_state,
-            dismissed_error,
+            // `xdg_toplevel.close` is only a request, so it never fails the creation.
+            None,
         )?;
 
         if let Some(parent_window_id) = parent_window_id {
