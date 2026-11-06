@@ -25,10 +25,17 @@ use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
 
 /// Common methods to implement for the platform event loop.
-pub trait EventLoopProvider: fmt::Debug {
+///
+/// Backends can be implemented in separate crates depending on `winit-core` and passed to
+/// `winit::event_loop::EventLoop::from_backend`. The backend owns its initialization and
+/// lifecycle, and supplies an [`ActiveEventLoop`] through the [`ApplicationHandler`] callbacks.
+/// Configuration and handle access do not require the event loop to be running.
+pub trait EventLoopProvider: Any + fmt::Debug {
     /// Run the event loop with the given application on the calling thread.
     ///
-    /// The `app` is dropped when the event loop is shut down.
+    /// The `app` is dropped when the event loop is shut down. The provider and handler are
+    /// owned, allowing callback-driven backends to retain them after this method returns.
+    /// Neither is required to be `Send` or `Sync`.
     ///
     /// ## Event loop flow
     ///
@@ -85,7 +92,40 @@ pub trait EventLoopProvider: fmt::Debug {
     ///
     /// The semantics of this function is defined by the target platform. Consult the implementor
     /// docs for details.
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError>;
+    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError>;
+
+    /// Borrow the event-pumping capability, if supported.
+    fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::PumpEvents> {
+        None
+    }
+
+    /// Borrow the capability to run with non-`'static` application state, if supported.
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::RunOnDemand> {
+        None
+    }
+
+    /// Convert into a provider that registers callbacks with a system event loop.
+    ///
+    /// Return `Err(self)` when unsupported, so the caller can choose another execution mode
+    /// without losing the event loop. No application callbacks may run during this conversion.
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn register::RegisterApp>, Box<dyn EventLoopProvider>>;
+
+    /// Convert into a provider whose execution never returns.
+    ///
+    /// Return `Err(self)` when unsupported. Conversion must not start or stop the event loop.
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn never_return::RunAppNeverReturn>, Box<dyn EventLoopProvider>>;
+
+    /// Borrow the file-descriptor capability, if this provider has a pollable descriptor.
+    ///
+    /// Use [`Self::pump_events_ext`] to check how pending events can be dispatched.
+    #[cfg(unix)]
+    fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
+        None
+    }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
@@ -112,6 +152,8 @@ pub trait EventLoopProvider: fmt::Debug {
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, CustomCursorError>;
 }
+
+impl_dyn_casting!(EventLoopProvider);
 
 pub trait ActiveEventLoop: Any + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
