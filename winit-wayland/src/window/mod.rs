@@ -28,7 +28,7 @@ use super::ActiveEventLoop;
 use super::types::xdg_activation::XdgActivationTokenData;
 use crate::state::WinitState;
 use crate::window::common::WindowCommon;
-use crate::window::state::WindowType;
+use crate::window::state::{WindowParent, WindowType};
 use crate::{WindowAttributesWayland, output};
 pub(crate) mod state;
 pub use state::WindowState;
@@ -177,7 +177,7 @@ impl Window {
     pub(crate) fn parent_from_attributes(
         state: &mut WinitState,
         attributes: &WindowAttributes,
-    ) -> Result<Option<(WindowId, xdg_toplevel::XdgToplevel, f64)>, CreateWindowError> {
+    ) -> Result<Option<(WindowParent, xdg_toplevel::XdgToplevel, f64)>, CreateWindowError> {
         let Some(parent_window_handle) = attributes.parent_window() else { return Ok(None) };
 
         let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
@@ -188,12 +188,12 @@ impl Window {
 
         let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
 
-        let (parent_xdg_toplevel, scale_factor) = {
+        let (parent_state, parent_xdg_toplevel, scale_factor) = {
             let windows = state.windows.borrow();
-            let Some(parent_window_state) = windows.get(&parent_window_id) else {
+            let Some(parent_state) = windows.get(&parent_window_id) else {
                 return Err(InvalidInput::new("Unknown parent window id").into());
             };
-            let parent_window_state = parent_window_state.lock().unwrap();
+            let parent_window_state = parent_state.lock().unwrap();
             let scale_factor = parent_window_state.scale_factor();
             let parent_xdg_toplevel = {
                 match &parent_window_state.window {
@@ -203,9 +203,10 @@ impl Window {
                     },
                 }
             };
-            (parent_xdg_toplevel, scale_factor)
+            (parent_state.clone(), parent_xdg_toplevel, scale_factor)
         };
-        Ok(Some((parent_window_id, parent_xdg_toplevel, scale_factor)))
+        let parent = WindowParent { id: parent_window_id, state: parent_state };
+        Ok(Some((parent, parent_xdg_toplevel, scale_factor)))
     }
 
     pub(crate) fn setup(
@@ -216,8 +217,14 @@ impl Window {
         surface: &WlSurface,
         dismissed_error: &'static str,
     ) -> Result<SetupResults, CreateWindowError> {
-        let parent = crate::Window::parent_from_attributes(state, &attributes)?;
-        let scale_factor = parent.as_ref().map(|(_, _, scale_factor)| *scale_factor).unwrap_or(1.0);
+        let (parent, parent_xdg_toplevel, scale_factor) =
+            match Self::parent_from_attributes(state, &attributes)? {
+                Some((parent, xdg_toplevel, scale_factor)) => {
+                    (Some(parent), Some(xdg_toplevel), scale_factor)
+                },
+                None => (None, None, 1.0),
+            };
+        let parent_window_id = parent.as_ref().map(|parent| parent.id);
 
         let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
         let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
@@ -235,7 +242,7 @@ impl Window {
             attributes.preferred_theme,
             prefer_csd,
             scale_factor,
-            parent.as_ref().map(|(window_id, ..)| *window_id),
+            parent,
         );
 
         window_state.set_window_icon(attributes.window_icon);
@@ -264,7 +271,7 @@ impl Window {
 
         // Set startup mode.
         let xdg_toplevel = window_state.xdg_toplevel().unwrap(); // a window is always an xdg toplevel
-        xdg_toplevel.set_parent(parent.as_ref().map(|(_, parent, _)| parent));
+        xdg_toplevel.set_parent(parent_xdg_toplevel.as_ref());
 
         // Set the app_id.
         if let Some(name) = app_name.map(|name| name.general) {
@@ -314,7 +321,7 @@ impl Window {
             dismissed_error,
         )?;
 
-        if let Some((parent_window_id, ..)) = parent {
+        if let Some(parent_window_id) = parent_window_id {
             let windows = state.windows.borrow();
             if let Some(parent_window_state) = windows.get(&parent_window_id) {
                 parent_window_state.lock().unwrap().add_child(window_id);

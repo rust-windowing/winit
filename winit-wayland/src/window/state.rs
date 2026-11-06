@@ -1,5 +1,6 @@
 //! The state of the window, which is shared with the event-loop.
 
+use std::fmt;
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -54,6 +55,27 @@ pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState
 
 // Minimum window surface size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
+
+/// The parent of a window or popup.
+pub struct WindowParent {
+    /// The id of the parent.
+    pub id: WindowId,
+
+    /// Keeps the parent alive for as long as the child exists.
+    ///
+    /// A parent must never be destroyed before its children: xdg-shell requires nested popups
+    /// to be destroyed topmost first, and a dialog should not outlive the window it belongs to.
+    /// When the parent is closed, the event loop closes its children as well; their Wayland
+    /// objects, and then the parent's, are destroyed once the application drops the children.
+    pub state: Arc<Mutex<WindowState>>,
+}
+
+impl fmt::Debug for WindowParent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Don't print the parent's whole state.
+        f.debug_struct("WindowParent").field("id", &self.id).finish_non_exhaustive()
+    }
+}
 
 /// The state of the window which is being updated from the [`WinitState`].
 #[derive(Debug)]
@@ -174,11 +196,14 @@ pub struct WindowState {
     /// The window frame, which is created from the configure request.
     frame: Option<WinitFrame>,
 
-    /// Parent Window if available
-    parent: Option<WindowId>,
-
     /// Children of this window like popups, dialogs or other windows
     children: Vec<WindowId>,
+
+    /// Parent window if available.
+    ///
+    /// NOTE: This must stay the last field, so the parent is released only after this
+    /// window's own Wayland objects (`window`, `frame`) have been destroyed.
+    parent: Option<WindowParent>,
 }
 
 impl WindowState {
@@ -192,7 +217,7 @@ impl WindowState {
         theme: Option<Theme>,
         prefer_csd: bool,
         scale_factor: f64,
-        parent: Option<WindowId>,
+        parent: Option<WindowParent>,
     ) -> Self {
         let handle = active_event_loop.handle.clone();
         let queue_handle = &active_event_loop.queue_handle;
@@ -790,7 +815,7 @@ impl WindowState {
     }
 
     pub fn parent(&self) -> Option<WindowId> {
-        self.parent
+        self.parent.as_ref().map(|parent| parent.id)
     }
 
     pub fn remove_child(&mut self, child: &WindowId) {

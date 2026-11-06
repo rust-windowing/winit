@@ -22,7 +22,7 @@ use winit_core::window::{
 use super::ActiveEventLoop;
 use crate::WindowAttributesWayland;
 use crate::window::common::WindowCommon;
-use crate::window::state::{WindowState, WindowType};
+use crate::window::state::{WindowParent, WindowState, WindowType};
 use crate::window::{Handles, finish_window_setup};
 
 #[derive(Debug)]
@@ -50,9 +50,10 @@ impl Popup {
         let xdg_positioner = XdgPositioner::new(&state.xdg_shell).map_err(|e| os_error!(e))?;
         let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
         let window_states = state.windows.borrow();
-        let Some(parent_window_state) = window_states.get(&parent_window_id) else {
+        let Some(parent_state) = window_states.get(&parent_window_id) else {
             return Err(InvalidInput::new("Unknown parent window id").into());
         };
+        let parent = WindowParent { id: parent_window_id, state: parent_state.clone() };
 
         let WindowPositioner {
             anchor,
@@ -64,7 +65,7 @@ impl Popup {
         } = attributes.positioner.unwrap_or_default();
         let grab_keyboard = attributes.active;
 
-        let parent_window_state = parent_window_state.lock().unwrap();
+        let parent_window_state = parent_state.lock().unwrap();
 
         // Use the scale factor and xdg geometry of the parent.
         let scale_factor = parent_window_state.scale_factor();
@@ -153,7 +154,7 @@ impl Popup {
             attributes.preferred_theme,
             false,
             scale_factor,
-            Some(parent_window_id),
+            Some(parent),
         );
 
         // Set transparency hint.
