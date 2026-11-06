@@ -303,6 +303,10 @@ impl WinitState {
 
     /// Handle an `xdg_toplevel` configure event
     fn configure_xdg_toplevel(&mut self, window_id: WindowId, configure: WindowConfigure) {
+        let Some(window) = self.windows.get_mut().get_mut(&window_id) else {
+            tracing::debug!("got configure for dead window {window_id:?}, ignoring it");
+            return;
+        };
         let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
@@ -313,11 +317,7 @@ impl WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
+        self.window_compositor_updates[index].resized |= window
             .lock()
             .unwrap()
             .configure_xdg_toplevel(configure, &self.shm, &self.subcompositor_state);
@@ -370,6 +370,10 @@ impl PopupHandler for WinitState {
         configure: PopupConfigure,
     ) {
         let window_id = super::make_wid(popup.wl_surface());
+        let Some(window) = self.windows.get_mut().get_mut(&window_id) else {
+            tracing::debug!("got configure for dead window {window_id:?}, ignoring it");
+            return;
+        };
 
         let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
@@ -380,14 +384,8 @@ impl PopupHandler for WinitState {
             self.window_compositor_updates.len() - 1
         };
 
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure_popup(configure);
+        self.window_compositor_updates[index].resized |=
+            window.lock().unwrap().configure_popup(configure);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead
