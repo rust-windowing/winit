@@ -742,6 +742,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
         None
     }
 
+    // For `WindowType::Dialog`, falls back to a normal window with the same parent if the
+    // compositor doesn't support `xdg_wm_dialog_v1`. This is documented for users on
+    // `WindowType::Dialog` and `WindowAttributes::with_modal` in winit-core.
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
@@ -755,6 +758,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                 let popup = crate::Popup::new(self, window_attributes)?;
                 Ok(Box::new(popup))
             },
+            WindowType::Dialog => crate::dialog::Dialog::create(self, window_attributes),
             _ => panic!("Unknown WindowType"),
         }
     }
