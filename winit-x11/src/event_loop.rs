@@ -25,8 +25,11 @@ use winit_core::error::{
     TransferError, UnknownTransfer,
 };
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
+use winit_core::event_loop::never_return::RunAppNeverReturn;
 use winit_core::event_loop::primary_selection::PrimarySelectionExt;
-use winit_core::event_loop::pump_events::PumpStatus;
+use winit_core::event_loop::pump_events::{PumpEvents, PumpStatus};
+use winit_core::event_loop::register::RegisterApp;
+use winit_core::event_loop::run_on_demand::RunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -674,8 +677,9 @@ impl EventLoop {
     }
 }
 
-impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(
+impl EventLoop {
+    /// Run an application. See [`EventLoopProvider::run_app`] for lifecycle guarantees.
+    pub fn run_app<A: ApplicationHandler + 'static>(
         mut self,
         mut app: A,
     ) -> Result<(), EventLoopError> {
@@ -683,6 +687,34 @@ impl EventLoopProvider for EventLoop {
         // SAFETY: unsure that the state is dropped before the exit from the event loop.
         drop(app);
         result
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
+        (*self).run_app(app)
+    }
+
+    fn pump_events_ext(&mut self) -> Option<&mut dyn PumpEvents> {
+        Some(self)
+    }
+
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn RunOnDemand> {
+        Some(self)
+    }
+
+    fn into_register(self: Box<Self>) -> Result<Box<dyn RegisterApp>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn RunAppNeverReturn>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
+        Some(self)
     }
 
     fn create_proxy(&self) -> CoreEventLoopProxy {
@@ -706,6 +738,25 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
+impl PumpEvents for EventLoop {
+    fn pump_app_events(
+        &mut self,
+        timeout: Option<std::time::Duration>,
+        app: &mut dyn ApplicationHandler,
+    ) -> winit_core::event_loop::pump_events::PumpStatus {
+        EventLoop::pump_app_events(self, timeout, app)
+    }
+}
+
+impl RunOnDemand for EventLoop {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
+    ) -> Result<(), EventLoopError> {
+        EventLoop::run_app_on_demand(self, app)
     }
 }
 

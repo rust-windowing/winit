@@ -290,6 +290,15 @@ jobs:
           ~/.cargo/git/db/
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
 
+  external-provider:
+    name: External event loop provider
+    runs-on: ubuntu-latest
+    steps:
+      - uses: taiki-e/checkout-action@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test without a built-in backend
+        run: cargo test -p winit --no-default-features --test external_provider
+
   cargo-deny:
     name: Run cargo-deny
     runs-on: ubuntu-latest

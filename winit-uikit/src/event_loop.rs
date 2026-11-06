@@ -18,6 +18,8 @@ use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError};
+use winit_core::event_loop::never_return::RunAppNeverReturn;
+use winit_core::event_loop::register::RegisterApp;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -334,9 +336,26 @@ impl EventLoop {
     }
 }
 
-impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+impl EventLoop {
+    /// Run an application. See [`EventLoopProvider::run_app`] for lifecycle guarantees.
+    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
         self.run_app_never_return(app)
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
+        (*self).run_app(app)
+    }
+
+    fn into_register(self: Box<Self>) -> Result<Box<dyn RegisterApp>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn RunAppNeverReturn>, Box<dyn EventLoopProvider>> {
+        Ok(self)
     }
 
     fn create_proxy(&self) -> CoreEventLoopProxy {
@@ -360,5 +379,11 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
+impl RunAppNeverReturn for EventLoop {
+    fn run_app_never_return(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> ! {
+        (*self).run_app_never_return(app)
     }
 }

@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `EventLoop::from_backend` to support external event loop providers.
+
 ### Fixed
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
