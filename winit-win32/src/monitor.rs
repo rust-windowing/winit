@@ -192,8 +192,8 @@ impl MonitorHandleProvider for MonitorHandle {
             .ok()
     }
 
-    fn scale_factor(&self) -> f64 {
-        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
+    fn scale_factor(&self) -> Option<f64> {
+        get_monitor_dpi(self.0).map(dpi_to_scale_factor)
     }
 
     fn current_video_mode(&self) -> Option<winit_core::monitor::VideoMode> {
