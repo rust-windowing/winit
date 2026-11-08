@@ -273,9 +273,14 @@ impl Window {
             // ReleaseCapture needs to execute on the main thread
             unsafe { ReleaseCapture() };
 
-            unsafe {
+            let posted = unsafe {
                 PostMessageW(window.hwnd(), WM_NCLBUTTONDOWN, wparam, &points as *const _ as LPARAM)
             };
+            if posted == 0 {
+                // Without the message, nothing will ever clear `dragging`.
+                warn!("Can't post the message that starts dragging the window.");
+                window_state.lock().unwrap().dragging = false;
+            }
         });
     }
 
