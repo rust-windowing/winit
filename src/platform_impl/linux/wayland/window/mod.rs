@@ -421,6 +421,28 @@ impl Window {
         self.window_state.lock().unwrap().set_decorate(decorate)
     }
 
+    /// Sets the app's content margin. See the same method on `WindowState`
+    /// for details.
+    /// A margin change resizes the window from the app's thread and no configure
+    /// follows it, so the new surface size is relayed to the app as a `Resized`,
+    /// like a compositor resize would be. Without it the app would keep rendering
+    /// at the old size while the compositor stretches its framebuffer into the
+    /// new one.
+    #[inline]
+    pub fn set_content_margin(&self, left: u32, top: u32, right: u32, bottom: u32) {
+        let new_size =
+            self.window_state.lock().unwrap().set_content_margin(left, top, right, bottom);
+        if let Some(new_size) = new_size {
+            let scale_factor = self.window_state.lock().unwrap().scale_factor();
+            let physical_size = super::logical_to_physical_rounded(new_size, scale_factor);
+            self.window_events_sink
+                .lock()
+                .unwrap()
+                .push_window_event(WindowEvent::Resized(physical_size), self.window_id);
+            self.request_redraw();
+        }
+    }
+
     #[inline]
     pub fn is_decorated(&self) -> bool {
         self.window_state.lock().unwrap().is_decorated()
@@ -451,6 +473,26 @@ impl Window {
             .last_configure
             .as_ref()
             .map(|last_configure| last_configure.is_maximized())
+            .unwrap_or_default()
+    }
+
+    /// Which of the window's edges the compositor tiled against something, from
+    /// the `tiled_*` states of the last xdg configure. Client-side decorations
+    /// use this to drop the shadow along the tiled edges while keeping resize
+    /// handles on the rest.
+    #[inline]
+    pub fn tiled_edges(&self) -> crate::platform::wayland::TiledEdges {
+        self.window_state
+            .lock()
+            .unwrap()
+            .last_configure
+            .as_ref()
+            .map(|last_configure| crate::platform::wayland::TiledEdges {
+                left: last_configure.is_tiled_left(),
+                right: last_configure.is_tiled_right(),
+                top: last_configure.is_tiled_top(),
+                bottom: last_configure.is_tiled_bottom(),
+            })
             .unwrap_or_default()
     }
 
