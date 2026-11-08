@@ -157,13 +157,11 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                     _ => return,
                 };
 
-                // Map similar to SDL.
                 let button = match button {
                     // BTN_STYLUS.
-                    0x14b => TabletToolButton::Contact,
-                    0x14c => TabletToolButton::Barrel,
-                    // BTN_STYLUS3.
-                    0x149 => TabletToolButton::Other(1),
+                    0x14b => TabletToolButton::Barrel,
+                    // BTN_STYLUS2.
+                    0x14c => TabletToolButton::Other(1),
                     // There's no defined conversion for any of that.
                     button => TabletToolButton::Other(button as u16),
                 };

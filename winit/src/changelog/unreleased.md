@@ -60,3 +60,5 @@ changelog entry.
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Wayland, report a pen's first barrel button as `TabletToolButton::Barrel` and the second as
+  `TabletToolButton::Other(1)`, instead of reporting the first one as `Contact`, like the tip.
