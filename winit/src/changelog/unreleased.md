@@ -48,3 +48,6 @@ changelog entry.
 
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Windows, fix `Window::drag_window` and `Window::drag_resize_window` doing
+  nothing after a drag that Windows did not perform, such as resizing a
+  maximized window.
