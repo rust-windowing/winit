@@ -246,6 +246,9 @@
 //! |64-bit x86 Linux with Musl          |`x86_64-unknown-linux-musl`         |X11, Wayland   |
 //! |64-bit x86 Linux with 32-bit glibc  |`x86_64-unknown-linux-gnux32`       |X11, Wayland   |
 //! |64-bit x86 Android                  |`x86_64-linux-android`              |Android        |
+//! |64-bit ARM OpenHarmony              |`aarch64-unknown-linux-ohos`        |Ability/XComponent|
+//! |32-bit ARM OpenHarmony              |`armv7-unknown-linux-ohos`          |Ability/XComponent|
+//! |64-bit x86 OpenHarmony              |`x86_64-unknown-linux-ohos`         |Ability/XComponent|
 //! |64-bit x64 iOS                      |`x86_64-apple-ios`                  |UIKit          |
 //! |64-bit ARM iOS                      |`aarch64-apple-ios`                 |UIKit          |
 //! |64-bit ARM Mac Catalyst             |`aarch64-apple-ios-macabi`          |UIKit          |

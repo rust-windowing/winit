@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add OpenHarmony platform support.
+
 ### Fixed
 
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid

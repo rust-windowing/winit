@@ -9,6 +9,7 @@
 //! | -------- | ----- | ------ |
 #![doc = concat!("| Android | [`winit-android`](https://docs.rs/winit-android/", env!("CARGO_PKG_VERSION"), "/) | `winit::platform::android` |")]
 #![doc = concat!("| macOS | [`winit-appkit`](https://docs.rs/winit-appkit/", env!("CARGO_PKG_VERSION"), "/) | `winit::platform::macos` |")]
+//! | OpenHarmony | [`winit-ohos`](https://github.com/ohos-rs/winit-ohos) | `winit::platform::ohos` |
 #![doc = concat!("| Redox | [`winit-orbital`](https://docs.rs/winit-orbital/", env!("CARGO_PKG_VERSION"), "/) | `winit::platform::orbital` |")]
 #![doc = concat!("| iOS/visionOS/tvOS/Mac Catalyst | [`winit-uikit`](https://docs.rs/winit-uikit/", env!("CARGO_PKG_VERSION"), "/) | `winit::platform::ios` |")]
 #![doc = concat!("| Wayland | [`winit-wayland`](https://docs.rs/winit-wayland/", env!("CARGO_PKG_VERSION"), "/) | `winit::platform::wayland` |")]
@@ -25,6 +26,8 @@
 pub use winit_android as android;
 #[cfg(macos_platform)]
 pub use winit_appkit as macos;
+#[cfg(ohos_platform)]
+pub use winit_ohos as ohos;
 #[cfg(orbital_platform)]
 pub use winit_orbital as orbital;
 #[cfg(ios_platform)]
