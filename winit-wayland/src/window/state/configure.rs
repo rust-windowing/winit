@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use dpi::LogicalSize;
 use sctk::reexports::csd_frame::{DecorationsFrame, WindowState as XdgWindowState};
+use sctk::shell::wlr_layer::LayerSurfaceConfigure;
 use sctk::shell::xdg::popup::{ConfigureKind, PopupConfigure};
 use sctk::shell::xdg::window::{DecorationMode, WindowConfigure};
 use sctk::shm::Shm;
@@ -13,6 +14,31 @@ use super::create_sctk_adwaita_config;
 use super::{WindowState, WindowType, WinitFrame};
 
 impl WindowState {
+    pub fn configure_layer(&mut self, configure: LayerSurfaceConfigure) -> bool {
+        if let Some(initial_size) = self.initial_size.take() {
+            self.size = initial_size.to_logical(self.scale_factor());
+        }
+
+        let (new_w, new_h) = configure.new_size;
+        let new_size = if new_w == 0 || new_h == 0 {
+            self.size
+        } else {
+            LogicalSize { width: new_w, height: new_h }
+        };
+
+        let changed = new_size != self.size;
+
+        if let WindowType::Layer { last_configure, .. } = &mut self.window {
+            let is_initial = last_configure.is_none();
+            *last_configure = Some(configure);
+            if is_initial || changed {
+                self.resize(new_size);
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
