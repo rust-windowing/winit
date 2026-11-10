@@ -44,6 +44,9 @@ changelog entry.
 
 ## Unreleased
 
+### Changed
+- `MonitorHandleProvider::scale_factor` now returns `Option<f64>`.
+
 ### Fixed
 
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid

@@ -175,7 +175,7 @@ impl MonitorHandle {
     /// bar and the Dock (see `NSScreen.visibleFrame`). `None` if the underlying
     /// `NSScreen` can no longer be found.
     pub(crate) fn work_area(&self) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
-        let scale_factor = self.scale_factor();
+        let scale_factor = self.scale_factor().unwrap_or(1.0);
         run_on_main(|mtm| {
             let visible_frame = self.ns_screen(mtm)?.visibleFrame();
             let origin = flip_window_screen_coordinates(visible_frame);
@@ -226,16 +226,11 @@ impl MonitorHandleProvider for MonitorHandle {
         // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
         let bounds = CGDisplayBounds(self.display_id());
         let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
-        Some(position.to_physical(self.scale_factor()))
+        self.scale_factor().map(|scale_factor| position.to_physical(scale_factor))
     }
 
-    fn scale_factor(&self) -> f64 {
-        run_on_main(|mtm| {
-            match self.ns_screen(mtm) {
-                Some(screen) => screen.backingScaleFactor() as f64,
-                None => 1.0, // default to 1.0 when we can't find the screen
-            }
-        })
+    fn scale_factor(&self) -> Option<f64> {
+        run_on_main(|mtm| self.ns_screen(mtm).map(|screen| screen.backingScaleFactor() as f64))
     }
 
     fn current_video_mode(&self) -> Option<VideoMode> {
