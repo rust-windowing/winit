@@ -12,19 +12,19 @@ use unicode_segmentation::UnicodeSegmentation;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows_sys::Win32::System::SystemServices::LANG_KOREAN;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, HKL, MAPVK_VK_TO_VSC_EX,
-    MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CAPITAL, VK_CLEAR,
+    GetAsyncKeyState, GetKeyboardLayout, GetKeyboardState, HKL, MAPVK_VK_TO_VSC_EX,
+    MAPVK_VSC_TO_VK_EX, MapVirtualKeyExW, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CANCEL, VK_CLEAR,
     VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME, VK_INSERT,
     VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NUMLOCK,
     VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
-    VK_NUMPAD8, VK_NUMPAD9, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT,
-    VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SUBTRACT, VK_UP,
+    VK_NUMPAD8, VK_NUMPAD9, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU,
+    VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_SUBTRACT, VK_UP,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     MSG, PM_NOREMOVE, PeekMessageW, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
-    WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    WM_KEYUP, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
-use winit_core::event::{ElementState, KeyEvent};
+use winit_core::event::{ElementState, HeldKey, KeyEvent};
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
 };
@@ -34,11 +34,6 @@ use crate::keyboard_layout::{LAYOUT_CACHE, Layout, LayoutCache, WindowsModifiers
 use crate::util::{loword, primarylangid};
 
 pub type ExScancode = u16;
-
-pub struct MessageAsKeyEvent {
-    pub event: KeyEvent,
-    pub is_synthetic: bool,
-}
 
 /// Stores information required to make `KeyEvent`s.
 ///
@@ -62,7 +57,7 @@ pub struct MessageAsKeyEvent {
 /// text input. The "sequence" only consists of one WM_KEYUP / WM_SYSKEYUP event.
 pub struct KeyEventBuilder {
     event_info: Mutex<Option<PartialKeyEventInfo>>,
-    pending: PendingEventQueue<MessageAsKeyEvent>,
+    pending: PendingEventQueue<KeyEvent>,
 }
 impl Default for KeyEventBuilder {
     fn default() -> Self {
@@ -80,27 +75,15 @@ impl KeyEventBuilder {
         wparam: WPARAM,
         lparam: LPARAM,
         result: &mut ProcResult,
-    ) -> Vec<MessageAsKeyEvent> {
+    ) -> Vec<KeyEvent> {
         enum MatchResult {
             Nothing,
             TokenToRemove(PendingMessageToken),
-            MessagesToDispatch(Vec<MessageAsKeyEvent>),
+            MessagesToDispatch(Vec<KeyEvent>),
         }
 
         let mut matcher = || -> MatchResult {
             match msg_kind {
-                WM_SETFOCUS => {
-                    // synthesize keydown events
-                    let kbd_state = get_async_kbd_state();
-                    let key_events = Self::synthesize_kbd_state(ElementState::Pressed, &kbd_state);
-                    MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
-                },
-                WM_KILLFOCUS => {
-                    // synthesize keyup events
-                    let kbd_state = get_kbd_state();
-                    let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
-                    MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
-                },
                 WM_KEYDOWN | WM_SYSKEYDOWN => {
                     if msg_kind == WM_SYSKEYDOWN && wparam as VIRTUAL_KEY == VK_F4 {
                         // Don't dispatch Alt+F4 to the application.
@@ -144,10 +127,9 @@ impl KeyEventBuilder {
                     }
                     if let Some(event_info) = finished_event_info {
                         let ev = event_info.finalize();
-                        return MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                            pending_token,
-                            MessageAsKeyEvent { event: ev, is_synthetic: false },
-                        ));
+                        return MatchResult::MessagesToDispatch(
+                            self.pending.complete_pending(pending_token, ev),
+                        );
                     }
                     MatchResult::TokenToRemove(pending_token)
                 },
@@ -158,10 +140,9 @@ impl KeyEventBuilder {
                     // to this key press
                     let event_info = self.event_info.lock().unwrap().take().unwrap();
                     let ev = event_info.finalize();
-                    MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                        pending_token,
-                        MessageAsKeyEvent { event: ev, is_synthetic: false },
-                    ))
+                    MatchResult::MessagesToDispatch(
+                        self.pending.complete_pending(pending_token, ev),
+                    )
                 },
                 WM_CHAR | WM_SYSCHAR => {
                     let mut event_info = self.event_info.lock().unwrap();
@@ -250,10 +231,9 @@ impl KeyEventBuilder {
                             event_info.text = PartialText::Text(key.to_text().map(SmolStr::new));
                         }
                         let ev = event_info.finalize();
-                        MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                            pending_token,
-                            MessageAsKeyEvent { event: ev, is_synthetic: false },
-                        ))
+                        MatchResult::MessagesToDispatch(
+                            self.pending.complete_pending(pending_token, ev),
+                        )
                     }
                 },
                 WM_KEYUP | WM_SYSKEYUP => {
@@ -287,10 +267,9 @@ impl KeyEventBuilder {
                     }
                     if let Some(event_info) = valid_event_info {
                         let event = event_info.finalize();
-                        return MatchResult::MessagesToDispatch(self.pending.complete_pending(
-                            pending_token,
-                            MessageAsKeyEvent { event, is_synthetic: false },
-                        ));
+                        return MatchResult::MessagesToDispatch(
+                            self.pending.complete_pending(pending_token, event),
+                        );
                     }
                     MatchResult::TokenToRemove(pending_token)
                 },
@@ -303,155 +282,6 @@ impl KeyEventBuilder {
             MatchResult::MessagesToDispatch(m) => m,
             MatchResult::Nothing => Vec::new(),
         }
-    }
-
-    // Allowing nominimal_bool lint because the `is_key_pressed` macro triggers this warning
-    // and I don't know of another way to resolve it and also keeping the macro
-    #[allow(clippy::nonminimal_bool)]
-    fn synthesize_kbd_state(
-        key_state: ElementState,
-        kbd_state: &[u8; 256],
-    ) -> Vec<MessageAsKeyEvent> {
-        let mut key_events = Vec::new();
-
-        let mut layouts = LAYOUT_CACHE.lock().unwrap();
-        let (locale_id, _) = layouts.get_current_layout();
-
-        macro_rules! is_key_pressed {
-            ($vk:expr) => {
-                kbd_state[$vk as usize] & 0x80 != 0
-            };
-        }
-
-        // Is caps-lock active? Note that this is different from caps-lock
-        // being held down.
-        let caps_lock_on = kbd_state[VK_CAPITAL as usize] & 1 != 0;
-        let num_lock_on = kbd_state[VK_NUMLOCK as usize] & 1 != 0;
-
-        // We are synthesizing the press event for caps-lock first for the following reasons:
-        // 1. If caps-lock is *not* held down but *is* active, then we have to synthesize all
-        //    printable keys, respecting the caps-lock state.
-        // 2. If caps-lock is held down, we could choose to synthesize its keypress after every
-        //    other key, in which case all other keys *must* be synthesized as if the caps-lock
-        //    state was be the opposite of what it currently is.
-        // --
-        // For the sake of simplicity we are choosing to always synthesize
-        // caps-lock first, and always use the current caps-lock state
-        // to determine the produced text
-        if is_key_pressed!(VK_CAPITAL) {
-            let event = Self::create_synthetic(
-                VK_CAPITAL,
-                key_state,
-                caps_lock_on,
-                num_lock_on,
-                locale_id as HKL,
-                &mut layouts,
-            );
-            if let Some(event) = event {
-                key_events.push(event);
-            }
-        }
-        let do_non_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
-            for vk in 0..256 {
-                match vk {
-                    VK_CONTROL | VK_LCONTROL | VK_RCONTROL | VK_SHIFT | VK_LSHIFT | VK_RSHIFT
-                    | VK_MENU | VK_LMENU | VK_RMENU | VK_CAPITAL => continue,
-                    _ => (),
-                }
-                if !is_key_pressed!(vk) {
-                    continue;
-                }
-                let event = Self::create_synthetic(
-                    vk,
-                    key_state,
-                    caps_lock_on,
-                    num_lock_on,
-                    locale_id as HKL,
-                    layouts,
-                );
-                if let Some(event) = event {
-                    key_events.push(event);
-                }
-            }
-        };
-        let do_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
-            const CLEAR_MODIFIER_VKS: [VIRTUAL_KEY; 6] =
-                [VK_LCONTROL, VK_LSHIFT, VK_LMENU, VK_RCONTROL, VK_RSHIFT, VK_RMENU];
-            for vk in CLEAR_MODIFIER_VKS.iter() {
-                if is_key_pressed!(*vk) {
-                    let event = Self::create_synthetic(
-                        *vk,
-                        key_state,
-                        caps_lock_on,
-                        num_lock_on,
-                        locale_id as HKL,
-                        layouts,
-                    );
-                    if let Some(event) = event {
-                        key_events.push(event);
-                    }
-                }
-            }
-        };
-
-        // Be cheeky and sequence modifier and non-modifier
-        // key events such that non-modifier keys are not affected
-        // by modifiers (except for caps-lock)
-        match key_state {
-            ElementState::Pressed => {
-                do_non_modifier(&mut key_events, &mut layouts);
-                do_modifier(&mut key_events, &mut layouts);
-            },
-            ElementState::Released => {
-                do_modifier(&mut key_events, &mut layouts);
-                do_non_modifier(&mut key_events, &mut layouts);
-            },
-        }
-
-        key_events
-    }
-
-    fn create_synthetic(
-        vk: VIRTUAL_KEY,
-        key_state: ElementState,
-        caps_lock_on: bool,
-        num_lock_on: bool,
-        locale_id: HKL,
-        layouts: &mut MutexGuard<'_, LayoutCache>,
-    ) -> Option<MessageAsKeyEvent> {
-        let scancode = unsafe { MapVirtualKeyExW(vk as u32, MAPVK_VK_TO_VSC_EX, locale_id) };
-        if scancode == 0 {
-            return None;
-        }
-        let scancode = scancode as ExScancode;
-        let physical_key = scancode_to_physicalkey(scancode as u32);
-        let mods =
-            if caps_lock_on { WindowsModifiers::CAPS_LOCK } else { WindowsModifiers::empty() };
-        let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
-        let logical_key = layout.get_key(mods, num_lock_on, vk, &physical_key);
-        let key_without_modifiers =
-            layout.get_key(WindowsModifiers::empty(), false, vk, &physical_key);
-        let text = if key_state == ElementState::Pressed {
-            logical_key.to_text().map(SmolStr::new)
-        } else {
-            None
-        };
-        let event_info = PartialKeyEventInfo {
-            vkey: vk,
-            logical_key: PartialLogicalKey::This(logical_key.clone()),
-            key_without_modifiers,
-            key_state,
-            is_repeat: false,
-            physical_key,
-            location: get_location(scancode, locale_id),
-            utf16parts: Vec::with_capacity(8),
-            text: PartialText::Text(text.clone()),
-        };
-
-        let mut event = event_info.finalize();
-        event.logical_key = logical_key;
-        event.text_with_all_modifiers = text;
-        Some(MessageAsKeyEvent { event, is_synthetic: true })
     }
 }
 
@@ -496,8 +326,6 @@ impl PartialKeyEventInfo {
         state: ElementState,
         layouts: &mut MutexGuard<'_, LayoutCache>,
     ) -> Self {
-        const NO_MODS: WindowsModifiers = WindowsModifiers::empty();
-
         let (_, layout) = layouts.get_current_layout();
         let lparam_struct = destructure_key_lparam(lparam);
         let vkey = wparam as VIRTUAL_KEY;
@@ -550,24 +378,7 @@ impl PartialKeyEventInfo {
         let key_without_modifiers = if let Some(key) = code_as_key {
             key
         } else {
-            match layout.get_key(NO_MODS, false, vkey, &physical_key) {
-                // We convert dead keys into their character.
-                // The reason for this is that `key_without_modifiers` is designed for key-bindings,
-                // but the US International layout treats `'` (apostrophe) as a dead key and the
-                // regular US layout treats it a character. In order for a single binding
-                // configuration to work with both layouts, we forward each dead key as a character.
-                Key::Dead(k) => {
-                    if let Some(ch) = k {
-                        // I'm avoiding the heap allocation. I don't want to talk about it :(
-                        let mut utf8 = [0; 4];
-                        let s = ch.encode_utf8(&mut utf8);
-                        Key::Character(SmolStr::new(s))
-                    } else {
-                        Key::Unidentified(NativeKey::Unidentified)
-                    }
-                },
-                key => key,
-            }
+            layout.key_without_modifiers(vkey, &physical_key)
         };
 
         PartialKeyEventInfo {
@@ -676,26 +487,92 @@ fn get_kbd_state() -> [u8; 256] {
     }
 }
 
-/// Gets the current keyboard state regardless of whether the corresponding keyboard events have
-/// been removed from the event queue. See also: get_kbd_state
+/// Gets which keys are currently down, regardless of whether the corresponding keyboard events
+/// have been removed from the event queue. Only the down bit (`0x80`) is set; toggle states are
+/// not reported. See also: get_kbd_state
 #[allow(clippy::uninit_assumed_init)]
 fn get_async_kbd_state() -> [u8; 256] {
     unsafe {
         let mut kbd_state: [u8; 256] = [0; 256];
         for (vk, state) in kbd_state.iter_mut().enumerate() {
-            let vk = vk as VIRTUAL_KEY;
             let async_state = GetAsyncKeyState(vk as i32);
             let is_down = (async_state & (1 << 15)) != 0;
             *state = if is_down { 0x80 } else { 0 };
-
-            if matches!(vk, VK_CAPITAL | VK_NUMLOCK | VK_SCROLL) {
-                // Toggle states aren't reported by `GetAsyncKeyState`
-                let toggle_state = GetKeyState(vk as i32);
-                let is_active = (toggle_state & 1) != 0;
-                *state |= u8::from(is_active);
-            }
         }
         kbd_state
+    }
+}
+
+/// Gets the keys currently held down, as [`HeldKey`]s for the current layout.
+pub(crate) fn held_keys() -> Vec<HeldKey> {
+    let kbd_state = get_async_kbd_state();
+    let mut layouts = LAYOUT_CACHE.lock().unwrap();
+    let (_, layout) = layouts.get_current_layout();
+
+    let mut keys: Vec<HeldKey> = Vec::new();
+    for vk in 0..256 {
+        // The left and right variants of these are reported on their own.
+        if matches!(vk, VK_SHIFT | VK_CONTROL | VK_MENU) {
+            continue;
+        }
+        if kbd_state[vk as usize] & 0x80 == 0 {
+            continue;
+        }
+        let scancode =
+            unsafe { MapVirtualKeyExW(vk as u32, MAPVK_VK_TO_VSC_EX, layout.hkl as HKL) };
+        // Mouse buttons have virtual keys but no scancode.
+        if scancode == 0 {
+            continue;
+        }
+        let physical_key = held_physical_key(vk, scancode);
+        let key_without_modifiers = layout.key_without_modifiers(vk, &physical_key);
+        push_held_key(&mut keys, HeldKey { physical_key, key_without_modifiers });
+    }
+
+    if layout.has_alt_graph {
+        remove_alt_graph_fake_control(&mut keys);
+    }
+    keys
+}
+
+/// The physical key held down for `vkey`, `scancode` being what `MapVirtualKeyExW` maps it to.
+///
+/// A virtual key shared by several physical keys is mapped to one of them only, so which one is
+/// held is unknown.
+fn held_physical_key(vkey: VIRTUAL_KEY, scancode: u32) -> PhysicalKey {
+    if is_shared_vkey(vkey) {
+        PhysicalKey::Unidentified(NativeKeyCode::Unidentified)
+    } else {
+        scancode_to_physicalkey(scancode)
+    }
+}
+
+/// Whether more than one physical key produces `vkey`.
+///
+/// Enter and numpad Enter share `VK_RETURN`, and the navigation keys share their virtual keys with
+/// the numpad. Ctrl+NumLock produces `VK_PAUSE` and Ctrl+Pause `VK_NUMLOCK`, and both Ctrl+Pause
+/// and Ctrl+ScrollLock produce `VK_CANCEL`; see `PartialKeyEventInfo::from_message`.
+fn is_shared_vkey(vkey: VIRTUAL_KEY) -> bool {
+    matches!(vkey, VK_RETURN | VK_PAUSE | VK_NUMLOCK | VK_CANCEL) || is_numpad_navigation_vkey(vkey)
+}
+
+/// Adds `key` unless it is already listed. A key whose physical key is unidentified is only told
+/// apart from others by its logical key.
+fn push_held_key(keys: &mut Vec<HeldKey>, key: HeldKey) {
+    let is_listed = match key.physical_key {
+        PhysicalKey::Unidentified(NativeKeyCode::Unidentified) => keys.contains(&key),
+        _ => keys.iter().any(|listed| listed.physical_key == key.physical_key),
+    };
+    if !is_listed {
+        keys.push(key);
+    }
+}
+
+/// Removes left Ctrl if right Alt is held. On a layout with AltGr, the system reports a fake left
+/// Ctrl press along with AltGr; see `is_current_fake`.
+fn remove_alt_graph_fake_control(keys: &mut Vec<HeldKey>) {
+    if keys.iter().any(|key| key.physical_key == PhysicalKey::Code(KeyCode::AltRight)) {
+        keys.retain(|key| key.physical_key != PhysicalKey::Code(KeyCode::ControlLeft));
     }
 }
 
@@ -784,21 +661,6 @@ impl<T> PendingEventQueue<T> {
         }
     }
 
-    pub fn complete_multi(&self, msgs: Vec<T>) -> Vec<T> {
-        let mut pending = self.pending.lock().unwrap();
-        if pending.is_empty() {
-            return msgs;
-        }
-        pending.reserve(msgs.len());
-        for msg in msgs {
-            pending.push(IdentifiedPendingMessage {
-                token: self.next_token(),
-                msg: PendingMessage::Complete(msg),
-            });
-        }
-        Vec::new()
-    }
-
     /// Returns all finished pending events
     ///
     /// It's safe to call this even if the element isn't in the list anymore
@@ -879,8 +741,7 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
         VK_LSHIFT | VK_LCONTROL | VK_LMENU | VK_LWIN => KeyLocation::Left,
         VK_RSHIFT | VK_RCONTROL | VK_RMENU | VK_RWIN => KeyLocation::Right,
         VK_RETURN if extended => KeyLocation::Numpad,
-        VK_INSERT | VK_DELETE | VK_END | VK_DOWN | VK_NEXT | VK_LEFT | VK_CLEAR | VK_RIGHT
-        | VK_HOME | VK_UP | VK_PRIOR => {
+        _ if is_numpad_navigation_vkey(vkey) => {
             if extended {
                 KeyLocation::Standard
             } else {
@@ -892,6 +753,25 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
         | VK_MULTIPLY | VK_SUBTRACT | VK_ADD | ABNT_C2 => KeyLocation::Numpad,
         _ => KeyLocation::Standard,
     }
+}
+
+/// Whether `vkey` is produced both by a numpad key with NumLock off and by a key outside the
+/// numpad, the extended flag of the scancode telling them apart.
+fn is_numpad_navigation_vkey(vkey: VIRTUAL_KEY) -> bool {
+    matches!(
+        vkey,
+        VK_INSERT
+            | VK_DELETE
+            | VK_END
+            | VK_DOWN
+            | VK_NEXT
+            | VK_LEFT
+            | VK_CLEAR
+            | VK_RIGHT
+            | VK_HOME
+            | VK_UP
+            | VK_PRIOR
+    )
 }
 
 pub fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
@@ -1261,4 +1141,68 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
 
         _ => return PhysicalKey::Unidentified(NativeKeyCode::Windows(scancode as u16)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn held_key(code: KeyCode) -> HeldKey {
+        HeldKey {
+            physical_key: PhysicalKey::Code(code),
+            key_without_modifiers: Key::Unidentified(NativeKey::Unidentified),
+        }
+    }
+
+    #[test]
+    fn alt_graph_removes_left_control() {
+        let mut keys = vec![
+            held_key(KeyCode::ControlLeft),
+            held_key(KeyCode::KeyA),
+            held_key(KeyCode::AltRight),
+            held_key(KeyCode::ControlRight),
+        ];
+        remove_alt_graph_fake_control(&mut keys);
+        assert_eq!(keys, [
+            held_key(KeyCode::KeyA),
+            held_key(KeyCode::AltRight),
+            held_key(KeyCode::ControlRight)
+        ]);
+    }
+
+    #[test]
+    fn left_control_without_alt_graph_is_kept() {
+        let mut keys = vec![held_key(KeyCode::ControlLeft), held_key(KeyCode::AltLeft)];
+        remove_alt_graph_fake_control(&mut keys);
+        assert_eq!(keys, [held_key(KeyCode::ControlLeft), held_key(KeyCode::AltLeft)]);
+    }
+
+    #[test]
+    fn shared_vkey_has_unidentified_physical_key() {
+        let unidentified = PhysicalKey::Unidentified(NativeKeyCode::Unidentified);
+        assert_eq!(held_physical_key(VK_RETURN, 0x001c), unidentified);
+        assert_eq!(held_physical_key(VK_LEFT, 0x004b), unidentified);
+        assert_eq!(held_physical_key(VK_PAUSE, 0x0045), unidentified);
+        assert_eq!(held_physical_key(VK_CANCEL, 0xe046), unidentified);
+        assert_eq!(held_physical_key(VK_RMENU, 0xe038), PhysicalKey::Code(KeyCode::AltRight));
+    }
+
+    #[test]
+    fn unidentified_keys_are_told_apart_by_logical_key() {
+        let unidentified = |key| HeldKey {
+            physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+            key_without_modifiers: Key::Named(key),
+        };
+        let mut keys = Vec::new();
+        push_held_key(&mut keys, unidentified(NamedKey::Enter));
+        push_held_key(&mut keys, unidentified(NamedKey::ArrowLeft));
+        push_held_key(&mut keys, unidentified(NamedKey::Enter));
+        push_held_key(&mut keys, held_key(KeyCode::KeyA));
+        push_held_key(&mut keys, held_key(KeyCode::KeyA));
+        assert_eq!(keys, [
+            unidentified(NamedKey::Enter),
+            unidentified(NamedKey::ArrowLeft),
+            held_key(KeyCode::KeyA)
+        ]);
+    }
 }

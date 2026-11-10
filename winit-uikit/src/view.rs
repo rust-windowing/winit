@@ -714,7 +714,6 @@ impl WinitView {
                             },
                             key_without_modifiers: Key::Character(text.clone()),
                         },
-                        is_synthetic: false,
                     },
                 })
             }),
@@ -741,7 +740,6 @@ impl WinitView {
                         text_with_all_modifiers: None,
                         key_without_modifiers: Key::Named(NamedKey::Backspace),
                     },
-                    is_synthetic: false,
                 },
             }),
         );

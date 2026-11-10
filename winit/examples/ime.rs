@@ -133,7 +133,7 @@ impl ApplicationHandler for App {
                 self.modifiers = modifiers.state();
                 info!("Modifiers changed to {:?}", self.modifiers);
             },
-            WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
+            WindowEvent::KeyboardInput { event, .. } => {
                 let mods = self.modifiers;
 
                 // Dispatch actions only on press.

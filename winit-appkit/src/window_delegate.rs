@@ -218,6 +218,7 @@ define_class!(
             // TODO: center the cursor if the window had mouse grab when it
             // lost focus
             self.queue_event(WindowEvent::Focused(true));
+            self.view().queue_keyboard_state();
         }
 
         #[unsafe(method(windowDidResignKey:))]
@@ -231,6 +232,7 @@ define_class!(
             // easily fall out of synchrony with reality. This requires us to emit
             // a synthetic ModifiersChanged event when we lose focus.
             self.view().reset_modifiers();
+            self.view().forget_released_keys();
 
             self.queue_event(WindowEvent::Focused(false));
         }

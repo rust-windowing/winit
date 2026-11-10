@@ -44,9 +44,35 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `WindowEvent::KeysHeldAtFocus` and `HeldKey`, reporting the keys held when
+  a window gains focus, implemented on Windows, X11, Wayland, and macOS.
+
+### Changed
+
+- On Windows, `ModifiersChanged` sent when gaining focus now follows
+  `Focused(true)`.
+
+### Removed
+
+- Remove `is_synthetic` from `WindowEvent::KeyboardInput`. On Windows and X11,
+  key presses are no longer sent for the keys held when a window gains focus,
+  nor key releases for the keys held when it loses focus.
+
+  Applications that did not check `is_synthetic` acted on these presses as if
+  the keys had just been pressed. Patterns binding `is_synthetic` must remove
+  it. To know which keys are held when a window gains focus, match on
+  `WindowEvent::KeysHeldAtFocus` instead. When a window loses focus, treat every
+  key as released.
+
 ### Fixed
 
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
+- On macOS, fix the release of a modifier key held when the window gains focus
+  not being reported.
+- On macOS, fix modifiers held when a window gains focus not being reported
+  until they change.
 - On Wayland, fix text not being copied to some application due to missing some mime types.

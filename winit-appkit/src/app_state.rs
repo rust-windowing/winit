@@ -1,5 +1,5 @@
 use std::cell::{Cell, OnceCell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -49,6 +49,9 @@ pub(super) struct AppState {
     wait_timeout: Cell<Option<Instant>>,
     pending_redraw: RefCell<Vec<WindowId>>,
     windows: RefCell<HashMap<WindowId, MainThreadBound<Weak<WindowDelegate>>>>,
+    /// The scancodes of the keys whose press this application received and whose release it has
+    /// not.
+    pressed_keys: RefCell<HashSet<u16>>,
     // NOTE: This is strongly referenced by our `NSWindowDelegate` and our `NSView` subclass, and
     // as such should be careful to not add fields that, in turn, strongly reference those.
 }
@@ -91,6 +94,7 @@ impl AppState {
             wait_timeout: Cell::new(None),
             windows: Default::default(),
             pending_redraw: RefCell::new(vec![]),
+            pressed_keys: Default::default(),
         });
 
         GLOBAL.get(mtm).set(this.clone()).ok().and(Some(this))
@@ -264,6 +268,23 @@ impl AppState {
 
     pub fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
+    }
+
+    pub fn set_key_pressed(&self, scancode: u16, pressed: bool) {
+        let mut pressed_keys = self.pressed_keys.borrow_mut();
+        if pressed {
+            pressed_keys.insert(scancode);
+        } else {
+            pressed_keys.remove(&scancode);
+        }
+    }
+
+    pub fn is_key_pressed(&self, scancode: u16) -> bool {
+        self.pressed_keys.borrow().contains(&scancode)
+    }
+
+    pub fn retain_pressed_keys(&self, mut f: impl FnMut(u16) -> bool) {
+        self.pressed_keys.borrow_mut().retain(|&scancode| f(scancode));
     }
 
     pub fn handle_redraw(self: &Rc<Self>, window_id: WindowId) {
