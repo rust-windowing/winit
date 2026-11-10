@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Wayland, add `WindowAttributesWayland::with_csd_fallback` to opt out of the client-side decoration fallback when the compositor declines server-side decoration.
+
 ### Fixed
 
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid
