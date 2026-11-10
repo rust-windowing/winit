@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- On Wayland, emit `WindowEvent::Occluded` when the compositor suspends or resumes the window (xdg-shell v6 `suspended` state).
+
 ### Fixed
 
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid

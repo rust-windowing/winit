@@ -11,7 +11,7 @@ use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::{Proxy, QueueHandle};
-use sctk::reexports::csd_frame::DecorationsFrame;
+use sctk::reexports::csd_frame::{DecorationsFrame, WindowState as XdgWindowState};
 use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
@@ -504,6 +504,16 @@ impl WindowState {
         let Some(xdg_toplevel) = self.window.xdg_toplevel() else { return };
 
         if maximized { xdg_toplevel.set_maximized() } else { xdg_toplevel.unset_maximized() }
+    }
+
+    /// Whether the compositor has suspended the window, as of the last configure.
+    pub(crate) fn is_suspended(&self) -> bool {
+        match &self.window {
+            WindowType::Window { last_configure, .. } => last_configure
+                .as_ref()
+                .is_some_and(|configure| configure.state.contains(XdgWindowState::SUSPENDED)),
+            _ => false,
+        }
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
