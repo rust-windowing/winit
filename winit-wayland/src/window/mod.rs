@@ -122,7 +122,7 @@ impl Window {
 
         // Set the app_id.
         if let Some(name) = app_name.map(|name| name.general) {
-            window.set_app_id(name);
+            window.set_app_id(&name);
         }
 
         // Set the window title.
@@ -164,7 +164,7 @@ impl Window {
 
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token) {
-            xdg_activation.activate(token.into_raw(), &surface);
+            xdg_activation.activate(&token.into_raw(), &surface);
         }
 
         // XXX Do initial commit.
@@ -226,7 +226,7 @@ impl Window {
     }
 
     pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        NonNull::new(self.window.xdg_toplevel().id().as_ptr().cast())
+        Some(self.window.xdg_toplevel().id().as_ptr().ok()?.cast())
     }
 }
 

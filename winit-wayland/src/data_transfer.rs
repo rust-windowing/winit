@@ -427,7 +427,7 @@ impl Session<'_> {
         }
     }
 
-    fn start_fetch(self, mime_type: String, writefd: OwnedFd, serial: AsyncRequestSerial) {
+    fn start_fetch(self, mime_type: &str, writefd: OwnedFd, serial: AsyncRequestSerial) {
         match self {
             Session::Drag(session) => session.start_fetch(mime_type, writefd, serial),
             Session::Clipboard(session) => session.start_fetch(mime_type, writefd, serial),
@@ -539,7 +539,7 @@ impl WinitState {
             })
             .map_err(|err| os_error!(io::Error::other(err.to_string())))?;
 
-        session.start_fetch(mime_type_str, writefd, async_request_serial);
+        session.start_fetch(&mime_type_str, writefd, async_request_serial);
 
         Ok(async_request_serial)
     }
@@ -723,7 +723,7 @@ enum SelectionOffer {
 }
 
 impl SelectionOffer {
-    fn receive_to_fd(&self, mime_type: String, writefd: OwnedFd) {
+    fn receive_to_fd(&self, mime_type: &str, writefd: OwnedFd) {
         match self {
             Self::Clipboard(offer) => receive_to_fd(offer.inner(), mime_type, writefd),
             Self::Primary(offer) => offer.receive_to_fd(mime_type, writefd),
@@ -740,7 +740,7 @@ struct ClipboardSession {
 }
 
 impl ClipboardSession {
-    fn start_fetch(&mut self, mime_type: String, writefd: OwnedFd, serial: AsyncRequestSerial) {
+    fn start_fetch(&mut self, mime_type: &str, writefd: OwnedFd, serial: AsyncRequestSerial) {
         self.offer.receive_to_fd(mime_type, writefd);
         self.fetches.insert(serial);
     }
@@ -950,12 +950,12 @@ impl DragSession {
         let accepted_type =
             preferred_action.and(self.data.first_mime_type()).map(|mime| mime.to_string());
         self.accepted = accepted_type.is_some();
-        self.offer.accept(self.offer.serial, accepted_type);
+        self.offer.accept(self.offer.serial, accepted_type.as_deref());
     }
 
-    fn start_fetch(&mut self, mime_type: String, writefd: OwnedFd, serial: AsyncRequestSerial) {
+    fn start_fetch(&mut self, mime_type: &str, writefd: OwnedFd, serial: AsyncRequestSerial) {
         self.accepted = true;
-        self.offer.accept(self.offer.serial, Some(mime_type.clone()));
+        self.offer.accept(self.offer.serial, Some(mime_type));
         receive_to_fd(&self.offer, mime_type, writefd);
         self.fetches.insert(serial);
     }
@@ -1079,7 +1079,7 @@ impl WinitState {
             icon_surface.as_ref().map(Surface::wl_surface),
             serial,
         );
-        let transfer_id = make_data_transfer_id(data_device.inner().id(), serial);
+        let transfer_id = make_data_transfer_id(data_device.inner().id().clone(), serial);
 
         // For some reason, if we commit before starting the drag then the offset isn't applied.
         // This doesn't seem to be documented anywhere, and it's possible that it's a bug in KDE.
@@ -1198,7 +1198,7 @@ impl DataDeviceHandler for WinitState {
         let mut session = DragSession::new(offer, view, window_id, drag.source_actions);
         session.set_actions(&[]);
 
-        if let Some(old) = self.data_transfer_state.drags.insert(device, session) {
+        if let Some(old) = self.data_transfer_state.drags.insert(device.clone(), session) {
             old.abort();
         }
 
@@ -1217,7 +1217,8 @@ impl DataDeviceHandler for WinitState {
     }
 
     fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, data_device: &WlDataDevice) {
-        if let Entry::Occupied(entry) = self.data_transfer_state.drags.entry(data_device.id())
+        if let Entry::Occupied(entry) =
+            self.data_transfer_state.drags.entry(data_device.id().clone())
             && entry.get().phase == Phase::Hovering
         {
             let session = entry.remove();
@@ -1282,14 +1283,14 @@ impl DataDeviceHandler for WinitState {
 
         let session = ClipboardSession {
             data: offer.with_mime_types(|types| {
-                DataOffer::new(types, make_data_transfer_id(offer.inner().id(), serial))
+                DataOffer::new(types, make_data_transfer_id(offer.inner().id().clone(), serial))
             }),
             offer: SelectionOffer::Clipboard(offer),
             seat,
             fetches: HashSet::default(),
         };
 
-        self.data_transfer_state.clipboards.insert(device, session);
+        self.data_transfer_state.clipboards.insert(device.clone(), session);
     }
 
     fn drop_performed(
@@ -1341,11 +1342,11 @@ impl PrimarySelectionDeviceHandler for WinitState {
                 DataOffer::new(types, make_data_transfer_id(device_id.clone(), serial))
             }),
             offer: SelectionOffer::Primary(offer),
-            seat: data.seat().id(),
+            seat: data.seat().id().clone(),
             fetches: HashSet::default(),
         };
 
-        self.data_transfer_state.primary_selections.insert(device_id, session);
+        self.data_transfer_state.primary_selections.insert(device_id.clone(), session);
     }
 }
 
