@@ -2022,8 +2022,7 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        if self.window_type() == WindowType::Popup
-            || decorations == self.ivars().decorations.get()
+        if self.window_type() == WindowType::Popup || decorations == self.ivars().decorations.get()
         {
             return;
         }
