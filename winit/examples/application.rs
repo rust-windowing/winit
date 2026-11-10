@@ -921,6 +921,9 @@ impl WindowState {
         }
 
         let mut buffer = self.surface.buffer_mut()?;
+        let surface_size = self.window.surface_size();
+        let surface_size_matches_buffer_size =
+            (surface_size.width * surface_size.height) as usize <= buffer.len();
 
         if self.animated_fill_color {
             // Fill the entire buffer with a single color.
@@ -930,10 +933,10 @@ impl WindowState {
             let red = ((1.0 - time.sin() * 255.0) as u32) << 16;
             let color = red | green | blue;
             buffer.fill(color);
-        } else {
+        } else if surface_size_matches_buffer_size {
             // Draw a different color inside the safe area
-            let surface_size = self.window.surface_size();
             let insets = self.window.safe_area();
+
             for y in 0..surface_size.height {
                 for x in 0..surface_size.width {
                     let index = y as usize * surface_size.width as usize + x as usize;
