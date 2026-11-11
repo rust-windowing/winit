@@ -5,10 +5,8 @@ use crate::application::ApplicationHandler;
 #[allow(rustdoc::broken_intra_doc_links)] // FIXME(madsmtm): Fix these.
 /// Additional methods on [`EventLoop`] for pumping events within an external event loop
 ///
-/// The platform lists below describe built-in backends. External backends may also provide
-/// this capability; query [`super::EventLoopProvider::pump_events_ext`] before calling it when
-/// the backend is selected dynamically.
-pub trait EventLoopExtPumpEvents {
+/// Access via [`EventLoopProvider::pump_events_ext`][super::EventLoopProvider::pump_events_ext].
+pub trait EventLoopExtPumpEvents: std::fmt::Debug {
     /// Pump the `EventLoop` to check for and dispatch pending events.
     ///
     /// This API is designed to enable applications to integrate Winit into an
@@ -103,10 +101,10 @@ pub trait EventLoopExtPumpEvents {
     ///   If you render outside of Winit you are likely to see window resizing artifacts
     ///   since MacOS expects applications to render synchronously during any `drawRect`
     ///   callback.
-    fn pump_app_events<A: ApplicationHandler>(
+    fn pump_app_events(
         &mut self,
         timeout: Option<Duration>,
-        app: A,
+        app: &mut dyn ApplicationHandler,
     ) -> PumpStatus;
 }
 
@@ -118,17 +116,4 @@ pub enum PumpStatus {
     Continue,
     /// Exit external loop.
     Exit(i32),
-}
-
-/// The optional, dynamically dispatched event-pumping capability.
-///
-/// Obtained through [`super::EventLoopProvider::pump_events_ext`]. The borrowed handler need
-/// not be `'static`; it must not be retained after this call returns. See
-/// [`EventLoopExtPumpEvents::pump_app_events`] for event ordering and platform restrictions.
-pub trait PumpEvents: std::fmt::Debug {
-    fn pump_app_events(
-        &mut self,
-        timeout: Option<Duration>,
-        app: &mut dyn ApplicationHandler,
-    ) -> PumpStatus;
 }

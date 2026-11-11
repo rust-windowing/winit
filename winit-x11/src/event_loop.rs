@@ -25,11 +25,11 @@ use winit_core::error::{
     TransferError, UnknownTransfer,
 };
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
-use winit_core::event_loop::never_return::RunAppNeverReturn;
+use winit_core::event_loop::never_return::EventLoopExtNeverReturn;
 use winit_core::event_loop::primary_selection::PrimarySelectionExt;
-use winit_core::event_loop::pump_events::{PumpEvents, PumpStatus};
-use winit_core::event_loop::register::RegisterApp;
-use winit_core::event_loop::run_on_demand::RunOnDemand;
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::register::EventLoopExtRegister;
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -461,74 +461,16 @@ impl EventLoop {
         &self.event_processor.target
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        self.event_processor.target.clear_exit();
-        let exit = loop {
-            match self.pump_app_events(None, &mut app) {
-                PumpStatus::Exit(0) => {
-                    break Ok(());
-                },
-                PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
-                },
-                _ => {
-                    continue;
-                },
-            }
-        };
-
-        // Applications aren't allowed to carry windows between separate
-        // `run_on_demand` calls but if they have only just dropped their
-        // windows we need to make sure those last requests are sent to the
-        // X Server.
-        self.event_processor
-            .target
-            .x_connection()
-            .sync_with_server()
-            .map_err(|x_err| EventLoopError::Os(os_error!(X11Error::Xlib(x_err))))?;
-
-        exit
-    }
-
-    pub fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut app: A,
-    ) -> PumpStatus {
-        if !self.loop_running {
-            self.loop_running = true;
-
-            // run the initial loop iteration
-            self.single_iteration(&mut app, StartCause::Init);
-        }
-
-        // Consider the possibility that the `StartCause::Init` iteration could
-        // request to Exit.
-        if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut app);
-        }
-        if let Some(code) = self.exit_code() {
-            self.loop_running = false;
-
-            PumpStatus::Exit(code)
-        } else {
-            PumpStatus::Continue
-        }
-    }
-
     fn has_pending(&mut self) -> bool {
         self.event_processor.poll()
             || self.state.proxy_wake_up
             || self.redraw_receiver.has_incoming()
     }
 
-    fn poll_events_with_timeout<A: ApplicationHandler>(
+    fn poll_events_with_timeout(
         &mut self,
         mut timeout: Option<Duration>,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         let start = Instant::now();
 
@@ -591,7 +533,7 @@ impl EventLoop {
         self.single_iteration(app, cause);
     }
 
-    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+    fn single_iteration(&mut self, app: &mut dyn ApplicationHandler, cause: StartCause) {
         app.new_events(&self.event_processor.target, cause);
 
         // NB: For consistency all platforms must call `can_create_surfaces` even though X11
@@ -652,7 +594,7 @@ impl EventLoop {
         app.about_to_wait(&self.event_processor.target);
     }
 
-    fn drain_events<A: ApplicationHandler>(&mut self, app: &mut A) {
+    fn drain_events(&mut self, app: &mut dyn ApplicationHandler) {
         let mut xev = MaybeUninit::uninit();
 
         while let Some(xev) = self.event_processor.poll_one_event(&mut xev) {
@@ -677,42 +619,40 @@ impl EventLoop {
     }
 }
 
-impl EventLoop {
-    /// Run an application. See [`EventLoopProvider::run_app`] for lifecycle guarantees.
-    pub fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
+impl EventLoopProvider for EventLoop {
+    fn run_app(
+        mut self: Box<Self>,
+        mut app: Box<dyn ApplicationHandler>,
     ) -> Result<(), EventLoopError> {
-        let result = self.run_app_on_demand(&mut app);
-        // SAFETY: unsure that the state is dropped before the exit from the event loop.
+        let result = self.run_app_on_demand(&mut *app);
+        // SAFETY: ensure that the state is dropped before the exit from the event loop.
         drop(app);
         result
     }
-}
 
-impl EventLoopProvider for EventLoop {
-    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
-        (*self).run_app(app)
-    }
-
-    fn pump_events_ext(&mut self) -> Option<&mut dyn PumpEvents> {
+    #[inline(always)]
+    fn pump_events_ext(&mut self) -> Option<&mut dyn EventLoopExtPumpEvents> {
         Some(self)
     }
 
-    fn run_on_demand_ext(&mut self) -> Option<&mut dyn RunOnDemand> {
+    #[inline(always)]
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn EventLoopExtRunOnDemand> {
         Some(self)
     }
 
-    fn into_register(self: Box<Self>) -> Result<Box<dyn RegisterApp>, Box<dyn EventLoopProvider>> {
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
         Err(self)
     }
 
     fn into_never_return(
         self: Box<Self>,
-    ) -> Result<Box<dyn RunAppNeverReturn>, Box<dyn EventLoopProvider>> {
+    ) -> Result<Box<dyn EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
         Err(self)
     }
 
+    #[inline(always)]
     fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
         Some(self)
     }
@@ -723,6 +663,10 @@ impl EventLoopProvider for EventLoop {
 
     fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
         self.window_target().owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self.window_target().rwh_06_handle()
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -741,22 +685,65 @@ impl EventLoopProvider for EventLoop {
     }
 }
 
-impl PumpEvents for EventLoop {
+impl EventLoopExtPumpEvents for EventLoop {
     fn pump_app_events(
         &mut self,
-        timeout: Option<std::time::Duration>,
+        timeout: Option<Duration>,
         app: &mut dyn ApplicationHandler,
-    ) -> winit_core::event_loop::pump_events::PumpStatus {
-        EventLoop::pump_app_events(self, timeout, app)
+    ) -> PumpStatus {
+        if !self.loop_running {
+            self.loop_running = true;
+
+            // run the initial loop iteration
+            self.single_iteration(app, StartCause::Init);
+        }
+
+        // Consider the possibility that the `StartCause::Init` iteration could
+        // request to Exit.
+        if !self.exiting() {
+            self.poll_events_with_timeout(timeout, app);
+        }
+        if let Some(code) = self.exit_code() {
+            self.loop_running = false;
+
+            PumpStatus::Exit(code)
+        } else {
+            PumpStatus::Continue
+        }
     }
 }
 
-impl RunOnDemand for EventLoop {
+impl EventLoopExtRunOnDemand for EventLoop {
     fn run_app_on_demand(
         &mut self,
         app: &mut dyn ApplicationHandler,
     ) -> Result<(), EventLoopError> {
-        EventLoop::run_app_on_demand(self, app)
+        self.event_processor.target.clear_exit();
+        let exit = loop {
+            match self.pump_app_events(None, app) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
+                },
+                PumpStatus::Exit(code) => {
+                    break Err(EventLoopError::ExitFailure(code));
+                },
+                _ => {
+                    continue;
+                },
+            }
+        };
+
+        // Applications aren't allowed to carry windows between separate
+        // `run_on_demand` calls but if they have only just dropped their
+        // windows we need to make sure those last requests are sent to the
+        // X Server.
+        self.event_processor
+            .target
+            .x_connection()
+            .sync_with_server()
+            .map_err(|x_err| EventLoopError::Os(os_error!(X11Error::Xlib(x_err))))?;
+
+        exit
     }
 }
 

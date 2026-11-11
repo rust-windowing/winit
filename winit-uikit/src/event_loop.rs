@@ -18,8 +18,8 @@ use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError};
-use winit_core::event_loop::never_return::RunAppNeverReturn;
-use winit_core::event_loop::register::RegisterApp;
+use winit_core::event_loop::never_return::EventLoopExtNeverReturn;
+use winit_core::event_loop::register::EventLoopExtRegister;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -311,50 +311,25 @@ impl EventLoop {
         })
     }
 
-    // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
-    pub fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> ! {
-        let application: Option<Retained<UIApplication>> =
-            unsafe { msg_send![UIApplication::class(), sharedApplication] };
-        assert!(
-            application.is_none(),
-            "\
-                `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\nNote: \
-             `EventLoop::run_app` calls `UIApplicationMain` on iOS",
-        );
-
-        // We intentionally override neither the application nor the delegate,
-        // to allow the user to do so themselves!
-        //
-        // NOTE: `UIApplicationMain` is _the only way_ to start the event loop on iOS/UIKit, there
-        // are no other feasible options. See also:
-        // <https://github.com/rust-windowing/winit/pull/4165#issuecomment-2760514167>
-        app_state::launch(self.mtm, app, || UIApplication::main(None, None, self.mtm))
-    }
-
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
 }
 
-impl EventLoop {
-    /// Run an application. See [`EventLoopProvider::run_app`] for lifecycle guarantees.
-    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_never_return(app)
-    }
-}
-
 impl EventLoopProvider for EventLoop {
     fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
-        (*self).run_app(app)
+        self.run_app_never_return(app)
     }
 
-    fn into_register(self: Box<Self>) -> Result<Box<dyn RegisterApp>, Box<dyn EventLoopProvider>> {
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
         Err(self)
     }
 
     fn into_never_return(
         self: Box<Self>,
-    ) -> Result<Box<dyn RunAppNeverReturn>, Box<dyn EventLoopProvider>> {
+    ) -> Result<Box<dyn EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
         Ok(self)
     }
 
@@ -364,6 +339,10 @@ impl EventLoopProvider for EventLoop {
 
     fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
         self.window_target().owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self.window_target().rwh_06_handle()
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -382,8 +361,23 @@ impl EventLoopProvider for EventLoop {
     }
 }
 
-impl RunAppNeverReturn for EventLoop {
+impl EventLoopExtNeverReturn for EventLoop {
     fn run_app_never_return(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> ! {
-        (*self).run_app_never_return(app)
+        let application: Option<Retained<UIApplication>> =
+            unsafe { msg_send![UIApplication::class(), sharedApplication] };
+        assert!(
+            application.is_none(),
+            "\
+                `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\nNote: \
+             `EventLoop::run_app` calls `UIApplicationMain` on iOS",
+        );
+
+        // We intentionally override neither the application nor the delegate,
+        // to allow the user to do so themselves!
+        //
+        // NOTE: `UIApplicationMain` is _the only way_ to start the event loop on iOS/UIKit, there
+        // are no other feasible options. See also:
+        // <https://github.com/rust-windowing/winit/pull/4165#issuecomment-2760514167>
+        app_state::launch(self.mtm, app, || UIApplication::main(None, None, self.mtm))
     }
 }

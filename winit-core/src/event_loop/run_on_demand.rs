@@ -8,12 +8,11 @@ use crate::{
 
 /// Additional methods for [`EventLoopProvider`] to return control flow to the caller.
 ///
-/// [`EventLoopProvider`]: crate::event_loop::EventLoopProvider
+/// Access via [`EventLoopProvider::run_on_demand_ext`].
 ///
-/// The platform lists below describe built-in backends. External backends may also provide
-/// this capability; query [`super::EventLoopProvider::run_on_demand_ext`] before calling it when
-/// the backend is selected dynamically.
-pub trait EventLoopExtRunOnDemand {
+/// [`EventLoopProvider`]: crate::event_loop::EventLoopProvider
+/// [`EventLoopProvider::run_on_demand_ext`]: crate::event_loop::EventLoopProvider::run_on_demand_ext
+pub trait EventLoopExtRunOnDemand: std::fmt::Debug {
     /// Run the application with the event loop on the calling thread.
     ///
     /// Unlike [`EventLoopProvider::run_app`], this function accepts non-`'static` (i.e. non-`move`)
@@ -57,15 +56,6 @@ pub trait EventLoopExtRunOnDemand {
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`EventLoopProvider::run_app`]: crate::event_loop::EventLoopProvider::run_app
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
-}
-
-/// The optional capability to run an application and return control to its caller.
-///
-/// Obtained through [`super::EventLoopProvider::run_on_demand_ext`]. The borrowed handler
-/// must not be retained after the call returns. See
-/// [`EventLoopExtRunOnDemand::run_app_on_demand`] for lifecycle guarantees.
-pub trait RunOnDemand: std::fmt::Debug {
     fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler)
     -> Result<(), EventLoopError>;
 }

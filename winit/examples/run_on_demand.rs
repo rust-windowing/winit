@@ -9,7 +9,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -80,14 +79,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let context = Context::new(event_loop.owned_display_handle()).unwrap();
     let mut app = App { context, idx: 1, surface: None, window_id: None };
-    event_loop.run_app_on_demand(&mut app)?;
+    event_loop.run_on_demand_ext().unwrap().run_app_on_demand(&mut app)?;
 
     info!("Finished first loop");
     info!("Waiting 5 seconds");
     std::thread::sleep(Duration::from_secs(5));
 
     app.idx += 1;
-    event_loop.run_app_on_demand(&mut app)?;
+    event_loop.run_on_demand_ext().unwrap().run_app_on_demand(&mut app)?;
     info!("Finished second loop");
     Ok(())
 }
