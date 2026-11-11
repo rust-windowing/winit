@@ -240,6 +240,12 @@ jobs:
         matrix.toolchain != '1.88'
       run: cargo check -p dpi --no-default-features
 
+    - name: Test winit without a built-in backend
+      if: >
+        contains(matrix.platform.name, 'Linux 64bit') &&
+        matrix.toolchain != '1.88'
+      run: cargo test -p winit --no-default-features
+
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&

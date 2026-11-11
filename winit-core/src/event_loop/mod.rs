@@ -25,7 +25,7 @@ use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
 
 /// Common methods to implement for the platform event loop.
-pub trait EventLoopProvider: fmt::Debug {
+pub trait EventLoopProvider: Any + fmt::Debug {
     /// Run the event loop with the given application on the calling thread.
     ///
     /// The `app` is dropped when the event loop is shut down.
@@ -85,7 +85,40 @@ pub trait EventLoopProvider: fmt::Debug {
     ///
     /// The semantics of this function is defined by the target platform. Consult the implementor
     /// docs for details.
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError>;
+    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError>;
+
+    /// Access the event-pumping extension, where available.
+    #[inline(always)]
+    fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::EventLoopExtPumpEvents> {
+        None
+    }
+
+    /// Access the run-on-demand extension, where available.
+    #[inline(always)]
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::EventLoopExtRunOnDemand> {
+        None
+    }
+
+    /// Convert into an event loop that registers callbacks with the system event loop.
+    ///
+    /// Returns `Err(self)` when unsupported.
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn register::EventLoopExtRegister>, Box<dyn EventLoopProvider>>;
+
+    /// Convert into an event loop whose execution never returns.
+    ///
+    /// Returns `Err(self)` when unsupported.
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn never_return::EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>>;
+
+    /// Access the underlying pollable file descriptor, where available.
+    #[cfg(unix)]
+    #[inline(always)]
+    fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
+        None
+    }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
@@ -95,6 +128,9 @@ pub trait EventLoopProvider: fmt::Debug {
     ///
     /// See the [`OwnedDisplayHandle`] type for more information.
     fn owned_display_handle(&self) -> OwnedDisplayHandle;
+
+    /// Get the raw-window-handle handle.
+    fn rwh_06_handle(&self) -> &dyn HasDisplayHandle;
 
     /// Change if or when [`DeviceEvent`]s are captured.
     ///
@@ -112,6 +148,14 @@ pub trait EventLoopProvider: fmt::Debug {
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, CustomCursorError>;
 }
+
+impl HasDisplayHandle for dyn EventLoopProvider + '_ {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.rwh_06_handle().display_handle()
+    }
+}
+
+impl_dyn_casting!(EventLoopProvider);
 
 pub trait ActiveEventLoop: Any + fmt::Debug {
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events

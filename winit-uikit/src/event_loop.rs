@@ -18,6 +18,8 @@ use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError};
+use winit_core::event_loop::never_return::EventLoopExtNeverReturn;
+use winit_core::event_loop::register::EventLoopExtRegister;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, OwnedDisplayHandle as CoreOwnedDisplayHandle,
@@ -309,8 +311,58 @@ impl EventLoop {
         })
     }
 
-    // Require `'static` for correctness, we won't be able to `Drop` the user's state otherwise.
-    pub fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> ! {
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
+        &self.window_target
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
+        self.run_app_never_return(app)
+    }
+
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
+        Ok(self)
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self.window_target().rwh_06_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, CustomCursorError> {
+        self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
+impl EventLoopExtNeverReturn for EventLoop {
+    fn run_app_never_return(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> ! {
         let application: Option<Retained<UIApplication>> =
             unsafe { msg_send![UIApplication::class(), sharedApplication] };
         assert!(
@@ -327,38 +379,5 @@ impl EventLoop {
         // are no other feasible options. See also:
         // <https://github.com/rust-windowing/winit/pull/4165#issuecomment-2760514167>
         app_state::launch(self.mtm, app, || UIApplication::main(None, None, self.mtm))
-    }
-
-    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
-        &self.window_target
-    }
-}
-
-impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
-        self.run_app_never_return(app)
-    }
-
-    fn create_proxy(&self) -> CoreEventLoopProxy {
-        self.window_target().create_proxy()
-    }
-
-    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
-        self.window_target().owned_display_handle()
-    }
-
-    fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.window_target().listen_device_events(allowed);
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target().set_control_flow(control_flow);
-    }
-
-    fn create_custom_cursor(
-        &self,
-        custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, CustomCursorError> {
-        self.window_target().create_custom_cursor(custom_cursor)
     }
 }

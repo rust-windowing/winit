@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     tracing::init();
     let event_loop = EventLoop::new()?;
 
-    Ok(event_loop.run_app(XEmbedDemo { parent_window_id, surface: None })?)
+    Ok(event_loop.run_app(Box::new(XEmbedDemo { parent_window_id, surface: None }))?)
 }
 
 #[cfg(not(x11_platform))]

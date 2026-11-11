@@ -18,14 +18,15 @@ use self::linux as platform;
 #[allow(unused_imports)]
 pub use self::platform::*;
 
-#[cfg(all(
-    not(ios_platform),
-    not(windows_platform),
-    not(macos_platform),
-    not(android_platform),
-    not(x11_platform),
-    not(wayland_platform),
-    not(web_platform),
-    not(orbital_platform),
-))]
-compile_error!("The platform you're compiling for is not supported by winit");
+#[cfg(not(builtin_platform))]
+#[path = "external.rs"]
+mod platform;
+
+#[cfg(all(builtin_platform, not(any(x11_platform, wayland_platform))))]
+pub(crate) fn create_event_loop(
+    attributes: &mut PlatformSpecificEventLoopAttributes,
+) -> Result<Box<dyn winit_core::event_loop::EventLoopProvider>, winit_core::error::EventLoopError> {
+    // Certain platforms accept an immutable reference in their API.
+    #[allow(clippy::unnecessary_mut_passed)]
+    Ok(Box::new(platform::EventLoop::new(attributes)?))
+}

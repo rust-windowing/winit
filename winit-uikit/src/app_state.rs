@@ -255,10 +255,10 @@ pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<W
 
 pub(crate) fn launch<R>(
     mtm: MainThreadMarker,
-    app: impl ApplicationHandler,
+    app: Box<dyn ApplicationHandler>,
     run: impl FnOnce() -> R,
 ) -> R {
-    get_handler(mtm).set(Box::new(app), run)
+    get_handler(mtm).set(app, run)
 }
 
 pub fn did_finish_launching(mtm: MainThreadMarker) {

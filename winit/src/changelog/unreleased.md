@@ -44,6 +44,19 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `EventLoop::from_backend`, `backend`, `backend_mut`, and `into_backend` to support external `EventLoopProvider` implementations.
+- Add `pump_events_ext`, `run_on_demand_ext`, `into_register`, `into_never_return`, and (on Unix) `as_fd_ext` to `EventLoop` and `EventLoopProvider`.
+
+### Changed
+
+- Make `EventLoopProvider`, `EventLoopExtPumpEvents`, `EventLoopExtRunOnDemand`, `EventLoopExtRegister`, and `EventLoopExtNeverReturn` `dyn`-compatible, and change `EventLoop::run_app` to accept `Box<dyn ApplicationHandler>`.
+
+### Removed
+
+- Remove `AsFd` and `AsRawFd` implementations on `EventLoop` (use `EventLoop::as_fd_ext` instead), and remove direct `EventLoopExtPumpEvents`, `EventLoopExtRunOnDemand`, `EventLoopExtRegister`, and `EventLoopExtNeverReturn` implementations on `EventLoop` (use the corresponding `*_ext` / `into_*` methods instead).
+
 ### Fixed
 
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid

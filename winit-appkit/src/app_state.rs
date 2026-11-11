@@ -185,7 +185,7 @@ impl AppState {
     /// of the given closure.
     pub fn set_event_handler<R>(
         &self,
-        handler: impl ApplicationHandler,
+        handler: &mut dyn ApplicationHandler,
         closure: impl FnOnce() -> R,
     ) -> R {
         self.event_handler.set(Box::new(handler), closure)

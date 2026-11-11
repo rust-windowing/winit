@@ -1,7 +1,9 @@
 use crate::application::ApplicationHandler;
 
 /// Additional methods on `EventLoop` that registers it with the system event loop.
-pub trait EventLoopExtRegister {
+///
+/// Access via [`EventLoopProvider::into_register`][super::EventLoopProvider::into_register].
+pub trait EventLoopExtRegister: std::fmt::Debug {
     /// Initialize and register the application with the system's event loop, such that the
     /// callbacks will be run later.
     ///
@@ -13,5 +15,5 @@ pub trait EventLoopExtRegister {
     ///   recreate the event loop when switching between tabs on a single page application.
     /// - **iOS/macOS**: Unimplemented.
     /// - **Android/Orbital/Wayland/Windows/X11**: Unsupported.
-    fn register_app<A: ApplicationHandler + 'static>(self, app: A);
+    fn register_app(self: Box<Self>, app: Box<dyn ApplicationHandler>);
 }
