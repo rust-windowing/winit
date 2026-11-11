@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::mem;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
@@ -142,6 +143,10 @@ pub struct WinitState {
 
     /// Whether the user initiated a wake up.
     pub proxy_wake_up: bool,
+
+    /// The windows destroyed outside of the event loop iteration.
+    /// The event loop must still send `WindowEvent::Destroyed` for them.
+    pub destroyed_windows_outside_event_loop: Vec<WindowId>,
 }
 
 impl WinitState {
@@ -243,7 +248,84 @@ impl WinitState {
             // Make it true by default.
             dispatched_events: true,
             proxy_wake_up: false,
+
+            destroyed_windows_outside_event_loop: Vec::new(),
         })
+    }
+
+    /// Remove all windows when they are requested to close
+    /// This can be used when not in sync with the eventloop a cleanup
+    /// shall be done
+    pub(crate) fn execute_close_window(&mut self) {
+        for id in self
+            .window_requests
+            .get_mut()
+            .iter()
+            .filter_map(|p| if p.1.closed.load(Ordering::Relaxed) { Some(*p.0) } else { None })
+            .collect::<Vec<_>>()
+        {
+            let mut out = Vec::new();
+            if self.find_windows_to_close(&id, &mut out) {
+                for window_id in out.into_iter().rev() {
+                    self.destroyed_windows_outside_event_loop.push(window_id);
+                    self.remove_window(&window_id);
+                }
+            }
+        }
+    }
+
+    /// Drop the window from the window requests and the window list
+    /// If no user application holds a pointer to the window the window will be closed
+    pub(crate) fn remove_window(&mut self, w: &WindowId) {
+        let parent = self.windows.get_mut().get_mut(w).unwrap().lock().unwrap().parent();
+
+        if let Some(p) = parent.and_then(|p| self.windows.get_mut().get_mut(&p)) {
+            p.lock().unwrap().remove_child(w)
+        }
+
+        let window_requests = self.window_requests.get_mut();
+        window_requests.get(w).unwrap().take_closed();
+        mem::drop(window_requests.remove(w));
+        mem::drop(self.windows.get_mut().remove(w));
+        // Creating a popup during an application callback can enqueue its
+        // initial configure after this iteration has taken pending updates.
+        // Remove updates for the destroyed window so the next iteration
+        // cannot process them against the state we just removed.
+        self.window_compositor_updates.retain(|update| update.window_id != *w);
+    }
+
+    /// Recursive closing all windows from the child to the parent
+    pub(crate) fn find_windows_to_close(
+        &mut self,
+        window_id: &WindowId,
+        out: &mut Vec<WindowId>,
+    ) -> bool {
+        if !self
+            .window_requests
+            .get_mut()
+            .get(window_id)
+            .is_some_and(|w| w.closed.load(Ordering::Relaxed))
+        {
+            return false;
+        }
+
+        out.push(*window_id);
+        fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
+            // We don't need to check here if it should be closed, because if the parent should
+            // be closed all children must be closed as well
+            let Some(window_state) = state.windows.get_mut().get(window_id) else {
+                return;
+            };
+            let children = window_state.lock().unwrap().children().clone();
+            // First all children and then all subchildren
+            out.extend(&children);
+            for child in children.clone() {
+                window_to_close(&child, out, state);
+            }
+        }
+        window_to_close(window_id, out, self);
+
+        true
     }
 
     pub fn scale_factor_changed(
