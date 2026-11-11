@@ -21,7 +21,7 @@ use windows_sys::Win32::Graphics::Dwm::{
 use windows_sys::Win32::Graphics::Gdi::{
     CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
     DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
+    CreateSolidBrush, DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
@@ -1703,7 +1703,7 @@ unsafe fn register_window_class(class_name: &[u16]) {
         hInstance: util::get_instance_handle(),
         hIcon: ptr::null_mut(),
         hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
-        hbrBackground: ptr::null_mut(),
+        hbrBackground: unsafe { CreateSolidBrush(0x00000000) },
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
         hIconSm: ptr::null_mut(),
