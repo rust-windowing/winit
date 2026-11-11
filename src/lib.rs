@@ -152,6 +152,8 @@
 //! * `rwh_04`: Implement `raw-window-handle v0.4` traits.
 //! * `rwh_05`: Implement `raw-window-handle v0.5` traits.
 //! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
+//! * `private-apple-apis`: Use the legacy macOS window blur instead of the default public AppKit
+//!   material. Enabling this feature can cause Mac App Store rejection.
 //! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //!

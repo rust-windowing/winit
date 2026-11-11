@@ -142,6 +142,7 @@ pub struct ViewState {
 }
 
 declare_class!(
+    #[derive(Debug)]
     pub(super) struct WinitView;
 
     unsafe impl ClassType for WinitView {
