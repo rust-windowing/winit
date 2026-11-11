@@ -472,7 +472,12 @@ impl WindowAttributes {
     ///   to the client area of its parent window. For more information, see
     ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Android / iOS / Wayland / Web:** Unsupported.
+    /// - **Wayland:** The parent must be a window created by the same event loop. The child is
+    ///   attached to it with `xdg_toplevel.set_parent`; where it is placed is up to the compositor.
+    ///   When the parent is closed, its children are closed as well and receive
+    ///   [`WindowEvent::Destroyed`]. They stay visible until the application drops them, and so
+    ///   does the parent, which is only destroyed once all its children have been dropped.
+    /// - **Android / iOS / Web:** Unsupported.
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,

@@ -75,6 +75,15 @@ fn main() -> Result<(), impl std::error::Error> {
                         event_loop.exit();
                     }
                 },
+                WindowEvent::Destroyed => {
+                    // When a window gets destroyed remove it as well
+                    // otherwise child windows/ popups cannot be destroyed
+                    self.windows.remove(&window_id);
+                    self.popups.retain_mut(|id| id != &window_id);
+                    if self.windows.is_empty() {
+                        event_loop.exit();
+                    }
+                },
                 WindowEvent::PointerEntered { .. } => {
                     // On x11, println when the cursor entered in a window even if the child window
                     // is created by some key inputs.
