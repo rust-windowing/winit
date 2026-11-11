@@ -25,17 +25,10 @@ use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
 
 /// Common methods to implement for the platform event loop.
-///
-/// Backends can be implemented in separate crates depending on `winit-core` and passed to
-/// `winit::event_loop::EventLoop::from_backend`. The backend owns its initialization and
-/// lifecycle, and supplies an [`ActiveEventLoop`] through the [`ApplicationHandler`] callbacks.
-/// Configuration and handle access do not require the event loop to be running.
 pub trait EventLoopProvider: Any + fmt::Debug {
     /// Run the event loop with the given application on the calling thread.
     ///
-    /// The `app` is dropped when the event loop is shut down. The provider and handler are
-    /// owned, allowing callback-driven backends to retain them after this method returns.
-    /// Neither is required to be `Send` or `Sync`.
+    /// The `app` is dropped when the event loop is shut down.
     ///
     /// ## Event loop flow
     ///
@@ -94,35 +87,35 @@ pub trait EventLoopProvider: Any + fmt::Debug {
     /// docs for details.
     fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError>;
 
-    /// Borrow the event-pumping capability, if supported.
-    fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::PumpEvents> {
+    /// Access the event-pumping extension, where available.
+    #[inline(always)]
+    fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::EventLoopExtPumpEvents> {
         None
     }
 
-    /// Borrow the capability to run with non-`'static` application state, if supported.
-    fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::RunOnDemand> {
+    /// Access the run-on-demand extension, where available.
+    #[inline(always)]
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::EventLoopExtRunOnDemand> {
         None
     }
 
-    /// Convert into a provider that registers callbacks with a system event loop.
+    /// Convert into an event loop that registers callbacks with the system event loop.
     ///
-    /// Return `Err(self)` when unsupported, so the caller can choose another execution mode
-    /// without losing the event loop. No application callbacks may run during this conversion.
+    /// Returns `Err(self)` when unsupported.
     fn into_register(
         self: Box<Self>,
-    ) -> Result<Box<dyn register::RegisterApp>, Box<dyn EventLoopProvider>>;
+    ) -> Result<Box<dyn register::EventLoopExtRegister>, Box<dyn EventLoopProvider>>;
 
-    /// Convert into a provider whose execution never returns.
+    /// Convert into an event loop whose execution never returns.
     ///
-    /// Return `Err(self)` when unsupported. Conversion must not start or stop the event loop.
+    /// Returns `Err(self)` when unsupported.
     fn into_never_return(
         self: Box<Self>,
-    ) -> Result<Box<dyn never_return::RunAppNeverReturn>, Box<dyn EventLoopProvider>>;
+    ) -> Result<Box<dyn never_return::EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>>;
 
-    /// Borrow the file-descriptor capability, if this provider has a pollable descriptor.
-    ///
-    /// Use [`Self::pump_events_ext`] to check how pending events can be dispatched.
+    /// Access the underlying pollable file descriptor, where available.
     #[cfg(unix)]
+    #[inline(always)]
     fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
         None
     }
@@ -135,6 +128,9 @@ pub trait EventLoopProvider: Any + fmt::Debug {
     ///
     /// See the [`OwnedDisplayHandle`] type for more information.
     fn owned_display_handle(&self) -> OwnedDisplayHandle;
+
+    /// Get the raw-window-handle handle.
+    fn rwh_06_handle(&self) -> &dyn HasDisplayHandle;
 
     /// Change if or when [`DeviceEvent`]s are captured.
     ///
@@ -151,6 +147,12 @@ pub trait EventLoopProvider: Any + fmt::Debug {
         &self,
         custom_cursor: CustomCursorSource,
     ) -> Result<CustomCursor, CustomCursorError>;
+}
+
+impl HasDisplayHandle for dyn EventLoopProvider + '_ {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.rwh_06_handle().display_handle()
+    }
 }
 
 impl_dyn_casting!(EventLoopProvider);

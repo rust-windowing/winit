@@ -28,10 +28,10 @@ use winit_core::error::{
     UnknownTransfer,
 };
 use winit_core::event::WindowEvent;
-use winit_core::event_loop::never_return::RunAppNeverReturn;
-use winit_core::event_loop::pump_events::{PumpEvents, PumpStatus};
-use winit_core::event_loop::register::RegisterApp;
-use winit_core::event_loop::run_on_demand::RunOnDemand;
+use winit_core::event_loop::never_return::EventLoopExtNeverReturn;
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::register::EventLoopExtRegister;
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
     DndAction, DragIcon, EventLoopProvider, EventLoopProxy as CoreEventLoopProxy,
@@ -508,14 +508,77 @@ impl EventLoop {
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.window_target
     }
+}
 
+impl EventLoopProvider for EventLoop {
+    fn run_app(
+        mut self: Box<Self>,
+        mut app: Box<dyn ApplicationHandler>,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut *app);
+        // SAFETY: ensure that the state is dropped before the exit from the event loop.
+        drop(app);
+        result
+    }
+
+    #[inline(always)]
+    fn pump_events_ext(&mut self) -> Option<&mut dyn EventLoopExtPumpEvents> {
+        Some(self)
+    }
+
+    #[inline(always)]
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn EventLoopExtRunOnDemand> {
+        Some(self)
+    }
+
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self.window_target().rwh_06_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
+        self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
+impl EventLoopExtRunOnDemand for EventLoop {
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_app_on_demand<A: ApplicationHandler>(
+    fn run_app_on_demand(
         &mut self,
-        app: A,
+        app: &mut dyn ApplicationHandler,
     ) -> Result<(), EventLoopError> {
         self.app_state.clear_exit();
         self.app_state.set_event_handler(app, || {
@@ -541,11 +604,13 @@ impl EventLoop {
 
         Ok(())
     }
+}
 
-    pub fn pump_app_events<A: ApplicationHandler>(
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events(
         &mut self,
         timeout: Option<Duration>,
-        app: A,
+        app: &mut dyn ApplicationHandler,
     ) -> PumpStatus {
         self.app_state.set_event_handler(app, || {
             autoreleasepool(|_| {
@@ -598,85 +663,6 @@ impl EventLoop {
                 }
             })
         })
-    }
-}
-
-impl EventLoop {
-    /// Run an application. See [`EventLoopProvider::run_app`] for lifecycle guarantees.
-    pub fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        let result = self.run_app_on_demand(&mut app);
-        // SAFETY: unsure that the state is dropped before the exit from the event loop.
-        drop(app);
-        result
-    }
-}
-
-impl EventLoopProvider for EventLoop {
-    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
-        (*self).run_app(app)
-    }
-
-    fn pump_events_ext(&mut self) -> Option<&mut dyn PumpEvents> {
-        Some(self)
-    }
-
-    fn run_on_demand_ext(&mut self) -> Option<&mut dyn RunOnDemand> {
-        Some(self)
-    }
-
-    fn into_register(self: Box<Self>) -> Result<Box<dyn RegisterApp>, Box<dyn EventLoopProvider>> {
-        Err(self)
-    }
-
-    fn into_never_return(
-        self: Box<Self>,
-    ) -> Result<Box<dyn RunAppNeverReturn>, Box<dyn EventLoopProvider>> {
-        Err(self)
-    }
-
-    fn create_proxy(&self) -> CoreEventLoopProxy {
-        self.window_target().create_proxy()
-    }
-
-    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
-        self.window_target().owned_display_handle()
-    }
-
-    fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.window_target().listen_device_events(allowed);
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target().set_control_flow(control_flow);
-    }
-
-    fn create_custom_cursor(
-        &self,
-        custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, CustomCursorError> {
-        self.window_target().create_custom_cursor(custom_cursor)
-    }
-}
-
-impl PumpEvents for EventLoop {
-    fn pump_app_events(
-        &mut self,
-        timeout: Option<std::time::Duration>,
-        app: &mut dyn ApplicationHandler,
-    ) -> winit_core::event_loop::pump_events::PumpStatus {
-        EventLoop::pump_app_events(self, timeout, app)
-    }
-}
-
-impl RunOnDemand for EventLoop {
-    fn run_app_on_demand(
-        &mut self,
-        app: &mut dyn ApplicationHandler,
-    ) -> Result<(), EventLoopError> {
-        EventLoop::run_app_on_demand(self, app)
     }
 }
 

@@ -42,7 +42,7 @@
 //! ```no_run
 //! use winit::application::ApplicationHandler;
 //! use winit::event::WindowEvent;
-//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProvider};
+//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 //! use winit::window::{Window, WindowId, WindowAttributes};
 //!
 //! #[derive(Default)]
@@ -108,7 +108,7 @@
 //!     event_loop.set_control_flow(ControlFlow::Wait);
 //!
 //!     // Launch and begin running the event loop.
-//!     event_loop.run_app(App::default())?;
+//!     event_loop.run_app(Box::new(App::default()))?;
 //!
 //!     Ok(())
 //! }

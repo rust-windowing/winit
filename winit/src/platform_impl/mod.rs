@@ -21,3 +21,12 @@ pub use self::platform::*;
 #[cfg(not(builtin_platform))]
 #[path = "external.rs"]
 mod platform;
+
+#[cfg(all(builtin_platform, not(any(x11_platform, wayland_platform))))]
+pub(crate) fn create_event_loop(
+    attributes: &mut PlatformSpecificEventLoopAttributes,
+) -> Result<Box<dyn winit_core::event_loop::EventLoopProvider>, winit_core::error::EventLoopError> {
+    // Certain platforms accept an immutable reference in their API.
+    #[allow(clippy::unnecessary_mut_passed)]
+    Ok(Box::new(platform::EventLoop::new(attributes)?))
+}

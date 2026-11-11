@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
-    event_loop.run_app(App::default())?;
+    event_loop.run_app(Box::new(App::default()))?;
 
     Ok(())
 }

@@ -2,10 +2,8 @@ use crate::application::ApplicationHandler;
 
 /// Additional methods on `EventLoop` that registers it with the system event loop.
 ///
-/// The platform lists below describe built-in backends. External backends may also provide
-/// this capability; query [`super::EventLoopProvider::into_register`] before calling it when
-/// the backend is selected dynamically.
-pub trait EventLoopExtRegister {
+/// Access via [`EventLoopProvider::into_register`][super::EventLoopProvider::into_register].
+pub trait EventLoopExtRegister: std::fmt::Debug {
     /// Initialize and register the application with the system's event loop, such that the
     /// callbacks will be run later.
     ///
@@ -17,14 +15,5 @@ pub trait EventLoopExtRegister {
     ///   recreate the event loop when switching between tabs on a single page application.
     /// - **iOS/macOS**: Unimplemented.
     /// - **Android/Orbital/Wayland/Windows/X11**: Unsupported.
-    fn register_app<A: ApplicationHandler + 'static>(self, app: A);
-}
-
-/// An owned capability for registering an application with a system event loop.
-///
-/// Obtained through [`super::EventLoopProvider::into_register`]. Both the provider and
-/// handler are owned, so their state may be retained for callbacks after this call returns.
-/// See [`EventLoopExtRegister::register_app`] for lifecycle guarantees.
-pub trait RegisterApp: std::fmt::Debug {
     fn register_app(self: Box<Self>, app: Box<dyn ApplicationHandler>);
 }

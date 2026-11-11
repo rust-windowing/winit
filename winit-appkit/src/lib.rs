@@ -59,7 +59,7 @@
 //!     let app = NSApplication::sharedApplication(mtm);
 //!     app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 //!
-//!     // event_loop.run_app(&mut my_app);
+//!     // event_loop.run_app(Box::new(my_app));
 //!     Ok(())
 //! }
 //! ```

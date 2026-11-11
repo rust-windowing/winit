@@ -8,10 +8,7 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
-use std::cell::OnceCell;
 use std::marker::PhantomData;
-#[cfg(any(x11_platform, wayland_platform))]
-use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
 use winit_core::error::CustomCursorError;
@@ -43,7 +40,6 @@ use crate::platform_impl;
 #[derive(Debug)]
 pub struct EventLoop {
     pub(crate) event_loop: Box<dyn EventLoopProvider>,
-    display_handle: OnceCell<OwnedDisplayHandle>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -99,11 +95,8 @@ impl EventLoopBuilder {
     pub fn build(&mut self) -> Result<EventLoop, EventLoopError> {
         let _entered = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
 
-        // Certain platforms accept a mutable reference in their API.
-        #[allow(clippy::unnecessary_mut_passed)]
         Ok(EventLoop {
-            event_loop: Box::new(platform_impl::EventLoop::new(&mut self.platform_specific)?),
-            display_handle: OnceCell::new(),
+            event_loop: platform_impl::create_event_loop(&mut self.platform_specific)?,
             _marker: PhantomData,
         })
     }
@@ -128,70 +121,49 @@ impl EventLoop {
         EventLoopBuilder { platform_specific: Default::default() }
     }
 
-    /// Use a caller-provided event loop backend.
+    /// Create an [`EventLoop`] from an external [`EventLoopProvider`] backend.
     ///
-    /// The backend owns platform initialization, thread restrictions, and event loop lifecycle.
-    /// This method does not initialize the built-in backend or require an [`ActiveEventLoop`]
-    /// before the application starts running. The backend supplies the active loop to the
-    /// [`ApplicationHandler`] callbacks.
-    ///
-    /// The backend must use the same version of `winit-core` as this crate. It can live in a
-    /// separate crate depending only on `winit-core`; Winit does not need to depend on it.
-    /// Configure backend-specific options before passing it to this method.
-    ///
-    /// On targets without a built-in backend, disable Winit's default features and provide a
-    /// backend using this method. [`EventLoop::new`] and [`EventLoopBuilder::build`] return
-    /// [`EventLoopError::NotSupported`] when no built-in backend is available.
-    ///
-    /// Optional execution modes can be queried through [`Self::pump_events_ext`],
-    /// [`Self::run_on_demand_ext`], [`Self::into_register`], and [`Self::into_never_return`].
-    /// These queries work for both built-in and external providers, on every target.
-    /// Backend-specific APIs can be accessed through [`Self::backend`] and [`Self::backend_mut`].
+    /// On targets without a built-in backend, disable Winit's default features and supply a
+    /// backend through this constructor.
     ///
     /// ```no_run
     /// use winit::application::ApplicationHandler;
     /// use winit::error::EventLoopError;
     /// use winit::event_loop::{ControlFlow, EventLoop, EventLoopProvider};
     ///
-    /// fn run<P: EventLoopProvider + 'static, A: ApplicationHandler + 'static>(
-    ///     backend: P,
-    ///     app: A,
+    /// fn run(
+    ///     backend: Box<dyn EventLoopProvider>,
+    ///     app: Box<dyn ApplicationHandler>,
     /// ) -> Result<(), EventLoopError> {
-    ///     let event_loop: EventLoop = EventLoop::from_backend(backend);
+    ///     let event_loop = EventLoop::from_backend(backend);
     ///     event_loop.set_control_flow(ControlFlow::Wait);
     ///     event_loop.run_app(app)
     /// }
     /// ```
-    pub fn from_backend(backend: impl EventLoopProvider + 'static) -> Self {
-        Self::from_boxed_backend(Box::new(backend))
-    }
-
-    /// Use an already type-erased provider without adding another wrapper.
-    ///
-    /// See [`Self::from_backend`] for initialization and ownership requirements.
-    pub fn from_boxed_backend(backend: Box<dyn EventLoopProvider>) -> Self {
-        Self { event_loop: backend, display_handle: OnceCell::new(), _marker: PhantomData }
+    #[inline]
+    pub fn from_backend(backend: Box<dyn EventLoopProvider>) -> Self {
+        Self { event_loop: backend, _marker: PhantomData }
     }
 
     /// Access the concrete backend using `cast_ref` on the [`EventLoopProvider`] trait object.
-    ///
-    /// Backend crates may use this to expose platform-specific extensions without adding
-    /// a dependency on that backend to Winit.
+    #[inline]
     pub fn backend(&self) -> &dyn EventLoopProvider {
         &*self.event_loop
     }
 
     /// Mutably access the backend using `cast_mut` on the [`EventLoopProvider`] trait object.
+    #[inline]
     pub fn backend_mut(&mut self) -> &mut dyn EventLoopProvider {
         &mut *self.event_loop
     }
 
-    /// Recover the owned provider, for example to use a backend-specific consuming API.
+    /// Recover the owned [`EventLoopProvider`].
+    #[inline]
     pub fn into_backend(self) -> Box<dyn EventLoopProvider> {
         self.event_loop
     }
 
-    /// Borrow the event-pumping capability, if supported by this backend.
+    /// Access the event-pumping extension, where available.
     ///
     /// ```no_run
     /// use std::time::Duration;
@@ -199,26 +171,26 @@ impl EventLoop {
     /// use winit::application::ApplicationHandler;
     /// use winit::event_loop::EventLoop;
     ///
-    /// fn pump(event_loop: &mut EventLoop, app: &mut impl ApplicationHandler) {
+    /// fn pump(event_loop: &mut EventLoop, app: &mut dyn ApplicationHandler) {
     ///     if let Some(pump) = event_loop.pump_events_ext() {
-    ///         let status = pump.pump_app_events(Some(Duration::ZERO), app);
-    ///         // Handle the backend's PumpStatus here.
+    ///         let _status = pump.pump_app_events(Some(Duration::ZERO), app);
     ///     }
     /// }
     /// ```
-    pub fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::PumpEvents> {
+    #[inline(always)]
+    pub fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::EventLoopExtPumpEvents> {
         self.event_loop.pump_events_ext()
     }
 
-    /// Borrow the capability to run with non-`'static` application state, if supported.
-    pub fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::RunOnDemand> {
+    /// Access the run-on-demand extension, where available.
+    #[inline(always)]
+    pub fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::EventLoopExtRunOnDemand> {
         self.event_loop.run_on_demand_ext()
     }
 
-    /// Obtain the capability to register callbacks with the system event loop.
+    /// Convert into an event loop that registers callbacks with the system event loop.
     ///
-    /// Returns the original event loop when unsupported. This conversion does not invoke
-    /// application callbacks or discard any of the backend's configuration.
+    /// Returns `Err(self)` when unsupported.
     ///
     /// ```no_run
     /// use winit::application::ApplicationHandler;
@@ -227,39 +199,37 @@ impl EventLoop {
     ///
     /// fn start(
     ///     event_loop: EventLoop,
-    ///     app: impl ApplicationHandler + 'static,
+    ///     app: Box<dyn ApplicationHandler>,
     /// ) -> Result<(), EventLoopError> {
     ///     match event_loop.into_register() {
     ///         Ok(registration) => {
-    ///             registration.register_app(Box::new(app));
+    ///             registration.register_app(app);
     ///             Ok(())
     ///         },
     ///         Err(event_loop) => event_loop.run_app(app),
     ///     }
     /// }
     /// ```
-    pub fn into_register(self) -> Result<Box<dyn register::RegisterApp>, Self> {
-        self.event_loop.into_register().map_err(|event_loop| Self {
-            event_loop,
-            display_handle: self.display_handle,
-            _marker: self._marker,
-        })
+    #[inline]
+    pub fn into_register(self) -> Result<Box<dyn register::EventLoopExtRegister>, Self> {
+        self.event_loop
+            .into_register()
+            .map_err(|event_loop| Self { event_loop, _marker: self._marker })
     }
 
-    /// Obtain the capability to start an event loop that never returns.
+    /// Convert into an event loop whose execution never returns.
     ///
-    /// Returns the original event loop when unsupported, without starting the event loop.
-    /// A successful conversion can still be dropped without starting the application.
-    pub fn into_never_return(self) -> Result<Box<dyn never_return::RunAppNeverReturn>, Self> {
-        self.event_loop.into_never_return().map_err(|event_loop| Self {
-            event_loop,
-            display_handle: self.display_handle,
-            _marker: self._marker,
-        })
+    /// Returns `Err(self)` when unsupported.
+    #[inline]
+    pub fn into_never_return(self) -> Result<Box<dyn never_return::EventLoopExtNeverReturn>, Self> {
+        self.event_loop
+            .into_never_return()
+            .map_err(|event_loop| Self { event_loop, _marker: self._marker })
     }
 
-    /// Borrow the file-descriptor capability, if supported by this backend.
+    /// Access the underlying pollable file descriptor, where available.
     #[cfg(unix)]
+    #[inline(always)]
     pub fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
         self.event_loop.as_fd_ext()
     }
@@ -299,18 +269,14 @@ impl EventLoop {
     ///
     /// ## Static
     ///
-    /// To alleviate the issues noted above, this function requires that you pass in a `'static`
-    /// handler, to ensure that any state your application uses will be alive as long as the
-    /// application is running.
+    /// To alleviate the issues noted above, this function requires a `'static` handler, to ensure
+    /// that any state your application uses will be alive as long as the application is running.
     ///
-    /// To be clear, you should avoid doing e.g. `event_loop.run_app(&mut app)?`, and prefer
-    /// `event_loop.run_app(app)?` instead.
-    ///
-    /// If this requirement is prohibitive for you, consider using [`run_app_on_demand`] instead
-    /// (though note that this is not available on iOS and web).
+    /// If this requirement is prohibitive for you, consider using [`run_app_on_demand`] via
+    /// [`Self::run_on_demand_ext`] instead (though note that this is not available on iOS and web).
     #[inline]
-    pub fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
-        self.event_loop.run_app(Box::new(app))
+    pub fn run_app(self, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
+        self.event_loop.run_app(app)
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -363,17 +329,19 @@ impl EventLoopProvider for EventLoop {
         self.event_loop.run_app(app)
     }
 
-    fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::PumpEvents> {
+    #[inline(always)]
+    fn pump_events_ext(&mut self) -> Option<&mut dyn pump_events::EventLoopExtPumpEvents> {
         self.event_loop.pump_events_ext()
     }
 
-    fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::RunOnDemand> {
+    #[inline(always)]
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn run_on_demand::EventLoopExtRunOnDemand> {
         self.event_loop.run_on_demand_ext()
     }
 
     fn into_register(
         self: Box<Self>,
-    ) -> Result<Box<dyn register::RegisterApp>, Box<dyn EventLoopProvider>> {
+    ) -> Result<Box<dyn register::EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
         (*self)
             .into_register()
             .map_err(|event_loop| Box::new(event_loop) as Box<dyn EventLoopProvider>)
@@ -381,13 +349,14 @@ impl EventLoopProvider for EventLoop {
 
     fn into_never_return(
         self: Box<Self>,
-    ) -> Result<Box<dyn never_return::RunAppNeverReturn>, Box<dyn EventLoopProvider>> {
+    ) -> Result<Box<dyn never_return::EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
         (*self)
             .into_never_return()
             .map_err(|event_loop| Box::new(event_loop) as Box<dyn EventLoopProvider>)
     }
 
     #[cfg(unix)]
+    #[inline(always)]
     fn as_fd_ext(&self) -> Option<&dyn std::os::fd::AsFd> {
         self.event_loop.as_fd_ext()
     }
@@ -398,6 +367,10 @@ impl EventLoopProvider for EventLoop {
 
     fn owned_display_handle(&self) -> OwnedDisplayHandle {
         self.owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn HasDisplayHandle {
+        self.event_loop.rwh_06_handle()
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -418,96 +391,7 @@ impl EventLoopProvider for EventLoop {
 
 impl HasDisplayHandle for EventLoop {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-        // Retain the owner for as long as the borrowed display handle can be used.
-        self.display_handle.get_or_init(|| self.event_loop.owned_display_handle()).display_handle()
-    }
-}
-
-#[cfg(any(x11_platform, wayland_platform))]
-impl AsFd for EventLoop {
-    /// Get the underlying [EventLoop]'s `fd` which you can register
-    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_app_events`] API.
-    ///
-    /// [`calloop`]: https://crates.io/crates/calloop
-    /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events
-    ///
-    /// # Panics
-    ///
-    /// Panics if [`Self::as_fd_ext`] returns `None`.
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.as_fd_ext().expect("This backend does not provide a file descriptor").as_fd()
-    }
-}
-
-#[cfg(any(x11_platform, wayland_platform))]
-impl AsRawFd for EventLoop {
-    /// Get the underlying [EventLoop]'s raw `fd` which you can register
-    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_app_events`] API.
-    ///
-    /// [`calloop`]: https://crates.io/crates/calloop
-    /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_app_events`]: crate::event_loop::pump_events::EventLoopExtPumpEvents::pump_app_events
-    ///
-    /// # Panics
-    ///
-    /// Panics if [`Self::as_fd_ext`] returns `None`.
-    fn as_raw_fd(&self) -> RawFd {
-        self.as_fd().as_raw_fd()
-    }
-}
-
-impl winit_core::event_loop::pump_events::EventLoopExtPumpEvents for EventLoop {
-    /// # Panics
-    ///
-    /// Panics if [`Self::pump_events_ext`] returns `None`.
-    fn pump_app_events<A: ApplicationHandler>(
-        &mut self,
-        timeout: Option<std::time::Duration>,
-        mut app: A,
-    ) -> pump_events::PumpStatus {
-        self.pump_events_ext()
-            .expect("This backend does not support pumping events")
-            .pump_app_events(timeout, &mut app)
-    }
-}
-
-impl winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand for EventLoop {
-    fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        self.run_on_demand_ext()
-            .ok_or_else(|| {
-                crate::error::NotSupportedError::new(
-                    "This backend does not support running on demand",
-                )
-            })?
-            .run_app_on_demand(&mut app)
-    }
-}
-
-impl winit_core::event_loop::register::EventLoopExtRegister for EventLoop {
-    /// # Panics
-    ///
-    /// Panics if [`Self::into_register`] returns `Err`.
-    fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.into_register()
-            .expect("This backend does not support registering an application")
-            .register_app(Box::new(app))
-    }
-}
-
-impl winit_core::event_loop::never_return::EventLoopExtNeverReturn for EventLoop {
-    /// # Panics
-    ///
-    /// Panics if [`Self::into_never_return`] returns `Err`.
-    fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> ! {
-        self.into_never_return()
-            .expect("This backend cannot run without returning")
-            .run_app_never_return(Box::new(app))
+        self.event_loop.display_handle()
     }
 }
 
@@ -563,11 +447,10 @@ impl winit_appkit::EventLoopBuilderExtMacOS for EventLoopBuilder {
 impl winit_wayland::EventLoopExtWayland for EventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
-        self.backend().cast_ref::<winit_wayland::EventLoop>().is_some()
-            || self
-                .backend()
-                .cast_ref::<platform_impl::EventLoop>()
-                .is_some_and(|backend| backend.is_wayland())
+        matches!(
+            self.display_handle().map(|handle| handle.as_raw()),
+            Ok(rwh_06::RawDisplayHandle::Wayland(_))
+        )
     }
 }
 
@@ -666,11 +549,10 @@ impl winit_win32::EventLoopBuilderExtWindows for EventLoopBuilder {
 impl winit_x11::EventLoopExtX11 for EventLoop {
     #[inline]
     fn is_x11(&self) -> bool {
-        self.backend().cast_ref::<winit_x11::EventLoop>().is_some()
-            || self
-                .backend()
-                .cast_ref::<platform_impl::EventLoop>()
-                .is_some_and(|backend| !backend.is_wayland())
+        matches!(
+            self.display_handle().map(|handle| handle.as_raw()),
+            Ok(rwh_06::RawDisplayHandle::Xlib(_) | rwh_06::RawDisplayHandle::Xcb(_))
+        )
     }
 }
 
@@ -689,15 +571,33 @@ impl winit_x11::EventLoopBuilderExtX11 for EventLoopBuilder {
     }
 }
 
-/// ```compile_error
-/// use winit::event_loop::run_on_demand::EventLoopExtRunOnDemand;
-/// use winit::event_loop::EventLoop;
+/// ```compile_fail,E0499
+/// use winit::application::ApplicationHandler;
+/// use winit::event::WindowEvent;
+/// use winit::event_loop::{ActiveEventLoop, EventLoop};
+/// use winit::window::WindowId;
+///
+/// struct App<'a>(&'a mut EventLoop);
+/// impl ApplicationHandler for App<'_> {
+///     fn can_create_surfaces(&mut self, _: &dyn ActiveEventLoop) {}
+///     fn window_event(&mut self, _: &dyn ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+/// }
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
-/// event_loop.run_app_on_demand(|_, _| {
-///     // Attempt to run the event loop re-entrantly; this must fail.
-///     event_loop.run_app_on_demand(|_, _| {});
-/// });
+/// let mut app = App(&mut event_loop);
+/// // Attempt to access `event_loop` while `app` borrows it; this must fail.
+/// event_loop.run_on_demand_ext().unwrap().run_app_on_demand(&mut app).unwrap();
 /// ```
 #[allow(dead_code)]
 fn test_run_on_demand_cannot_access_event_loop() {}
+
+#[cfg(all(test, not(builtin_platform)))]
+mod tests {
+    use super::EventLoop;
+    use crate::error::EventLoopError;
+
+    #[test]
+    fn new_returns_not_supported_without_builtin_backend() {
+        assert!(matches!(EventLoop::new(), Err(EventLoopError::NotSupported(_))));
+    }
+}

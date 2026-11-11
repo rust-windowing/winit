@@ -369,7 +369,7 @@ Use CTRL+h to cycle content hint permutations.
     };
 
     // For alternative loop run options see `pump_events` and `run_on_demand` examples.
-    event_loop.run_app(app)?;
+    event_loop.run_app(Box::new(app))?;
 
     Ok(())
 }

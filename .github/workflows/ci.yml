@@ -240,6 +240,12 @@ jobs:
         matrix.toolchain != '1.88'
       run: cargo check -p dpi --no-default-features
 
+    - name: Test winit without a built-in backend
+      if: >
+        contains(matrix.platform.name, 'Linux 64bit') &&
+        matrix.toolchain != '1.88'
+      run: cargo test -p winit --no-default-features
+
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
@@ -289,15 +295,6 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
-
-  external-provider:
-    name: External event loop provider
-    runs-on: ubuntu-latest
-    steps:
-      - uses: taiki-e/checkout-action@v1
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Test without a built-in backend
-        run: cargo test -p winit --no-default-features --test external_provider
 
   cargo-deny:
     name: Run cargo-deny

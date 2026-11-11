@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let app = Application::new(&event_loop, receiver, sender);
-    Ok(event_loop.run_app(app)?)
+    Ok(event_loop.run_app(Box::new(app))?)
 }
 
 /// Application state and event handling.
