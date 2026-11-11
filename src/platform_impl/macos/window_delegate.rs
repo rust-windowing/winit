@@ -18,6 +18,10 @@ use objc2_app_kit::{
     NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
+#[cfg(not(feature = "private-apple-apis"))]
+use objc2_app_kit::{
+    NSAutoresizingMaskOptions, NSVisualEffectBlendingMode, NSVisualEffectState, NSVisualEffectView,
+};
 use objc2_foundation::{
     ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSKeyValueChangeKey,
     NSKeyValueChangeNewKey, NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSObject,
@@ -84,6 +88,11 @@ pub(crate) struct State {
     app_delegate: Retained<ApplicationDelegate>,
 
     window: Retained<WinitWindow>,
+
+    view: Retained<WinitView>,
+
+    #[cfg(not(feature = "private-apple-apis"))]
+    blur_view: RefCell<Option<Retained<NSVisualEffectView>>>,
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
     //
@@ -494,7 +503,7 @@ fn new_window(
     app_delegate: &ApplicationDelegate,
     attrs: &WindowAttributes,
     mtm: MainThreadMarker,
-) -> Option<Retained<WinitWindow>> {
+) -> Option<(Retained<WinitWindow>, Retained<WinitView>)> {
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
@@ -652,7 +661,19 @@ fn new_window(
             view.setWantsLayer(true);
         }
 
-        // Configure the new view as the "key view" for the window
+        // Keep the rendering view attached when the blur view is inserted or removed.
+        #[cfg(not(feature = "private-apple-apis"))]
+        unsafe {
+            let content_view = NSView::new(mtm);
+            window.setContentView(Some(&content_view));
+            view.setFrame(content_view.bounds());
+            view.setAutoresizingMask(
+                NSAutoresizingMaskOptions::NSViewWidthSizable
+                    | NSAutoresizingMaskOptions::NSViewHeightSizable,
+            );
+            content_view.addSubview(&view);
+        }
+        #[cfg(feature = "private-apple-apis")]
         window.setContentView(Some(&view));
         window.setInitialFirstResponder(Some(&view));
 
@@ -668,7 +689,7 @@ fn new_window(
                 unsafe { NSFilenamesPboardType }.copy()
             ]));
 
-        Some(window)
+        Some((window, view))
     })
 }
 
@@ -678,7 +699,7 @@ impl WindowDelegate {
         attrs: WindowAttributes,
         mtm: MainThreadMarker,
     ) -> Result<Retained<Self>, RootOsError> {
-        let window = new_window(app_delegate, &attrs, mtm)
+        let (window, view) = new_window(app_delegate, &attrs, mtm)
             .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]
@@ -720,6 +741,9 @@ impl WindowDelegate {
         let delegate = mtm.alloc().set_ivars(State {
             app_delegate: app_delegate.retain(),
             window: window.retain(),
+            view,
+            #[cfg(not(feature = "private-apple-apis"))]
+            blur_view: RefCell::new(None),
             previous_position: Cell::new(flip_window_screen_coordinates(window.frame())),
             previous_scale_factor: Cell::new(scale_factor),
             resize_increments: Cell::new(resize_increments),
@@ -802,8 +826,7 @@ impl WindowDelegate {
 
     #[track_caller]
     pub(super) fn view(&self) -> Retained<WinitView> {
-        // SAFETY: The view inside WinitWindow is always `WinitView`
-        unsafe { Retained::cast(self.window().contentView().unwrap()) }
+        self.ivars().view.clone()
     }
 
     #[track_caller]
@@ -887,18 +910,59 @@ impl WindowDelegate {
         self.window().setBackgroundColor(Some(&color));
     }
 
+    #[cfg(feature = "private-apple-apis")]
     pub fn set_blur(&self, blur: bool) {
+        extern "C" {
+            fn CGSMainConnectionID() -> *mut AnyObject;
+            fn CGSSetWindowBackgroundBlurRadius(
+                connection_id: *mut AnyObject,
+                window_id: objc2::ffi::NSInteger,
+                radius: i64,
+            ) -> i32;
+        }
+
         // NOTE: in general we want to specify the blur radius, but the choice of 80
         // should be a reasonable default.
         let radius = if blur { 80 } else { 0 };
         let window_number = unsafe { self.window().windowNumber() };
         unsafe {
-            ffi::CGSSetWindowBackgroundBlurRadius(
-                ffi::CGSMainConnectionID(),
-                window_number,
-                radius,
-            );
+            CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), window_number, radius);
         }
+    }
+
+    #[cfg(not(feature = "private-apple-apis"))]
+    pub fn set_blur(&self, blur: bool) {
+        if !blur {
+            let installed = self.ivars().blur_view.borrow_mut().take();
+            if let Some(installed) = installed {
+                unsafe { installed.removeFromSuperview() };
+            }
+            return;
+        }
+
+        if self.ivars().blur_view.borrow().is_some() {
+            return;
+        }
+
+        let view = self.view();
+        let content_view = self.window().contentView().expect("window always has a content view");
+        let effect = unsafe {
+            let effect = NSVisualEffectView::new(MainThreadMarker::from(self));
+            effect.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+            effect.setState(NSVisualEffectState::Active);
+            effect.setFrame(content_view.bounds());
+            effect.setAutoresizingMask(
+                NSAutoresizingMaskOptions::NSViewWidthSizable
+                    | NSAutoresizingMaskOptions::NSViewHeightSizable,
+            );
+            content_view.addSubview_positioned_relativeTo(
+                &effect,
+                NSWindowOrderingMode::NSWindowBelow,
+                Some(&view),
+            );
+            effect
+        };
+        *self.ivars().blur_view.borrow_mut() = Some(effect);
     }
 
     pub fn set_visible(&self, visible: bool) {

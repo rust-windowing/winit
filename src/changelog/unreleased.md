@@ -39,3 +39,8 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Fixed
+
+- On macOS, use public AppKit window blur by default so that applications no longer link
+  private WindowServer symbols. The legacy blur is available with `private-apple-apis`.
