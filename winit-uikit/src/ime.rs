@@ -9,6 +9,7 @@ use objc2_ui_kit::{
     UIControl, UIEvent, UIResponder, UITextField, UITextFieldDelegate, UITextInput, UITextRange,
     UIView,
 };
+use winit_common::text::utf16_to_utf8_offset;
 use winit_core::event::Ime;
 
 use super::view::WinitView;
@@ -113,7 +114,9 @@ impl ImeField {
     }
 
     pub(crate) fn set_enabled(&self, enabled: bool) {
-        self.ivars().enabled.set(enabled);
+        if self.ivars().enabled.replace(enabled) == enabled {
+            return;
+        }
         if enabled {
             self.becomeFirstResponder();
         } else {
@@ -144,9 +147,10 @@ impl ImeField {
         }
         let Some(view) = self.view() else { return };
         let current = self.marked_text();
+        let changed = *self.ivars().preedit.borrow() != current;
         let previous = self.ivars().preedit.replace(current.clone());
         if let Some((text, cursor)) = current {
-            if previous.as_ref() != Some(&(text.clone(), cursor)) {
+            if changed {
                 view.send_ime(Ime::Preedit(text, cursor));
             }
         } else {
@@ -174,7 +178,7 @@ impl ImeField {
         let cursor = self.selectedTextRange().map(|selection| {
             let start = range.start();
             let offset = |position| {
-                utf8_offset(
+                utf16_to_utf8_offset(
                     &text,
                     self.offsetFromPosition_toPosition(&start, position).max(0) as usize,
                 )
@@ -183,15 +187,4 @@ impl ImeField {
         });
         Some((text, cursor))
     }
-}
-
-fn utf8_offset(text: &str, offset: usize) -> usize {
-    let mut utf16 = 0;
-    for (byte, character) in text.char_indices() {
-        utf16 += character.len_utf16();
-        if utf16 > offset {
-            return byte;
-        }
-    }
-    text.len()
 }
