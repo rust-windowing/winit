@@ -1362,7 +1362,12 @@ unsafe fn public_window_callback_inner(
                 let lparam = 0;
                 unsafe { PostMessageW(window, WM_MOUSEMOVE, 0, lparam) };
             }
-            result = ProcResult::DefWindowProc(wparam);
+
+            // The modal move/size loop runs inside `DefWindowProcW`, so the drag has ended (or
+            // never started) once it returns. Don't hold the lock across the call: the loop
+            // re-enters this procedure.
+            result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
+            userdata.window_state_lock().dragging = false;
         },
 
         WM_CLOSE => {
