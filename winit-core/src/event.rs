@@ -144,11 +144,8 @@ pub enum WindowEvent {
     /// Data is available for a specific fetch request, see
     /// [`fetch_data_transfer`](crate::event_loop::ActiveEventLoop::data_transfer).
     ///
-    /// While winit makes a best effort to only send this event precisely once, on some platforms it
-    /// may not be possible to uniquely determine the window that should receive it. In these
-    /// cases, winit may dispatch the event to all  windows that have access to the data
-    /// transfer. If your application should only process this event once per data transfer, the
-    /// `serial` field can be used to deduplicate it.
+    /// This event is sent to the window receiving the drag-and-drop event or requesting clipboard
+    /// data (see [`crate::event_loop::ActiveEventLoop::fetch_data_transfer`]).
     DataTransferReceived {
         /// ID of the data transfer object, see
         /// [`crate::event_loop::ActiveEventLoop::data_transfer`].

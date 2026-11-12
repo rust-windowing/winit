@@ -21,7 +21,8 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
 use winit_core::error::{
-    CreateWindowError, CustomCursorError, EventLoopError, OsError, TransferError,
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, OsError, TransferError,
+    UnknownTransfer,
 };
 use winit_core::event::{DeviceEvent, StartCause, SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::primary_selection::PrimarySelectionExt;
@@ -373,6 +374,13 @@ impl EventLoop {
 
         for mut compositor_update in compositor_updates.drain(..) {
             let window_id = compositor_update.window_id;
+
+            // Never send events for a window the event loop no longer manages: it already got
+            // `Destroyed`, and the lookups below expect the window to be present.
+            if !self.with_state(|state| state.windows.get_mut().contains_key(&window_id)) {
+                continue;
+            }
+
             if compositor_update.scale_changed {
                 let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
@@ -448,7 +456,11 @@ impl EventLoop {
         for event in buffer_sink.drain() {
             match event {
                 Event::WindowEvent { window_id, event } => {
-                    app.window_event(&self.active_event_loop, window_id, event)
+                    // Never send events for a window the event loop no longer manages: it
+                    // already got `Destroyed`, or its creation failed.
+                    if self.with_state(|state| state.windows.get_mut().contains_key(&window_id)) {
+                        app.window_event(&self.active_event_loop, window_id, event)
+                    }
                 },
                 Event::DeviceEvent { event } => {
                     app.device_event(&self.active_event_loop, None, event)
@@ -463,7 +475,11 @@ impl EventLoop {
         for event in buffer_sink.drain() {
             match event {
                 Event::WindowEvent { window_id, event } => {
-                    app.window_event(&self.active_event_loop, window_id, event)
+                    // Never send events for a window the event loop no longer manages: it
+                    // already got `Destroyed`, or its creation failed.
+                    if self.with_state(|state| state.windows.get_mut().contains_key(&window_id)) {
+                        app.window_event(&self.active_event_loop, window_id, event)
+                    }
                 },
                 Event::DeviceEvent { event } => {
                     app.device_event(&self.active_event_loop, None, event)
@@ -786,11 +802,11 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         self.state.borrow_mut().fetch_data_transfer(id, type_)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         self.state.borrow_mut().data_transfer(id)
     }
 
@@ -798,7 +814,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         self.state.borrow_mut().set_valid_dnd_actions(id, actions)
     }
 

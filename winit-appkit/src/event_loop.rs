@@ -23,7 +23,10 @@ use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
-use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError, TransferError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, TransferError,
+    UnknownTransfer,
+};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -70,10 +73,13 @@ impl ActiveEventLoop {
         NSWindow::allowsAutomaticWindowTabbing(self.mtm)
     }
 
-    fn clipboard_by_id(&self, id: DataTransferId) -> Option<Pasteboard> {
+    fn clipboard_by_id(&self, id: DataTransferId) -> Result<Pasteboard, UnknownTransfer> {
         let pb = Pasteboard::new(id, NSPasteboard::generalPasteboard(), self.mtm);
-        (self.app_state.data_transfer().clipboard_transfer_id(pb.change_count()) == id)
-            .then_some(pb)
+        if self.app_state.data_transfer().clipboard_transfer_id(pb.change_count()) == id {
+            Ok(pb)
+        } else {
+            Err(UnknownTransfer(id))
+        }
     }
 }
 
@@ -150,19 +156,15 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let (pb, window_id) = match self.app_state.data_transfer().pasteboards().get(id) {
-            Some(pb) => {
-                let Some(window_id) = self.app_state.data_transfer().pasteboards().window_id(id)
-                else {
-                    return Err(TransferError::Failed);
-                };
-                (pb, window_id)
-            },
+            Some((pb, window_id)) => (pb, window_id),
             None => {
-                let pb = self.clipboard_by_id(id).ok_or(TransferError::UnknownTransfer(id))?;
-                let window_id =
-                    self.app_state.clipboard_window(self.mtm).ok_or(TransferError::Failed)?;
+                let pb = self.clipboard_by_id(id)?;
+                let window_id = self
+                    .app_state
+                    .clipboard_window(self.mtm)
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
                 (pb, window_id)
             },
         };
@@ -170,14 +172,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
         let type_ = match type_.cast_ref::<PasteboardType>() {
             Some(pb_type) => pb_type.clone(),
             None => {
-                let hint = type_.hint().ok_or(TransferError::Failed)?;
+                let hint = type_.hint().ok_or(FetchError::TransferType)?;
                 pb.types()
                     .iter()
                     .find(|advertised| {
                         advertised.hint().is_some_and(|haystack| haystack.matches(&hint))
                     })
                     .cloned()
-                    .ok_or(TransferError::Failed)?
+                    .ok_or(FetchError::TransferType)?
             },
         };
 
@@ -197,12 +199,12 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, TransferError> {
-        if let Some(pb) = self.app_state.data_transfer().pasteboards().get(id) {
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        if let Some((pb, _)) = self.app_state.data_transfer().pasteboards().get(id) {
             return Ok(Box::new(pb));
         }
 
-        let pb = self.clipboard_by_id(id).ok_or(TransferError::UnknownTransfer(id))?;
+        let pb = self.clipboard_by_id(id)?;
 
         Ok(Box::new(pb))
     }
@@ -251,12 +253,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
-        if self.app_state.data_transfer().set_valid_dnd_actions(id, actions) {
-            Ok(())
-        } else {
-            Err(TransferError::UnknownTransfer(id))
-        }
+    ) -> Result<(), UnknownTransfer> {
+        self.app_state.data_transfer().set_valid_dnd_actions(id, actions)
     }
 
     fn start_drag(
@@ -274,9 +272,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                     icon.as_ref().map(|icon| (icon.offset_x, icon.offset_y)).unwrap_or_default();
                 let drag_image = icon.and_then(|icon| image_from_icon(&icon.icon).ok());
 
-                let Some(event) = delegate.window().currentEvent() else {
-                    return Err(TransferError::Failed);
-                };
+                let event = delegate.window().currentEvent().expect("could not find current event");
 
                 let dragging_rect_size = drag_image
                     .as_ref()
@@ -360,7 +356,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
                 Ok(id)
             })
-            .ok_or(TransferError::Failed)?
+            .ok_or_else(|| os_error!("failed to load window {source:?}"))?
     }
 }
 

@@ -244,10 +244,10 @@ impl SeatHandler for WinitState {
 
         match capability {
             SeatCapability::Touch => {
-                if let Some(touch) = seat_state.touch.take() {
-                    if touch.version() >= 3 {
-                        touch.release();
-                    }
+                if let Some(touch) = seat_state.touch.take()
+                    && touch.version() >= 3
+                {
+                    touch.release();
                 }
             },
             SeatCapability::Pointer => {
@@ -305,10 +305,10 @@ impl SeatHandler for WinitState {
         _queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
-        if let Some(mut seat_state) = self.seats.remove(&seat.id()) {
-            if let Some(text_input) = seat_state.text_input.take() {
-                text_input.destroy();
-            }
+        if let Some(mut seat_state) = self.seats.remove(&seat.id())
+            && let Some(text_input) = seat_state.text_input.take()
+        {
+            text_input.destroy();
         }
         self.on_keyboard_destroy(&seat.id());
     }

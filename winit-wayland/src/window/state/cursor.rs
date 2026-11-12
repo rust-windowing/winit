@@ -43,10 +43,10 @@ impl WindowState {
     pub fn pointer_left(&mut self, removed: Weak<ThemedPointer<WinitPointerData>>) {
         let mut new_pointers = Vec::new();
         for pointer in self.pointers.drain(..) {
-            if let Some(pointer) = pointer.upgrade() {
-                if pointer.pointer() != removed.upgrade().unwrap().pointer() {
-                    new_pointers.push(Arc::downgrade(&pointer));
-                }
+            if let Some(pointer) = pointer.upgrade()
+                && pointer.pointer() != removed.upgrade().unwrap().pointer()
+            {
+                new_pointers.push(Arc::downgrade(&pointer));
             }
         }
 

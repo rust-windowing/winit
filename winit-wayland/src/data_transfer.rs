@@ -40,7 +40,7 @@ use wayland_client::{Connection, Proxy, QueueHandle};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
-use winit_core::error::{NotSupportedError, TransferError};
+use winit_core::error::{NotSupportedError, TransferError, UnknownTransfer,FetchError};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::{AsyncRequestSerial, DndAction, DragIcon};
 use winit_core::icon::RgbaIcon;
@@ -67,10 +67,12 @@ pub struct MimeType {
 const TEXT_URI_LIST: &str = "text/uri-list";
 // Plaintext
 const TEXT_PLAIN: &str = "text/plain";
-const TEXT_PLAIN_CHARSET_UTF8: &str = "text/plain; charset=utf-8";
+const TEXT_PLAIN_CHARSET_UTF8: &str = "text/plain;charset=utf-8";
+// Used mostly when transferring to Xwayland.
+const TEXT_PLAIN_UTF8_STRING: &str = "UTF8_STRING";
 // HTML
 const TEXT_HTML: &str = "text/html";
-const TEXT_HTML_CHARSET_UTF8: &str = "text/html; charset=utf-8";
+const TEXT_HTML_CHARSET_UTF8: &str = "text/html;charset=utf-8";
 // RTF
 const APPLICATION_RTF: &str = "application/rtf";
 // Audio
@@ -112,8 +114,9 @@ impl MimeType {
         // Files
         (TEXT_URI_LIST, TypeHint::UriList),
         // Plaintext
-        (TEXT_PLAIN, TypeHint::Plaintext),
         (TEXT_PLAIN_CHARSET_UTF8, TypeHint::Plaintext),
+        (TEXT_PLAIN, TypeHint::Plaintext),
+        (TEXT_PLAIN_UTF8_STRING, TypeHint::Plaintext),
         // HTML
         (TEXT_HTML, TypeHint::Html),
         (TEXT_HTML_CHARSET_UTF8, TypeHint::Html),
@@ -298,8 +301,20 @@ impl TypedData for MimeData {
         let data = self.data()?;
 
         match charset {
-            Ok(Charset::Utf8) => String::from_utf8(data.to_vec())
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err)),
+            Ok(Charset::Utf8) => {
+                let text = String::from_utf8(data.to_vec())
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+                if self.mime_type.mime.contains(TEXT_PLAIN) {
+                    // Normalize CR and CRLF into LF.
+                    //
+                    // 'text' mime types require CRLF line ending according to
+                    // RFC-2046, however the platform line terminator and what applications
+                    // expect is LF.
+                    Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
+                } else {
+                    Ok(text)
+                }
+            },
             Err(e) => Err(io::Error::other(e.to_string())),
         }
     }
@@ -479,13 +494,13 @@ impl WinitState {
         &mut self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, TransferError> {
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let Some(session) = self.data_transfer_state.session_mut(id) else {
-            return Err(TransferError::UnknownTransfer(id));
+            return Err(FetchError::UnknownTransfer(id));
         };
 
         let Some(mime_type) = session.data().find_type_dyn(type_).cloned() else {
-            return Err(TransferError::Failed);
+            return Err(FetchError::TransferType);
         };
 
         let window_id = match &session {
@@ -502,7 +517,7 @@ impl WinitState {
                     })
                     .or_else(|| self.seats.get(seat)?.pointer_data()?.data().focused_window())
                     .or_else(|| windows.keys().next().copied())
-                    .ok_or(TransferError::Failed)?
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?
             },
         };
 
@@ -532,10 +547,10 @@ impl WinitState {
     pub(crate) fn data_transfer(
         &mut self,
         id: DataTransferId,
-    ) -> Result<Box<dyn DataTransfer>, TransferError> {
+    ) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
         match self.data_transfer_state.session_mut(id) {
             Some(session) => Ok(Box::new(session.data().clone())),
-            None => Err(TransferError::UnknownTransfer(id)),
+            None => Err(UnknownTransfer(id)),
         }
     }
 
@@ -543,9 +558,9 @@ impl WinitState {
         &mut self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), TransferError> {
+    ) -> Result<(), UnknownTransfer> {
         let Some(Session::Drag(session)) = self.data_transfer_state.session_mut(id) else {
-            return Err(TransferError::UnknownTransfer(id));
+            return Err(UnknownTransfer(id));
         };
 
         session.set_actions(actions);
@@ -1202,17 +1217,17 @@ impl DataDeviceHandler for WinitState {
     }
 
     fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, data_device: &WlDataDevice) {
-        if let Entry::Occupied(entry) = self.data_transfer_state.drags.entry(data_device.id()) {
-            if entry.get().phase == Phase::Hovering {
-                let session = entry.remove();
+        if let Entry::Occupied(entry) = self.data_transfer_state.drags.entry(data_device.id())
+            && entry.get().phase == Phase::Hovering
+        {
+            let session = entry.remove();
 
-                self.events_sink.push_window_event(
-                    WindowEvent::DragLeft { id: session.data.transfer_id() },
-                    session.window_id,
-                );
+            self.events_sink.push_window_event(
+                WindowEvent::DragLeft { id: session.data.transfer_id() },
+                session.window_id,
+            );
 
-                session.abort();
-            }
+            session.abort();
         }
     }
 

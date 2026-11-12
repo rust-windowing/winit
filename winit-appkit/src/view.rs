@@ -141,6 +141,9 @@ pub struct ViewState {
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     forward_key_to_app: Cell<bool>,
+
+    /// True while `keyDown:` is passing a keyboard event to `interpretKeyEvents:`.
+    interpreting_key_events: Cell<bool>,
     marked_text: RefCell<Retained<NSMutableAttributedString>>,
 
     /// Set by `acceptsFirstMouse:` so the next `mouseDown:` can tag its
@@ -408,6 +411,19 @@ define_class!(
                 self.ivars().pending_commit.set(false);
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Committed);
+            } else if !self.ivars().interpreting_key_events.get()
+                && self.ivars().ime_capabilities.get().is_some()
+                && !is_control
+            {
+                // AppKit can call `insertText:` directly for text selected from the Character
+                // Viewer and other system text services. There is no corresponding key event or
+                // marked text in that case, so deliver the text as a standalone IME commit.
+                if !ime_enabled {
+                    *self.ivars().input_source.borrow_mut() = self.current_input_source();
+                    self.queue_event(WindowEvent::Ime(Ime::Enabled));
+                }
+                self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
+                self.ivars().ime_state.set(ImeState::Ground);
             } else if has_marked {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             }
@@ -481,7 +497,9 @@ define_class!(
             // is not handled by IME and should be handled by the application)
             if self.ivars().ime_capabilities.get().is_some() {
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
+                let was_interpreting = self.ivars().interpreting_key_events.replace(true);
                 self.interpretKeyEvents(&events_for_nsview);
+                self.ivars().interpreting_key_events.set(was_interpreting);
 
                 // If the text was committed we must treat the next keyboard event as IME related.
                 if self.ivars().ime_state.get() == ImeState::Committed {
@@ -541,10 +559,10 @@ define_class!(
         fn insert_tab(&self, _sender: Option<&AnyObject>) {
             let _entered = debug_span!("insertTab:").entered();
             let window = self.window();
-            if let Some(first_responder) = window.firstResponder() {
-                if *first_responder == ***self {
-                    window.selectNextKeyView(Some(self))
-                }
+            if let Some(first_responder) = window.firstResponder()
+                && *first_responder == ***self
+            {
+                window.selectNextKeyView(Some(self))
             }
         }
 
@@ -552,10 +570,10 @@ define_class!(
         fn insert_back_tab(&self, _sender: Option<&AnyObject>) {
             let _entered = debug_span!("insertBackTab:").entered();
             let window = self.window();
-            if let Some(first_responder) = window.firstResponder() {
-                if *first_responder == ***self {
-                    window.selectPreviousKeyView(Some(self))
-                }
+            if let Some(first_responder) = window.firstResponder()
+                && *first_responder == ***self
+            {
+                window.selectPreviousKeyView(Some(self))
             }
         }
 
@@ -875,6 +893,7 @@ impl WinitView {
             pending_commit: Default::default(),
             ime_capabilities: Default::default(),
             forward_key_to_app: Default::default(),
+            interpreting_key_events: Default::default(),
             marked_text: Default::default(),
             next_click_is_activation: Default::default(),
             option_as_alt: Cell::new(option_as_alt),
@@ -1035,10 +1054,10 @@ impl WinitView {
         // Tell the input method to drop any composition in progress. Otherwise it keeps the
         // marked text and continues composing it once IME is enabled again (e.g. when focus
         // returns to a text input), even though the application has already ended it.
-        if self.ivars().marked_text.borrow().length() > 0 {
-            if let Some(input_context) = self.inputContext() {
-                input_context.discardMarkedText();
-            }
+        if self.ivars().marked_text.borrow().length() > 0
+            && let Some(input_context) = self.inputContext()
+        {
+            input_context.discardMarkedText();
         }
         // see above
         self.ivars().ime_capabilities.set(None);

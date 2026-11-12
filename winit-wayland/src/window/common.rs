@@ -1,6 +1,7 @@
-use core::fmt;
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::atomic::Ordering;
-use std::sync::{Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 use dpi::{PhysicalInsets, PhysicalSize, Position, Size};
 use sctk::shell::WaylandSurface;
@@ -20,11 +21,15 @@ use crate::window::state::WindowState;
 
 #[derive(Debug)]
 pub(crate) struct WindowCommon {
-    /// The state of the window.
-    /// The only single truth of the state is stored
-    /// in the event loop state, because if the server decides to destroy the popup
-    /// we cannot use it anymore
-    pub(crate) state: Weak<Mutex<WindowState>>,
+    /// Keeps the window's state alive for as long as this handle exists, independently of
+    /// whatever the event loop's `windows` map does with its own reference.
+    ///
+    /// The state, and with it the `wl_surface` that the raw window handle hands out, must live
+    /// until this handle is dropped: graphics libraries keep using that pointer for as long as
+    /// they hold the window. A window or popup with a parent in turn keeps its parent's state
+    /// alive (see [`WindowParent`](crate::window::state::WindowParent)), so a parent is never
+    /// destroyed before its children.
+    pub(crate) state: Arc<Mutex<WindowState>>,
 
     pub(crate) window_id: WindowId,
 
@@ -36,6 +41,12 @@ pub(crate) struct WindowCommon {
 }
 
 impl WindowCommon {
+    /// The window's `xdg_toplevel`, or [`None`] for a popup.
+    pub(crate) fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
+        let state = self.state.lock().unwrap();
+        NonNull::new(state.xdg_toplevel()?.id().as_ptr().cast())
+    }
+
     pub(crate) fn id(&self) -> WindowId {
         self.window_id
     }
@@ -46,13 +57,11 @@ impl WindowCommon {
 
     #[inline]
     pub(crate) fn title(&self) -> String {
-        let Some(s) = self.state.upgrade() else { return String::new() };
-        s.lock().unwrap().title().to_owned()
+        self.state.lock().unwrap().title().to_owned()
     }
 
     pub(crate) fn pre_present_notify(&self) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().request_frame_callback();
+        self.state.lock().unwrap().request_frame_callback();
     }
 
     pub(crate) fn reset_dead_keys(&self) {
@@ -60,22 +69,19 @@ impl WindowCommon {
     }
 
     pub(crate) fn surface_size(&self) -> PhysicalSize<u32> {
-        let Some(s) = self.state.upgrade() else { return PhysicalSize::default() };
-        let s = s.lock().unwrap();
+        let s = self.state.lock().unwrap();
         s.surface_size_physical()
     }
 
     pub(crate) fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let s = self.state.upgrade()?;
-        let mut s = s.lock().unwrap();
+        let mut s = self.state.lock().unwrap();
         let new_size = s.request_surface_size(size);
         self.request_redraw();
         Some(new_size)
     }
 
     pub(crate) fn outer_size(&self) -> PhysicalSize<u32> {
-        let Some(s) = self.state.upgrade() else { return PhysicalSize::default() };
-        let s = s.lock().unwrap();
+        let s = self.state.lock().unwrap();
         s.outer_size_physical()
     }
 
@@ -86,8 +92,7 @@ impl WindowCommon {
     pub(crate) fn set_min_surface_size(&self, min_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_min_surface_size(min_size);
+        self.state.lock().unwrap().set_min_surface_size(min_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }
@@ -97,32 +102,27 @@ impl WindowCommon {
     pub(crate) fn set_max_surface_size(&self, max_size: Option<Size>) {
         let scale_factor = self.scale_factor();
         let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_max_surface_size(max_size);
+        self.state.lock().unwrap().set_max_surface_size(max_size);
         // NOTE: Requires commit to be applied.
         self.request_redraw();
     }
 
     pub(crate) fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let s = self.state.upgrade()?;
-        s.lock().unwrap().surface_resize_increments()
+        self.state.lock().unwrap().surface_resize_increments()
     }
 
     pub(crate) fn set_surface_resize_increments(&self, increments: Option<Size>) {
-        let Some(s) = self.state.upgrade() else { return };
-        let mut state = s.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
         state.set_surface_resize_increments(increments);
     }
 
     pub(crate) fn set_title(&self, title: &str) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_title(title.to_owned());
+        self.state.lock().unwrap().set_title(title.to_owned());
     }
 
     #[inline]
     pub(crate) fn set_transparent(&self, transparent: bool) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_transparent(transparent);
+        self.state.lock().unwrap().set_transparent(transparent);
     }
 
     pub(crate) fn set_visible(&self, _visible: bool) {
@@ -135,8 +135,7 @@ impl WindowCommon {
 
     /// Only meaningful for a top-level surface.
     pub(super) fn set_resizable(&self, resizable: bool) {
-        let Some(s) = self.state.upgrade() else { return };
-        if s.lock().unwrap().set_resizable(resizable) {
+        if self.state.lock().unwrap().set_resizable(resizable) {
             // NOTE: Requires commit to be applied.
             self.request_redraw();
         }
@@ -144,22 +143,17 @@ impl WindowCommon {
 
     /// Only meaningful for a top-level surface.
     pub(super) fn is_resizable(&self) -> bool {
-        let Some(s) = self.state.upgrade() else {
-            return false;
-        };
-        s.lock().unwrap().resizable()
+        self.state.lock().unwrap().resizable()
     }
 
     #[inline]
     pub(crate) fn scale_factor(&self) -> f64 {
-        let Some(s) = self.state.upgrade() else { return 1.0 };
-        s.lock().unwrap().scale_factor()
+        self.state.lock().unwrap().scale_factor()
     }
 
     #[inline]
     pub(crate) fn set_blur(&self, blur: bool) {
-        let Some(s) = self.state.upgrade() else { return };
-        if s.lock().unwrap().set_blur(blur) {
+        if self.state.lock().unwrap().set_blur(blur) {
             self.request_redraw();
         }
     }
@@ -167,15 +161,13 @@ impl WindowCommon {
     /// Only meaningful for a top-level surface.
     #[inline]
     pub(super) fn set_decorations(&self, decorate: bool) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_decorate(decorate)
+        self.state.lock().unwrap().set_decorate(decorate)
     }
 
     /// Only meaningful for a top-level surface.
     #[inline]
     pub(super) fn is_decorated(&self) -> Option<bool> {
-        let s = self.state.upgrade()?;
-        Some(s.lock().unwrap().is_decorated())
+        Some(self.state.lock().unwrap().is_decorated())
     }
 
     /// Only meaningful for a top-level surface.
@@ -183,14 +175,12 @@ impl WindowCommon {
 
     /// Only meaningful for a top-level surface.
     pub(super) fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_window_icon(window_icon)
+        self.state.lock().unwrap().set_window_icon(window_icon)
     }
 
     #[inline]
     pub(crate) fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
-        let Some(s) = self.state.upgrade() else { return Ok(()) };
-        let state_changed = s.lock().unwrap().request_ime_update(request)?;
+        let state_changed = self.state.lock().unwrap().request_ime_update(request)?;
 
         if let Some(allowed) = state_changed {
             let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
@@ -202,49 +192,40 @@ impl WindowCommon {
 
     #[inline]
     pub(crate) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
-        let s = self.state.upgrade()?;
-        s.lock().unwrap().ime_allowed()
+        self.state.lock().unwrap().ime_allowed()
     }
 
     pub(crate) fn focus_window(&self) {}
 
     pub(crate) fn has_focus(&self) -> bool {
-        let Some(s) = self.state.upgrade() else { return false };
-        s.lock().unwrap().has_focus()
+        self.state.lock().unwrap().has_focus()
     }
 
     pub(crate) fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        if let Some(state) = self.state.upgrade() {
-            let state = state.lock().unwrap();
-            let surface = state.window.wl_surface();
-            self.handles.request_user_attention(surface, request_type);
-        }
+        let state = self.state.lock().unwrap();
+        let surface = state.window.wl_surface();
+        self.handles.request_user_attention(surface, request_type);
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn set_theme(&self, theme: Option<Theme>) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_theme(theme)
+        self.state.lock().unwrap().set_theme(theme)
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn theme(&self) -> Option<Theme> {
-        let s = self.state.upgrade()?;
-        s.lock().unwrap().theme()
+        self.state.lock().unwrap().theme()
     }
 
     pub(crate) fn set_content_protected(&self, _protected: bool) {}
 
     pub(crate) fn set_cursor(&self, cursor: Cursor) {
-        let Some(s) = self.state.upgrade() else { return };
-        let mut state = s.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
         state.set_cursor(cursor);
     }
 
     pub(crate) fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
         self.state
-            .upgrade()
-            .ok_or(os_error!(ResolveStateError))?
             .lock()
             .unwrap()
             .set_cursor_position(position)
@@ -253,22 +234,16 @@ impl WindowCommon {
     }
 
     pub(crate) fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        self.state
-            .upgrade()
-            .ok_or(os_error!(ResolveStateError))?
-            .lock()
-            .unwrap()
-            .set_cursor_grab(mode)
+        self.state.lock().unwrap().set_cursor_grab(mode)
     }
 
     pub(crate) fn set_cursor_visible(&self, visible: bool) {
-        let Some(s) = self.state.upgrade() else { return };
-        s.lock().unwrap().set_cursor_visible(visible);
+        self.state.lock().unwrap().set_cursor_visible(visible);
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn drag_window(&self) -> Result<(), RequestError> {
-        self.state.upgrade().ok_or(os_error!(ResolveStateError))?.lock().unwrap().drag_window()
+        self.state.lock().unwrap().drag_window()
     }
 
     /// Only meaningful for a top-level surface.
@@ -276,55 +251,45 @@ impl WindowCommon {
         &self,
         direction: ResizeDirection,
     ) -> Result<(), RequestError> {
-        self.state
-            .upgrade()
-            .ok_or(os_error!(ResolveStateError))?
-            .lock()
-            .unwrap()
-            .drag_resize_window(direction)
+        self.state.lock().unwrap().drag_resize_window(direction)
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn set_maximized(&self, maximized: bool) {
-        let Some(s) = self.state.upgrade() else { return };
-        let s = s.lock().unwrap();
+        let s = self.state.lock().unwrap();
         s.set_maximized(maximized);
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn is_maximized(&self) -> bool {
-        let Some(s) = self.state.upgrade() else { return false };
-        let s = s.lock().unwrap();
+        let s = self.state.lock().unwrap();
         s.is_maximized()
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn fullscreen(&self) -> Option<Fullscreen> {
-        self.state.upgrade()?.lock().unwrap().fullscreen()
+        self.state.lock().unwrap().fullscreen()
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        let Some(s) = self.state.upgrade() else { return };
-        let s = s.lock().unwrap();
+        let s = self.state.lock().unwrap();
         s.set_fullscreen(fullscreen)
     }
 
     /// Only meaningful for a top-level surface.
     pub(super) fn show_window_menu(&self, position: Position) {
-        let Some(s) = self.state.upgrade() else { return };
-        let s = s.lock().unwrap();
+        let s = self.state.lock().unwrap();
         let position = position.to_logical(s.scale_factor());
         s.show_window_menu(position);
     }
 
     pub(crate) fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let state = self.state.upgrade().ok_or(os_error!(ResolveStateError))?;
-        self.handles.set_cursor_hittest(state.lock().unwrap().window.wl_surface(), hittest)
+        self.handles.set_cursor_hittest(self.state.lock().unwrap().window.wl_surface(), hittest)
     }
 
     pub(crate) fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        self.state.upgrade()?.lock().unwrap().current_monitor()
+        self.state.lock().unwrap().current_monitor()
     }
 
     pub(crate) fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
@@ -346,9 +311,8 @@ impl Drop for WindowCommon {
 
 impl rwh_06::HasWindowHandle for WindowCommon {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let state = self.state.upgrade().ok_or(rwh_06::HandleError::Unavailable)?;
         let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = state.lock().unwrap().window.wl_surface().id().as_ptr();
+            let ptr = self.state.lock().unwrap().window.wl_surface().id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
         });
 
@@ -358,9 +322,6 @@ impl rwh_06::HasWindowHandle for WindowCommon {
 
 impl rwh_06::HasDisplayHandle for WindowCommon {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        if self.state.upgrade().is_none() {
-            return Err(rwh_06::HandleError::Unavailable);
-        };
         let raw = rwh_06::WaylandDisplayHandle::new({
             let ptr = self.display.id().as_ptr();
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
@@ -369,18 +330,3 @@ impl rwh_06::HasDisplayHandle for WindowCommon {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }
     }
 }
-
-/// Resolving window state failed
-///
-/// This likely means that an operation was attempted on a popup window after
-/// its parent window was destroyed.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct ResolveStateError;
-
-impl fmt::Display for ResolveStateError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "the parent window has been destroyed")
-    }
-}
-
-impl std::error::Error for ResolveStateError {}

@@ -69,7 +69,7 @@ pub struct RgbaIcon {
 
 impl RgbaIcon {
     pub fn new(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        if rgba.len() % PIXEL_SIZE != 0 {
+        if !rgba.len().is_multiple_of(PIXEL_SIZE) {
             return Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
         }
         let pixel_count = rgba.len() / PIXEL_SIZE;
@@ -103,5 +103,21 @@ impl IconProvider for RgbaIcon {}
 impl From<RgbaIcon> for Icon {
     fn from(value: RgbaIcon) -> Self {
         Self(Arc::new(value))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rgba_icon_accepts_valid_buffer() {
+        assert!(RgbaIcon::new(vec![0; 2 * 2 * PIXEL_SIZE], 2, 2).is_ok());
+    }
+
+    #[test]
+    fn rgba_icon_rejects_partial_pixel() {
+        let result = RgbaIcon::new(vec![0; 2 * 2 * PIXEL_SIZE - 1], 2, 2);
+        assert!(matches!(result, Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: 15 })));
     }
 }

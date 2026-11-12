@@ -70,14 +70,15 @@ impl<T: Debug> Debug for MainThreadSafe<T> {
 
 impl<T> Drop for MainThreadSafe<T> {
     fn drop(&mut self) {
-        if let Some(value) = self.0.take() {
-            if mem::needs_drop::<T>() && MainThreadMarker::new().is_none() {
-                DROP_HANDLER
-                    .get()
-                    .expect("drop handler not initialized when setting canvas")
-                    .send(DropBox(Box::new(value)))
-                    .expect("sender dropped in main thread")
-            }
+        if let Some(value) = self.0.take()
+            && mem::needs_drop::<T>()
+            && MainThreadMarker::new().is_none()
+        {
+            DROP_HANDLER
+                .get()
+                .expect("drop handler not initialized when setting canvas")
+                .send(DropBox(Box::new(value)))
+                .expect("sender dropped in main thread")
         }
     }
 }

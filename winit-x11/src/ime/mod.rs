@@ -211,10 +211,10 @@ impl Ime {
             return Ok(false);
         }
 
-        if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
-            if allowed == context.is_allowed() {
-                return Ok(false);
-            }
+        if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window)
+            && allowed == context.is_allowed()
+        {
+            return Ok(false);
         }
 
         // Remove context for that window.

@@ -259,7 +259,7 @@ impl CursorImage {
             return Err(BadImage::TooLarge { width, height });
         }
 
-        if rgba.len() % PIXEL_SIZE != 0 {
+        if !rgba.len().is_multiple_of(PIXEL_SIZE) {
             return Err(BadImage::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
         }
 
@@ -335,5 +335,21 @@ impl CursorAnimation {
 
     pub fn into_raw(self) -> (Duration, Vec<CustomCursor>) {
         (self.duration, self.cursors)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cursor_image_accepts_valid_buffer() {
+        assert!(CursorImage::from_rgba(vec![0; 2 * 2 * PIXEL_SIZE], 2, 2, 0, 0).is_ok());
+    }
+
+    #[test]
+    fn cursor_image_rejects_partial_pixel() {
+        let result = CursorImage::from_rgba(vec![0; 2 * 2 * PIXEL_SIZE - 1], 2, 2, 0, 0);
+        assert!(matches!(result, Err(BadImage::ByteCountNotDivisibleBy4 { byte_count: 15 })));
     }
 }
