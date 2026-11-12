@@ -75,6 +75,13 @@
 //! [rustc-ios]: https://doc.rust-lang.org/rustc/platform-support/apple-ios.html
 //! [cargo-xcode-script]: https://gitlab.com/kornelski/cargo-xcode/-/blob/main/src/xcodebuild.sh
 //!
+//! ## Software keyboard composition on iOS
+//!
+//! Enable the IME on the window with `Window::request_ime_update` to receive
+//! composing text and the selected candidate through `WindowEvent::Ime`.
+//! The application owns committed text and continues to receive ordinary key
+//! events for text entered outside a composition.
+//!
 //! ## App lifecycle and events
 //!
 //! iOS environment is very different from other platforms and you must be very
