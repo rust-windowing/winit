@@ -11,6 +11,7 @@ version.workspace = true
 [features]
 # Event Handler
 event-handler = []
+timestamp-handler = []
 
 # Positioner
 positioner = ["dep:dpi"]

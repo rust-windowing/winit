@@ -23,7 +23,7 @@ use sctk::seat::pointer::{PointerData, PointerEvent, PointerEventKind, PointerHa
 
 use dpi::{LogicalPosition, PhysicalPosition};
 use winit_core::event::{
-    ButtonSource, ElementState, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
+    ButtonSource, ElementState, EventTime, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
     ScrollSource, TouchPhase, WindowEvent,
 };
 
@@ -114,7 +114,7 @@ impl PointerHandler for WinitState {
                         pressed,
                         seat,
                         serial,
-                        Duration::from_millis(time as u64),
+                        self.timestamp_extender.extend_timestamp_millisecond(time),
                         window_id,
                         &mut self.window_compositor_updates,
                     );
@@ -125,6 +125,7 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerEntered {
                             primary: true,
                             device_id: None,
+                            event_time: None,
                             position,
                             kind: PointerKind::Mouse,
                         },
@@ -146,25 +147,30 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerLeft {
                             primary: true,
                             device_id: None,
+                            event_time: None,
                             position: Some(position),
                             kind: PointerKind::Mouse,
                         },
                         window_id,
                     );
                 },
-                PointerEventKind::Motion { .. } => {
+                PointerEventKind::Motion { time } => {
                     self.events_sink.push_window_event(
                         WindowEvent::PointerMoved {
                             primary: true,
                             device_id: None,
+                            event_time: Some(EventTime(
+                                self.timestamp_extender.extend_timestamp_millisecond(time),
+                            )),
                             position,
                             source: PointerSource::Mouse,
+                            history: Vec::new(),
                         },
                         window_id,
                     );
                 },
-                ref kind @ PointerEventKind::Press { button, serial, .. }
-                | ref kind @ PointerEventKind::Release { button, serial, .. } => {
+                ref kind @ PointerEventKind::Press { button, serial, time }
+                | ref kind @ PointerEventKind::Release { button, serial, time } => {
                     // Update the last button serial.
 
                     pointer.winit_data().data().inner.lock().unwrap().latest_button_serial = serial;
@@ -184,6 +190,9 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerButton {
                             primary: true,
                             device_id: None,
+                            event_time: Some(EventTime(
+                                self.timestamp_extender.extend_timestamp_millisecond(time),
+                            )),
                             state,
                             position,
                             button,
@@ -192,7 +201,7 @@ impl PointerHandler for WinitState {
                         window_id,
                     );
                 },
-                PointerEventKind::Axis { horizontal, vertical, source, .. } => {
+                PointerEventKind::Axis { horizontal, vertical, time, source } => {
                     // Get the current phase.
                     let mut pointer_data = pointer.winit_data().data().inner.lock().unwrap();
 
@@ -248,7 +257,15 @@ impl PointerHandler for WinitState {
                     };
 
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id: None, delta, phase, source },
+                        WindowEvent::MouseWheel {
+                            device_id: None,
+                            event_time: Some(EventTime(
+                                self.timestamp_extender.extend_timestamp_millisecond(time),
+                            )),
+                            delta,
+                            phase,
+                            source,
+                        },
                         window_id,
                     )
                 },
