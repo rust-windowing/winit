@@ -103,6 +103,8 @@
 
 mod app_state;
 mod event_loop;
+#[cfg(target_os = "ios")]
+mod ime;
 mod monitor;
 mod view;
 mod view_controller;
