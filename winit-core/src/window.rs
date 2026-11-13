@@ -500,14 +500,16 @@ impl WindowAttributes {
     ///   *owned* window (no WS_CHILD style) positioned relative to, and always on top of, this
     ///   parent -- see [`WindowType::Dialog`]'s platform-specific notes.
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Wayland:** The parent must be a Wayland window created by the same event loop, otherwise
-    ///   creating the window fails with [`CreateWindowError::InvalidAttribute`]. For
+    /// - **Wayland:** The parent must be a window created by the same event loop. For
     ///   [`WindowType::Window`] and [`WindowType::Dialog`], the parent must be a window or a dialog
-    ///   (not a popup). It is set with `xdg_toplevel.set_parent`, and the child is closed together
-    ///   with its parent.
+    ///   (not a popup). The child is attached to it with `xdg_toplevel.set_parent`; where it is
+    ///   placed is up to the compositor. When the parent is closed, its children are closed as well
+    ///   and receive [`WindowEvent::Destroyed`]. They stay visible until the application drops
+    ///   them, and so does the parent, which is only destroyed once all its children have been
+    ///   dropped.
     /// - **Android / iOS / Web:** Unsupported.
     ///
-    /// [`CreateWindowError::InvalidAttribute`]: crate::error::CreateWindowError::InvalidAttribute
+    /// [`WindowEvent::Destroyed`]: crate::event::WindowEvent::Destroyed
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,

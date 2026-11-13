@@ -1,5 +1,6 @@
 //! The state of the window, which is shared with the event-loop.
 
+use std::fmt;
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -24,9 +25,9 @@ use tracing::{info, warn};
 use wayland_client::protocol::wl_seat::WlSeat;
 use wayland_protocols::xdg::shell::client::xdg_toplevel;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{ResizeDirection, Theme, WindowId};
+use winit_core::window::{ResizeDirection, Theme, WindowAttributes, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::seat::{
@@ -54,6 +55,48 @@ pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState
 
 // Minimum window surface size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
+
+/// The parent of a window or popup.
+pub struct WindowParent {
+    /// The id of the parent.
+    pub id: WindowId,
+
+    /// Keeps the parent alive for as long as the child exists.
+    ///
+    /// A parent must never be destroyed before its children: xdg-shell requires nested popups
+    /// to be destroyed topmost first, and a dialog should not outlive the window it belongs to.
+    /// When the parent is closed, the event loop closes its children as well; their Wayland
+    /// objects, and then the parent's, are destroyed once the application drops the children.
+    pub state: Arc<Mutex<WindowState>>,
+}
+
+impl WindowParent {
+    /// Resolves the parent window set in `attributes`, or [`None`] if no parent is set.
+    ///
+    /// Fails if the parent is not a Wayland window, or not a window of this event loop.
+    pub fn from_attributes(
+        state: &WinitState,
+        attributes: &WindowAttributes,
+    ) -> Result<Option<Self>, CreateWindowError> {
+        let Some(parent_window_handle) = attributes.parent_window() else { return Ok(None) };
+        let rwh_06::RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
+            return Err(InvalidInput::new("The parent must be a Wayland window handle").into());
+        };
+
+        let id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
+        let Some(parent_state) = state.windows.borrow().get(&id).cloned() else {
+            return Err(InvalidInput::new("Unknown parent window id").into());
+        };
+        Ok(Some(Self { id, state: parent_state }))
+    }
+}
+
+impl fmt::Debug for WindowParent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Don't print the parent's whole state.
+        f.debug_struct("WindowParent").field("id", &self.id).finish_non_exhaustive()
+    }
+}
 
 /// The state of the window which is being updated from the [`WinitState`].
 #[derive(Debug)]
@@ -174,11 +217,14 @@ pub struct WindowState {
     /// The window frame, which is created from the configure request.
     frame: Option<WinitFrame>,
 
-    /// Parent Window if available
-    parent: Option<WindowId>,
-
     /// Children of this window like popups, dialogs or other windows
     children: Vec<WindowId>,
+
+    /// Parent window if available.
+    ///
+    /// NOTE: This must stay the last field, so the parent is released only after this
+    /// window's own Wayland objects (`window`, `frame`) have been destroyed.
+    parent: Option<WindowParent>,
 }
 
 impl WindowState {
@@ -192,7 +238,7 @@ impl WindowState {
         theme: Option<Theme>,
         prefer_csd: bool,
         scale_factor: f64,
-        parent: Option<WindowId>,
+        parent: Option<WindowParent>,
     ) -> Self {
         let handle = active_event_loop.handle.clone();
         let queue_handle = &active_event_loop.queue_handle;
@@ -800,7 +846,7 @@ impl WindowState {
     }
 
     pub fn parent(&self) -> Option<WindowId> {
-        self.parent
+        self.parent.as_ref().map(|parent| parent.id)
     }
 
     pub fn remove_child(&mut self, child: &WindowId) {

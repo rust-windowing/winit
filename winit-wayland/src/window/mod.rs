@@ -7,7 +7,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use dpi::{LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
-use rwh_06::RawWindowHandle;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::window::WindowDecorations;
@@ -28,7 +27,7 @@ use super::ActiveEventLoop;
 use super::types::xdg_activation::XdgActivationTokenData;
 use crate::state::WinitState;
 use crate::window::common::WindowCommon;
-use crate::window::state::WindowType;
+use crate::window::state::{WindowParent, WindowType};
 use crate::{WindowAttributesWayland, output};
 pub(crate) mod state;
 pub use state::WindowState;
@@ -41,19 +40,26 @@ pub(crate) mod common;
 #[derive(Debug)]
 pub struct Window {
     pub(crate) common: WindowCommon,
+
+    /// The window's `wl_surface`. It stays alive as long as this window, because
+    /// [`WindowCommon::state`] holds a strong reference to the SCTK window that owns it.
+    surface: WlSurface,
 }
 
 /// Registers `window_state` with the event loop, waits for its initial configure, and wakes the
 /// event loop for the first redraw.
 ///
 /// If `dismissed_error` is set, the wait loop bails out early with that message when the
-/// compositor closes the surface before ever sending a configure
+/// compositor closes the surface before ever sending a configure, and the surface is removed from
+/// the event loop again. Use it for popups, where `xdg_popup.popup_done` is final. Pass `None`
+/// for a toplevel: `xdg_toplevel.close` is only a request, the toplevel will still be configured,
+/// and the queued close is delivered as `WindowEvent::CloseRequested` once the window exists.
 pub(crate) fn finish_window_setup(
     event_loop_window_target: &ActiveEventLoop,
     state: &mut WinitState,
     surface: &WlSurface,
     window_state: &Arc<Mutex<WindowState>>,
-    dismissed_error: &'static str,
+    dismissed_error: Option<&'static str>,
 ) -> Result<(WindowId, Arc<WindowRequests>), CreateWindowError> {
     let window_id = super::make_wid(surface);
     state.windows.get_mut().insert(window_id, window_state.clone());
@@ -67,24 +73,35 @@ pub(crate) fn finish_window_setup(
     let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
     let event_queue = wayland_source.queue();
 
+    let cleanup_on_error = |state: &mut WinitState| {
+        state.windows.get_mut().remove(&window_id);
+        state.window_requests.get_mut().remove(&window_id);
+        state.window_compositor_updates.retain(|u| u.window_id != window_id);
+    };
+
     // Do a roundtrip.
-    event_queue.roundtrip(state).map_err(|err| os_error!(err))?;
+    if let Err(e) = event_queue.roundtrip(state).map_err(|err| os_error!(err)) {
+        cleanup_on_error(state);
+        return Err(e.into());
+    }
 
     // XXX Wait for the initial configure to arrive.
     while !window_state.lock().unwrap().is_configured() {
-        event_queue.blocking_dispatch(state).map_err(|err| os_error!(err))?;
-
         // The compositor may dismiss the surface before it ever sends a configure. Detect
         // that and bail out instead of looping forever.
-        if state
-            .window_compositor_updates
-            .iter()
-            .any(|u| u.window_id == window_id && u.close_window)
+        if let Some(dismissed_error) = dismissed_error
+            && state
+                .window_compositor_updates
+                .iter()
+                .any(|u| u.window_id == window_id && u.close_window)
         {
-            state.windows.get_mut().remove(&window_id);
-            state.window_requests.get_mut().remove(&window_id);
-            state.window_compositor_updates.retain(|u| u.window_id != window_id);
+            cleanup_on_error(state);
             return Err(os_error!(DismissedError(dismissed_error)).into());
+        }
+
+        if let Err(e) = event_queue.blocking_dispatch(state).map_err(|err| os_error!(err)) {
+            cleanup_on_error(state);
+            return Err(e.into());
         }
     }
 
@@ -94,7 +111,7 @@ pub(crate) fn finish_window_setup(
     Ok((window_id, window_requests))
 }
 
-/// Constructing a window/popup/dialog failed: the compositor dismissed the surface before it
+/// Constructing a window/popup failed: the compositor dismissed the surface before it
 /// ever sent an initial configure.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct DismissedError(&'static str);
@@ -110,6 +127,10 @@ impl std::error::Error for DismissedError {}
 type SetupResults =
     (Arc<Mutex<WindowState>>, WindowId, Arc<WindowRequests>, Option<XdgActivationV1>);
 
+/// The resolved parent of an `xdg_toplevel`-based surface: the parent itself, its `xdg_toplevel`,
+/// and its scale factor.
+pub(crate) type ToplevelParent = (WindowParent, xdg_toplevel::XdgToplevel, f64);
+
 impl Window {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
@@ -117,6 +138,9 @@ impl Window {
     ) -> Result<Self, CreateWindowError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
+
+        // Resolve the parent before creating any Wayland objects.
+        let parent = Self::parent_from_attributes(&state, &attributes)?;
 
         let monitors = state.monitors.clone();
 
@@ -139,20 +163,18 @@ impl Window {
             event_loop_window_target,
             &mut state,
             attributes,
-            state::WindowType::Window { window, last_configure: None },
+            WindowType::Window { window, last_configure: None },
             &surface,
-            "Window was dismissed by the compositor before configure",
+            parent,
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
         // Setup the event sync to insert `WindowEvents` right from the window.
         let window_events_sink = state.window_events_sink.clone();
 
-        let state_weak = Arc::downgrade(&window_state);
-
         Ok(Self {
             common: WindowCommon {
-                state: state_weak,
+                state: window_state,
                 window_id,
                 display,
                 handles: Handles {
@@ -168,57 +190,55 @@ impl Window {
                     attention_requested: Arc::new(AtomicBool::new(false)),
                 },
             },
+            surface,
         })
     }
 
+    /// Resolves the parent set in `attributes` for an `xdg_toplevel`-based surface, or [`None`]
+    /// if no parent is set.
+    ///
+    /// Fails if the parent is not a Wayland window of this event loop, or has no `xdg_toplevel`
+    /// (a popup).
     pub(crate) fn parent_from_attributes(
-        state: &mut WinitState,
+        state: &WinitState,
         attributes: &WindowAttributes,
-    ) -> Result<Option<(WindowId, xdg_toplevel::XdgToplevel, f64)>, CreateWindowError> {
-        let Some(parent_window_handle) = attributes.parent_window() else { return Ok(None) };
-
-        let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
-            return Err(
-                InvalidInput::new("A Window requires a parent wayland window handle").into()
-            );
+    ) -> Result<Option<ToplevelParent>, CreateWindowError> {
+        let Some(parent) = WindowParent::from_attributes(state, attributes)? else {
+            return Ok(None);
         };
 
-        let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
-
-        let (parent_xdg_toplevel, scale_factor) = {
-            let windows = state.windows.borrow();
-            let Some(parent_window_state) = windows.get(&parent_window_id) else {
-                return Err(InvalidInput::new("Unknown parent window id").into());
+        let (xdg_toplevel, scale_factor) = {
+            let parent_state = parent.state.lock().unwrap();
+            let Some(xdg_toplevel) = parent_state.xdg_toplevel() else {
+                return Err(
+                    InvalidInput::new("Parent of a window must be a window or a dialog").into()
+                );
             };
-            let parent_window_state = parent_window_state.lock().unwrap();
-            let scale_factor = parent_window_state.scale_factor();
-            let parent_xdg_toplevel = {
-                match &parent_window_state.window {
-                    WindowType::Window { window, .. } => window.xdg_toplevel().clone(),
-                    WindowType::Dialog { dialog, .. } => dialog.xdg_toplevel().clone(),
-                    WindowType::Popup { .. } => {
-                        return Err(InvalidInput::new(
-                            "Parent of a window must be a window or a dialog",
-                        )
-                        .into());
-                    },
-                }
-            };
-            (parent_xdg_toplevel, scale_factor)
+            (xdg_toplevel.clone(), parent_state.scale_factor())
         };
-        Ok(Some((parent_window_id, parent_xdg_toplevel, scale_factor)))
+
+        Ok(Some((parent, xdg_toplevel, scale_factor)))
     }
 
+    /// Sets up an `xdg_toplevel`-based surface: applies `attributes`, sets the `parent`, registers
+    /// the surface with the event loop and waits for its initial configure.
+    ///
+    /// `parent` is the result of [`Self::parent_from_attributes`] for the same `attributes`.
     pub(crate) fn setup(
         event_loop_window_target: &ActiveEventLoop,
         state: &mut WinitState,
         mut attributes: WindowAttributes,
-        window_type: state::WindowType,
+        window_type: WindowType,
         surface: &WlSurface,
-        dismissed_error: &'static str,
+        parent: Option<ToplevelParent>,
     ) -> Result<SetupResults, CreateWindowError> {
-        let parent = crate::Window::parent_from_attributes(state, &attributes)?;
-        let scale_factor = parent.as_ref().map(|(_, _, scale_factor)| *scale_factor).unwrap_or(1.0);
+        let (parent, parent_xdg_toplevel, scale_factor) = match parent {
+            Some((parent, xdg_toplevel, scale_factor)) => {
+                (Some(parent), Some(xdg_toplevel), scale_factor)
+            },
+            None => (None, None, 1.0),
+        };
+        let parent_state = parent.as_ref().map(|parent| parent.state.clone());
 
         let size: Size = attributes.surface_size.unwrap_or(LogicalSize::new(800., 600.).into());
         let WindowAttributesWayland { name: app_name, activation_token, prefer_csd, .. } =
@@ -236,7 +256,7 @@ impl Window {
             attributes.preferred_theme,
             prefer_csd,
             scale_factor,
-            parent.as_ref().map(|(window_id, ..)| *window_id),
+            parent,
         );
 
         window_state.set_window_icon(attributes.window_icon);
@@ -263,14 +283,19 @@ impl Window {
         // Non-resizable implies that the min and max sizes are set to the same value.
         window_state.set_resizable(attributes.resizable);
 
-        // Set startup mode.
-        let xdg_toplevel = window_state.xdg_toplevel().unwrap(); // a window is always an xdg toplevel
-        xdg_toplevel.set_parent(parent.as_ref().map(|(_, parent, _)| parent));
+        let xdg_toplevel = window_state
+            .xdg_toplevel()
+            .expect("setup is only used for xdg_toplevel-based surfaces");
+
+        // Set the parent.
+        xdg_toplevel.set_parent(parent_xdg_toplevel.as_ref());
 
         // Set the app_id.
         if let Some(name) = app_name.map(|name| name.general) {
             xdg_toplevel.set_app_id(name);
         }
+
+        // Set startup mode.
         match attributes.fullscreen {
             Some(Fullscreen::Exclusive(..)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
@@ -306,20 +331,17 @@ impl Window {
 
         // Add the window and window requests into the state.
         let window_state = Arc::new(Mutex::new(window_state));
-
         let (window_id, window_requests) = finish_window_setup(
             event_loop_window_target,
             state,
             surface,
             &window_state,
-            dismissed_error,
+            // `xdg_toplevel.close` is only a request, so it never fails the creation.
+            None,
         )?;
 
-        if let Some((parent_window_id, ..)) = parent {
-            let windows = state.windows.borrow();
-            if let Some(parent_window_state) = windows.get(&parent_window_id) {
-                parent_window_state.lock().unwrap().add_child(window_id);
-            }
+        if let Some(parent_state) = parent_state {
+            parent_state.lock().unwrap().add_child(window_id);
         }
 
         Ok((window_state, window_id, window_requests, xdg_activation))
@@ -337,27 +359,20 @@ impl Window {
             None => return Err(NotSupportedError::new("xdg_activation_v1 is not available").into()),
         };
 
-        let surface = self
-            .surface()
-            .ok_or_else(|| os_error!(std::io::Error::other("the window has been destroyed")))?;
         let serial = AsyncRequestSerial::get();
 
         let data = XdgActivationTokenData::Obtain((self.common.id(), serial));
         let xdg_activation_token =
             xdg_activation.get_activation_token(&self.common.handles.queue_handle, data);
-        xdg_activation_token.set_surface(&surface);
+        xdg_activation_token.set_surface(self.surface());
         xdg_activation_token.commit();
 
         Ok(serial)
     }
 
-    /// The window's `wl_surface`, or [`None`] if the window has already been destroyed, e.g.
-    /// because its parent was closed.
     #[inline]
-    pub fn surface(&self) -> Option<WlSurface> {
-        let state = self.common.state.upgrade()?;
-        let surface = state.lock().unwrap().window.wl_surface().clone();
-        Some(surface)
+    pub fn surface(&self) -> &WlSurface {
+        &self.surface
     }
 }
 
@@ -475,9 +490,7 @@ impl CoreWindow for Window {
             return;
         }
 
-        if let Some(state) = self.common.state.upgrade()
-            && let Some(xdg_toplevel) = state.lock().unwrap().xdg_toplevel()
-        {
+        if let Some(xdg_toplevel) = self.common.state.lock().unwrap().xdg_toplevel() {
             xdg_toplevel.set_minimized();
         }
     }

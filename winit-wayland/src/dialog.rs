@@ -37,11 +37,10 @@ impl Dialog {
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
 
-        let Some((_, parent_xdg_toplevel, _)) =
-            crate::Window::parent_from_attributes(&mut state, &attributes)?
-        else {
+        let Some(parent) = crate::Window::parent_from_attributes(&state, &attributes)? else {
             return Err(InvalidInput::new("Dialog without a parent is not supported").into());
         };
+        let parent_xdg_toplevel = parent.1.clone();
 
         let (dialog_state, window_id, window_requests) = {
             // We prefer server side decorations, however to not have decorations we ask for client
@@ -77,7 +76,7 @@ impl Dialog {
                 attributes,
                 WindowType::Dialog { dialog: dialog.clone(), last_configure: None },
                 &surface,
-                "Dialog was dismissed by the compositor before configure",
+                Some(parent),
             )?;
 
             (dialog_state, window_id, window_requests)
@@ -89,7 +88,7 @@ impl Dialog {
 
         Ok(Box::new(Self {
             common: WindowCommon {
-                state: Arc::downgrade(&dialog_state),
+                state: dialog_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
                 handles: Handles {

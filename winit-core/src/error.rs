@@ -147,7 +147,7 @@ impl From<OsError> for TransferError {
 pub enum FetchError {
     /// Unknown [`DataTransferId`]
     UnknownTransfer(DataTransferId),
-    /// The requested [`TransferType`] is not available
+    /// The requested [`TransferType`](crate::data_transfer::TransferType) is not available.
     TransferType,
     /// Got unspecified OS specific error during the request.
     Os(OsError),

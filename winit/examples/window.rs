@@ -66,7 +66,7 @@ impl ApplicationHandler for App {
                 buffer.present().expect("Failed to present the softbuffer buffer");
 
                 // For contiguous redraw loop you can request a redraw from here.
-                // window.request_redraw();
+                // surface.window().request_redraw();
             },
             _ => (),
         }

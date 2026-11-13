@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
-use rwh_06::RawWindowHandle;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
@@ -22,7 +21,7 @@ use winit_core::window::{
 use super::ActiveEventLoop;
 use crate::WindowAttributesWayland;
 use crate::window::common::WindowCommon;
-use crate::window::state::{WindowState, WindowType};
+use crate::window::state::{WindowParent, WindowState, WindowType};
 use crate::window::{Handles, finish_window_setup};
 
 #[derive(Debug)]
@@ -35,24 +34,18 @@ impl Popup {
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
     ) -> Result<Self, CreateWindowError> {
-        let parent_window_handle = attributes
-            .parent_window()
-            .ok_or(InvalidInput::new("Popup without a parent is not supported"))?;
-        let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle else {
-            return Err(InvalidInput::new("A Popup requires a parent wayland window handle").into());
-        };
-
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
+        // A closed popup counts as the topmost one until its Wayland objects are destroyed,
+        // and mapping a popup with a grab then fails with `not_the_topmost_popup`.
+        state.execute_close_window();
+        let parent = WindowParent::from_attributes(&state, &attributes)?
+            .ok_or(InvalidInput::new("Popup without a parent is not supported"))?;
+        let parent_state = parent.state.clone();
         let monitors = state.monitors.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
         let xdg_positioner = XdgPositioner::new(&state.xdg_shell).map_err(|e| os_error!(e))?;
-        let parent_window_id = WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
-        let window_states = state.windows.borrow();
-        let Some(parent_window_state) = window_states.get(&parent_window_id) else {
-            return Err(InvalidInput::new("Unknown parent window id").into());
-        };
 
         let WindowPositioner {
             anchor,
@@ -64,7 +57,7 @@ impl Popup {
         } = attributes.positioner.unwrap_or_default();
         let grab_keyboard = attributes.active;
 
-        let parent_window_state = parent_window_state.lock().unwrap();
+        let parent_window_state = parent_state.lock().unwrap();
 
         // Use the scale factor and xdg geometry of the parent.
         let scale_factor = parent_window_state.scale_factor();
@@ -131,7 +124,6 @@ impl Popup {
         )
         .map_err(|e| os_error!(e))?;
         drop(parent_window_state);
-        drop(window_states);
 
         let mut popup_state = WindowState::new(
             event_loop_window_target,
@@ -153,7 +145,7 @@ impl Popup {
             attributes.preferred_theme,
             false,
             scale_factor,
-            Some(parent_window_id),
+            Some(parent),
         );
 
         // Set transparency hint.
@@ -205,21 +197,16 @@ impl Popup {
             &mut state,
             popup.wl_surface(),
             &popup_state,
-            "Popup was dismissed by the compositor before configure",
+            Some("Popup was dismissed by the compositor before configure"),
         )?;
 
         let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
 
-        let windows = state.windows.borrow();
-        if let Some(parent_window_state) = windows.get(&parent_window_id) {
-            let mut parent_window_state = parent_window_state.lock().unwrap();
-            parent_window_state.add_child(super::make_wid(popup.wl_surface()));
-            drop(parent_window_state);
-        };
+        parent_state.lock().unwrap().add_child(window_id);
 
         Ok(Self {
             common: WindowCommon {
-                state: Arc::downgrade(&popup_state),
+                state: popup_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
                 handles: Handles {
@@ -245,8 +232,7 @@ impl CoreWindow for Popup {
     }
 
     fn positioner(&self) -> WindowPositioner {
-        let Some(state) = self.common.state.upgrade() else { return WindowPositioner::default() };
-        if let WindowType::Popup { positioner, .. } = &state.lock().unwrap().window {
+        if let WindowType::Popup { positioner, .. } = &self.common.state.lock().unwrap().window {
             *positioner
         } else {
             WindowPositioner::default()
@@ -254,11 +240,7 @@ impl CoreWindow for Popup {
     }
 
     fn set_positioner(&self, new_positioner: WindowPositioner) {
-        let Some(state) = self.common.state.upgrade() else {
-            return;
-        };
-
-        let mut state = state.lock().unwrap();
+        let mut state = self.common.state.lock().unwrap();
         let scale_factor = state.scale_factor();
 
         if let WindowType::Popup { popup, xdg_positioner, parent_origin, positioner, .. } =
@@ -320,12 +302,7 @@ impl CoreWindow for Popup {
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let s = self
-            .common
-            .state
-            .upgrade()
-            .ok_or_else(|| os_error!(PopupError("the popup has been destroyed")))?;
-        let state = s.lock().unwrap();
+        let state = self.common.state.lock().unwrap();
         if let WindowType::Popup { last_configure: Some(configure), .. } = &state.window {
             let (x, y) = configure.position;
             return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
@@ -334,8 +311,7 @@ impl CoreWindow for Popup {
     }
 
     fn set_outer_position(&self, position: Position) {
-        let Some(s) = self.common.state.upgrade() else { return };
-        let mut state = s.lock().unwrap();
+        let mut state = self.common.state.lock().unwrap();
         let scale_factor = state.scale_factor();
         if let WindowType::Popup { popup, xdg_positioner, positioner, parent_origin, .. } =
             &mut state.window
