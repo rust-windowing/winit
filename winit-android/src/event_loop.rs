@@ -30,6 +30,8 @@ use winit_core::window::{
     WindowLevel,
 };
 
+#[cfg(feature = "game-activity")]
+use crate::ime::ImeState;
 use crate::keycodes;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
@@ -155,6 +157,8 @@ impl EventLoop {
                 exit: Cell::new(false),
                 redraw_requester: RedrawRequester::new(&redraw_flag, android_app.create_waker()),
                 event_loop_proxy,
+                #[cfg(feature = "game-activity")]
+                ime: Arc::default(),
             },
             redraw_flag,
             loop_running: false,
@@ -269,6 +273,18 @@ impl EventLoop {
         let android_app = self.android_app.clone();
 
         // Process input events
+        #[cfg(feature = "game-activity")]
+        {
+            let notifications =
+                std::mem::take(&mut self.window_target.ime.lock().unwrap().notifications);
+            for event in notifications {
+                app.window_event(
+                    &self.window_target,
+                    GLOBAL_WINDOW,
+                    event::WindowEvent::Ime(event),
+                );
+            }
+        }
         match android_app.input_events_iter() {
             Ok(mut input_iter) => loop {
                 let read_event =
@@ -503,6 +519,17 @@ impl EventLoop {
                     },
                 }
             },
+            #[cfg(feature = "game-activity")]
+            InputEvent::TextEvent(state) => {
+                let events = self.window_target.ime.lock().unwrap().update(state);
+                for event in events {
+                    app.window_event(
+                        &self.window_target,
+                        GLOBAL_WINDOW,
+                        event::WindowEvent::Ime(event),
+                    );
+                }
+            },
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             },
@@ -712,6 +739,8 @@ pub struct ActiveEventLoop {
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
     event_loop_proxy: Arc<EventLoopProxy>,
+    #[cfg(feature = "game-activity")]
+    ime: Arc<Mutex<ImeState>>,
 }
 
 impl ActiveEventLoop {
@@ -803,6 +832,8 @@ pub struct Window {
     app: AndroidApp,
     ime_capabilities: Mutex<Option<ImeCapabilities>>,
     redraw_requester: RedrawRequester,
+    #[cfg(feature = "game-activity")]
+    ime: Arc<Mutex<ImeState>>,
 }
 
 impl Window {
@@ -822,6 +853,8 @@ impl Window {
             app: el.app.clone(),
             ime_capabilities: Default::default(),
             redraw_requester: el.redraw_requester.clone(),
+            #[cfg(feature = "game-activity")]
+            ime: el.ime.clone(),
         })
     }
 
@@ -1003,6 +1036,12 @@ impl CoreWindow for Window {
                     return Err(ImeRequestError::AlreadyEnabled);
                 }
                 *current_caps = Some(capabilities);
+                #[cfg(feature = "game-activity")]
+                {
+                    self.ime.lock().unwrap().enable();
+                    self.app.set_text_input_state(Default::default());
+                    self.redraw_requester.waker.wake();
+                }
                 self.app.show_soft_input(true);
             },
             ImeRequest::Update(_) => {
@@ -1012,6 +1051,11 @@ impl CoreWindow for Window {
             },
             ImeRequest::Disable => {
                 *current_caps = None;
+                #[cfg(feature = "game-activity")]
+                {
+                    self.ime.lock().unwrap().disable();
+                    self.redraw_requester.waker.wake();
+                }
                 self.app.hide_soft_input(true);
             },
             _ => return Err(ImeRequestError::NotSupported),
