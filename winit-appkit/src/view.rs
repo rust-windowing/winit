@@ -13,6 +13,7 @@ use objc2_app_kit::{
     NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGRect;
+use objc2_core_graphics::{CGEvent, CGEventField};
 use objc2_foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSNotFound, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
@@ -775,12 +776,44 @@ define_class!(
                 ScrollSource::Wheel
             };
 
+            // The number of physical wheel notches read from the `CGEvent`.
+            // Unlike `delta`, this is not scaled by system settings, allowing
+            // applications to reliably count discrete notches.
+            //
+            // Reported as `None` for precise (pixel) deltas, such as those from
+            // trackpads or momentum scrolling.
+            //
+            // `kCGScrollWheelEventDeltaAxis1` (vertical) and `Axis2` (horizontal)
+            // match the sign convention of `NSEvent`'s `scrollingDelta` and `delta`.
+            let tick_count =
+                if event.hasPreciseScrollingDeltas() || momentum_phase != NSEventPhase::None {
+                    None
+                } else {
+                    event.CGEvent().map(|cg_event| {
+                        let x = CGEvent::integer_value_field(
+                            Some(&cg_event),
+                            CGEventField::ScrollWheelEventDeltaAxis2,
+                        );
+                        let y = CGEvent::integer_value_field(
+                            Some(&cg_event),
+                            CGEventField::ScrollWheelEventDeltaAxis1,
+                        );
+                        (x as f64, y as f64)
+                    })
+                };
+
             self.update_modifiers(event, false);
 
             self.ivars().app_state.maybe_queue_with_handler(move |app, event_loop| {
-                app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta })
+                app.device_event(event_loop, None, DeviceEvent::MouseWheel { delta, tick_count })
             });
-            self.queue_event(WindowEvent::MouseWheel { device_id: None, delta, phase, source });
+            self.queue_event(WindowEvent::MouseWheel {
+                device_id: None,
+                delta,
+                phase,
+                source,
+                tick_count,
+            });
         }
 
         #[unsafe(method(magnifyWithEvent:))]

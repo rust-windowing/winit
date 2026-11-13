@@ -44,6 +44,11 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `tick_count` to `WindowEvent::MouseWheel` and `DeviceEvent::MouseWheel`, reporting how many
+  wheel notches an event represents. Implemented on macOS, Windows, Wayland and X11.
+
 ### Changed
 
 - On Wayland, a window created with a parent window now calls `xdg_toplevel.set_parent` with that

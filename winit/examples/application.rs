@@ -450,14 +450,19 @@ impl ApplicationHandler for Application {
                 window.modifiers = modifiers.state();
                 info!("Modifiers changed to {:?}", window.modifiers);
             },
-            WindowEvent::MouseWheel { delta, .. } => match delta {
-                MouseScrollDelta::LineDelta(x, y) => {
-                    info!("Mouse wheel Line Delta: ({x},{y})");
-                },
-                MouseScrollDelta::PixelDelta(px) => {
-                    info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
-                },
-                _ => (),
+            WindowEvent::MouseWheel { delta, tick_count, .. } => {
+                match delta {
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        info!("Mouse wheel Line Delta: ({x},{y})");
+                    },
+                    MouseScrollDelta::PixelDelta(px) => {
+                        info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
+                    },
+                    _ => (),
+                }
+                if let Some((x, y)) = tick_count {
+                    info!("Mouse wheel tick count: ({x},{y}) (wheel notches)");
+                }
             },
             WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
                 let mods = window.modifiers;

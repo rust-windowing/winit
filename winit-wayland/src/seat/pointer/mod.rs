@@ -217,26 +217,36 @@ impl PointerHandler for WinitState {
                     // Update the phase.
                     pointer_data.phase = phase;
 
-                    // Mice events have both pixel and discrete delta's at the same time. So prefer
+                    // Mice events have both pixel and discrete deltas at the same time, so prefer
                     // the discrete values if they are present.
-                    let delta = if has_value120_scroll {
-                        // NOTE: Wayland sign convention is the inverse of winit.
-                        MouseScrollDelta::LineDelta(
-                            (-horizontal.value120) as f32 / 120.,
-                            (-vertical.value120) as f32 / 120.,
-                        )
+                    //
+                    // NOTE: Wayland sign convention is the inverse of winit.
+                    let discrete = if has_value120_scroll {
+                        // 120 units of `value120` are one wheel notch.
+                        Some((
+                            (-horizontal.value120) as f64 / 120.,
+                            (-vertical.value120) as f64 / 120.,
+                        ))
                     } else if has_discrete_scroll {
-                        // NOTE: Wayland sign convention is the inverse of winit.
-                        MouseScrollDelta::LineDelta(
-                            (-horizontal.discrete) as f32,
-                            (-vertical.discrete) as f32,
-                        )
+                        // `discrete` is already expressed in notches.
+                        Some(((-horizontal.discrete) as f64, (-vertical.discrete) as f64))
                     } else {
-                        // NOTE: Wayland sign convention is the inverse of winit.
-                        MouseScrollDelta::PixelDelta(
+                        None
+                    };
+
+                    let delta = match discrete {
+                        Some((x, y)) => MouseScrollDelta::LineDelta(x as f32, y as f32),
+                        None => MouseScrollDelta::PixelDelta(
                             LogicalPosition::new(-horizontal.absolute, -vertical.absolute)
                                 .to_physical(scale_factor),
-                        )
+                        ),
+                    };
+
+                    // `axis_value120` may come with any `axis_source`, and `axis_source` itself is
+                    // optional, so only drop the notches when the source says it isn't a wheel.
+                    let tick_count = match source {
+                        Some(AxisSource::Finger | AxisSource::Continuous) => None,
+                        _ => discrete,
                     };
 
                     let source = match source {
@@ -248,7 +258,13 @@ impl PointerHandler for WinitState {
                     };
 
                     self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id: None, delta, phase, source },
+                        WindowEvent::MouseWheel {
+                            device_id: None,
+                            delta,
+                            phase,
+                            source,
+                            tick_count,
+                        },
                         window_id,
                     )
                 },

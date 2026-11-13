@@ -379,6 +379,7 @@ impl ActiveEventLoop {
                         delta,
                         phase: TouchPhase::Moved,
                         source: ScrollSource::Unknown,
+                        tick_count: None,
                     },
                 },
             )));

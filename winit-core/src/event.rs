@@ -315,6 +315,24 @@ pub enum WindowEvent {
         /// - **macOS / Wayland:** Reported.
         /// - **Windows / X11 / Web / Orbital / iOS / Android:** Always [`ScrollSource::Unknown`].
         source: ScrollSource,
+
+        /// The number of wheel notches this event represents, as `(horizontal, vertical)`.
+        ///
+        /// `1.0` is one notch of a standard wheel, unaffected by scroll acceleration or
+        /// lines-per-notch settings. It can be fractional for high-resolution wheels, and uses
+        /// the same sign convention as [`MouseScrollDelta`]. `None` if the event doesn't come from
+        /// a notched wheel, or the platform can't tell.
+        ///
+        /// ## Platform-specific
+        ///
+        /// - **macOS:** `None` for touchpads and momentum scrolling.
+        /// - **Wayland:** `Some` when the compositor sends discrete scroll data (`axis_value120`
+        ///   or `axis_discrete`) and the source isn't explicitly finger or continuous scrolling.
+        ///   Compositors such as GNOME send discrete data for touchpad scrolls too, so touchpads
+        ///   can report `Some` as well.
+        /// - **Windows / X11:** Also `Some` for touchpads.
+        /// - **Web / iOS / Android / Orbital:** Always `None`.
+        tick_count: Option<(f64, f64)>,
     },
 
     /// An mouse button press has been received.
@@ -768,6 +786,10 @@ pub enum DeviceEvent {
     /// Physical scroll event
     MouseWheel {
         delta: MouseScrollDelta,
+        /// The number of wheel notches this event represents.
+        ///
+        /// See [`WindowEvent::MouseWheel::tick_count`] for details.
+        tick_count: Option<(f64, f64)>,
     },
 
     Button {
@@ -1750,6 +1772,7 @@ mod tests {
                 delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 phase: event::TouchPhase::Started,
                 source: event::ScrollSource::Unknown,
+                tick_count: None,
             });
             with_window_event(PointerButton {
                 device_id: None,
@@ -1797,7 +1820,10 @@ mod tests {
             let mut with_device_event: &mut dyn FnMut(event::DeviceEvent) = &mut $closure;
 
             with_device_event(PointerMotion { delta: (0.0, 0.0).into() });
-            with_device_event(MouseWheel { delta: event::MouseScrollDelta::LineDelta(0.0, 0.0) });
+            with_device_event(MouseWheel {
+                delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
+                tick_count: None,
+            });
             with_device_event(Button { button: 0, state: event::ElementState::Pressed });
         }};
     }
