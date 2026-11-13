@@ -56,6 +56,9 @@ changelog entry.
 
 ### Fixed
 
+- On X11, preserve input context focus when enabling or disabling IME on a
+  focused window.
+
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
