@@ -20,8 +20,8 @@ use windows_sys::Win32::Graphics::Dwm::{
 };
 use windows_sys::Win32::Graphics::Gdi::{
     CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, CreateSolidBrush,
-    DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, 
-    DISP_CHANGE_SUCCESSFUL, DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, 
+    DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED,
+    DISP_CHANGE_SUCCESSFUL, DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow,
     ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
