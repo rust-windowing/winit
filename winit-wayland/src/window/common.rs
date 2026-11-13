@@ -134,7 +134,7 @@ impl WindowCommon {
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn set_resizable(&self, resizable: bool) {
+    pub(crate) fn set_resizable(&self, resizable: bool) {
         if self.state.lock().unwrap().set_resizable(resizable) {
             // NOTE: Requires commit to be applied.
             self.request_redraw();
@@ -142,7 +142,7 @@ impl WindowCommon {
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn is_resizable(&self) -> bool {
+    pub(crate) fn is_resizable(&self) -> bool {
         self.state.lock().unwrap().resizable()
     }
 
@@ -160,21 +160,21 @@ impl WindowCommon {
 
     /// Only meaningful for a top-level surface.
     #[inline]
-    pub(super) fn set_decorations(&self, decorate: bool) {
+    pub(crate) fn set_decorations(&self, decorate: bool) {
         self.state.lock().unwrap().set_decorate(decorate)
     }
 
     /// Only meaningful for a top-level surface.
     #[inline]
-    pub(super) fn is_decorated(&self) -> Option<bool> {
+    pub(crate) fn is_decorated(&self) -> Option<bool> {
         Some(self.state.lock().unwrap().is_decorated())
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn set_window_level(&self, _level: WindowLevel) {}
+    pub(crate) fn set_window_level(&self, _level: WindowLevel) {}
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
+    pub(crate) fn set_window_icon(&self, window_icon: Option<winit_core::icon::Icon>) {
         self.state.lock().unwrap().set_window_icon(window_icon)
     }
 
@@ -208,12 +208,12 @@ impl WindowCommon {
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn set_theme(&self, theme: Option<Theme>) {
+    pub(crate) fn set_theme(&self, theme: Option<Theme>) {
         self.state.lock().unwrap().set_theme(theme)
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn theme(&self) -> Option<Theme> {
+    pub(crate) fn theme(&self) -> Option<Theme> {
         self.state.lock().unwrap().theme()
     }
 
@@ -242,12 +242,12 @@ impl WindowCommon {
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn drag_window(&self) -> Result<(), RequestError> {
+    pub(crate) fn drag_window(&self) -> Result<(), RequestError> {
         self.state.lock().unwrap().drag_window()
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn drag_resize_window(
+    pub(crate) fn drag_resize_window(
         &self,
         direction: ResizeDirection,
     ) -> Result<(), RequestError> {
@@ -255,30 +255,30 @@ impl WindowCommon {
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn set_maximized(&self, maximized: bool) {
+    pub(crate) fn set_maximized(&self, maximized: bool) {
         let s = self.state.lock().unwrap();
         s.set_maximized(maximized);
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn is_maximized(&self) -> bool {
+    pub(crate) fn is_maximized(&self) -> bool {
         let s = self.state.lock().unwrap();
         s.is_maximized()
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         self.state.lock().unwrap().fullscreen()
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let s = self.state.lock().unwrap();
         s.set_fullscreen(fullscreen)
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn show_window_menu(&self, position: Position) {
+    pub(crate) fn show_window_menu(&self, position: Position) {
         let s = self.state.lock().unwrap();
         let position = position.to_logical(s.scale_factor());
         s.show_window_menu(position);

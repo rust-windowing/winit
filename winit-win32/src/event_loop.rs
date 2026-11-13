@@ -1134,6 +1134,51 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     userdata.send_window_event(window, Focused(false));
 }
 
+/// When a modal dialog is moved, moves its (disabled) owner by the same delta, so the dialog keeps
+/// its position relative to the owner instead of the other way around.
+unsafe fn move_modal_owner(window: HWND, userdata: &WindowData, x: i32, y: i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsIconic, IsZoomed};
+
+    let (owner, previous) = {
+        let mut state = userdata.window_state_lock();
+        let Some(owner) = state.modal_owner else { return };
+        // Minimized and maximized windows are placed by the system, don't drag the owner along.
+        // Their position isn't recorded either, so restoring them moves the owner by nothing.
+        if unsafe { IsIconic(window) } != 0 || unsafe { IsZoomed(window) } != 0 {
+            return;
+        }
+        let previous = state.last_outer_position.replace((x, y));
+        // Only drag the owner along while the dialog is shown and holds it disabled. The position
+        // is still recorded above, so moving a hidden dialog doesn't move the owner later on.
+        if !state.modal_owner_disabled {
+            return;
+        }
+        (owner as HWND, previous)
+    };
+
+    let Some((previous_x, previous_y)) = previous else { return };
+    let (dx, dy) = (x - previous_x, y - previous_y);
+    if (dx, dy) == (0, 0) || unsafe { IsZoomed(owner) } != 0 {
+        return;
+    }
+
+    let mut rect = unsafe { std::mem::zeroed() };
+    if unsafe { GetWindowRect(owner, &mut rect) } == 0 {
+        return;
+    }
+    unsafe {
+        SetWindowPos(
+            owner,
+            std::ptr::null_mut(),
+            rect.left + dx,
+            rect.top + dy,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
 /// Repositions any anchored windows owned by `parent`. Win32 does not reposition owned windows
 /// when their owner moves (unlike Wayland subsurfaces or X11's override-redirect popups), so this
 /// has to be done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
@@ -1374,6 +1419,7 @@ unsafe fn public_window_callback_inner(
         WM_DESTROY => {
             use winit_core::event::WindowEvent::Destroyed;
             unsafe { RevokeDragDrop(window) };
+            crate::window::forget_modal_owner(&userdata.window_state);
             userdata.send_window_event(window, Destroyed);
             result = ProcResult::Value(0);
         },
@@ -1507,6 +1553,7 @@ unsafe fn public_window_callback_inner(
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
                 userdata.send_window_event(window, Moved(physical_position));
 
+                unsafe { move_modal_owner(window, userdata, (*windowpos).x, (*windowpos).y) };
                 unsafe { reposition_owned_windows(window) };
             }
 
