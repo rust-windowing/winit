@@ -1284,17 +1284,22 @@ impl EventProcessor {
             // evdev (and XInput2 in turn) as axis motion, so we don't otherwise
             // special-case these button presses.
             4..=7 => match state {
-                ElementState::Pressed => WindowEvent::MouseWheel {
-                    device_id,
-                    source: ScrollSource::Wheel,
-                    delta: match event.detail {
-                        4 => MouseScrollDelta::LineDelta(0.0, 1.0),
-                        5 => MouseScrollDelta::LineDelta(0.0, -1.0),
-                        6 => MouseScrollDelta::LineDelta(1.0, 0.0),
-                        7 => MouseScrollDelta::LineDelta(-1.0, 0.0),
+                ElementState::Pressed => {
+                    let (x, y) = match event.detail {
+                        4 => (0.0, 1.0),
+                        5 => (0.0, -1.0),
+                        6 => (1.0, 0.0),
+                        7 => (-1.0, 0.0),
                         _ => unreachable!(),
-                    },
-                    phase: TouchPhase::Moved,
+                    };
+                    WindowEvent::MouseWheel {
+                        device_id,
+                        source: ScrollSource::Wheel,
+                        delta: MouseScrollDelta::LineDelta(x, y),
+                        phase: TouchPhase::Moved,
+                        // A classic X11 scroll-button press is exactly one physical wheel notch.
+                        tick_count: Some((x as f64, y as f64)),
+                    }
                 },
                 ElementState::Released => return,
             },
@@ -1383,14 +1388,18 @@ impl EventProcessor {
             if let Some(&mut (_, ref mut info)) =
                 physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i as _)
             {
-                let delta = (x - info.position) / info.increment;
+                let raw_delta = (x - info.position) / info.increment;
                 info.position = x;
                 // X11 vertical scroll coordinates are opposite to winit's
-                let delta = match info.orientation {
+                let (delta, tick_count) = match info.orientation {
                     ScrollOrientation::Horizontal => {
-                        MouseScrollDelta::LineDelta(-delta as f32, 0.0)
+                        let ticks = -raw_delta;
+                        (MouseScrollDelta::LineDelta(ticks as f32, 0.0), Some((ticks, 0.0)))
                     },
-                    ScrollOrientation::Vertical => MouseScrollDelta::LineDelta(0.0, -delta as f32),
+                    ScrollOrientation::Vertical => {
+                        let ticks = -raw_delta;
+                        (MouseScrollDelta::LineDelta(0.0, ticks as f32), Some((0.0, ticks)))
+                    },
                 };
 
                 let event = WindowEvent::MouseWheel {
@@ -1398,6 +1407,9 @@ impl EventProcessor {
                     delta,
                     phase: TouchPhase::Moved,
                     source: ScrollSource::Unknown,
+                    // On X11, wheel and touchpad scrolling share this path, so this is the
+                    // scroll amount in wheel-notch units (1.0 per notch of a standard wheel).
+                    tick_count,
                 };
                 events.push(event);
             }
@@ -1671,14 +1683,27 @@ impl EventProcessor {
         let did = Some(mkdid(xev.deviceid as xinput::DeviceId));
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
+        let devices = self.devices.borrow();
+        let device = devices.get(&mkdid(xev.sourceid as xinput::DeviceId));
         let mut value = xev.raw_values;
         let mut mouse_delta = util::Delta::default();
         let mut scroll_delta = util::Delta::default();
+        let mut tick_count: Option<(f64, f64)> = None;
         for i in 0..xev.valuators.mask_len * 8 {
             if !xinput2::XIMaskIsSet(mask, i) {
                 continue;
             }
             let x = unsafe { value.read_unaligned() };
+
+            if let Some((_, axis)) =
+                device.and_then(|device| device.scroll_axes.iter().find(|s| s.0 == i))
+            {
+                let t = tick_count.get_or_insert((0.0, 0.0));
+                match axis.orientation {
+                    ScrollOrientation::Horizontal => t.0 -= x / axis.increment,
+                    ScrollOrientation::Vertical => t.1 -= x / axis.increment,
+                }
+            }
 
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
@@ -1693,14 +1718,10 @@ impl EventProcessor {
             value = unsafe { value.offset(1) };
         }
 
-        let Some(DeviceType::Mouse) = self
-            .devices
-            .borrow()
-            .get(&mkdid(xev.sourceid as xinput::DeviceId))
-            .map(|device| device.r#type)
-        else {
+        let Some(DeviceType::Mouse) = device.map(|device| device.r#type) else {
             return;
         };
+        drop(devices);
 
         if let Some(mouse_delta) = mouse_delta.consume() {
             app.device_event(&self.target, did, DeviceEvent::PointerMotion { delta: mouse_delta });
@@ -1709,6 +1730,7 @@ impl EventProcessor {
         if let Some(scroll_delta) = scroll_delta.consume() {
             let event = DeviceEvent::MouseWheel {
                 delta: MouseScrollDelta::LineDelta(scroll_delta.0, scroll_delta.1),
+                tick_count,
             };
             app.device_event(&self.target, did, event);
         }
