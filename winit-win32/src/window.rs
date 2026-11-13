@@ -19,9 +19,10 @@ use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DwmSetWindowAttribute,
 };
 use windows_sys::Win32::Graphics::Gdi::{
-    CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DISP_CHANGE_BADFLAGS,
-    DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL,
-    CreateSolidBrush, DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, ScreenToClient,
+    CDS_FULLSCREEN, ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, CreateSolidBrush,
+    DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, 
+    DISP_CHANGE_SUCCESSFUL, DeleteObject, InvalidateRgn, RDW_INTERNALPAINT, RedrawWindow, 
+    ScreenToClient,
 };
 use windows_sys::Win32::System::Com::{
     CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
