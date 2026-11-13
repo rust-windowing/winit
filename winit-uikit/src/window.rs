@@ -378,10 +378,7 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
-    /// requesting focus for the [WinitView]. Since [WinitView] implements
-    /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
-    /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
+    /// Show or hide the keyboard by changing the UIKit first responder.
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
         let mut current_caps = self.ime_capabilities.lock().unwrap();
         match request {
@@ -392,6 +389,10 @@ impl Inner {
                 }
                 *current_caps = Some(capabilities);
 
+                drop(current_caps);
+                #[cfg(target_os = "ios")]
+                self.view.set_ime_enabled(true);
+                #[cfg(not(target_os = "ios"))]
                 self.view.becomeFirstResponder();
             },
             ImeRequest::Update(_) => {
@@ -401,6 +402,10 @@ impl Inner {
             },
             ImeRequest::Disable => {
                 *current_caps = None;
+                drop(current_caps);
+                #[cfg(target_os = "ios")]
+                self.view.set_ime_enabled(false);
+                #[cfg(not(target_os = "ios"))]
                 self.view.resignFirstResponder();
             },
             _ => return Err(ImeRequestError::NotSupported),
