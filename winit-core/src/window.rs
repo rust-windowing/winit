@@ -1189,6 +1189,24 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// - **iOS / Android / Web:** Unsupported.
     fn is_maximized(&self) -> bool;
 
+    /// Returns whether the window is currently in a tiled layout.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: Supported via `xdg_toplevel` configure states.
+    fn is_tiled(&self) -> bool {
+        false
+    }
+
+    /// Returns the edges on which the window is currently tiled against the desktop or other windows.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: Supported via `xdg_toplevel` configure states.
+    fn tiled_edges(&self) -> TiledEdges {
+        TiledEdges::default()
+    }
+
     /// Set the window's fullscreen state.
     ///
     /// ## Platform-specific
@@ -1735,6 +1753,34 @@ impl From<ResizeDirection> for CursorIcon {
             SouthWest => CursorIcon::SwResize,
             West => CursorIcon::WResize,
         }
+    }
+}
+
+/// The edges on which a window is tiled against the screen or another window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct TiledEdges {
+    /// The top edge is tiled.
+    pub top: bool,
+    /// The right edge is tiled.
+    pub right: bool,
+    /// The bottom edge is tiled.
+    pub bottom: bool,
+    /// The left edge is tiled.
+    pub left: bool,
+}
+
+impl TiledEdges {
+    /// Returns `true` if any edge is tiled.
+    #[inline]
+    pub const fn is_any(&self) -> bool {
+        self.top || self.right || self.bottom || self.left
+    }
+
+    /// Returns `true` if all edges are tiled.
+    #[inline]
+    pub const fn is_all(&self) -> bool {
+        self.top && self.right && self.bottom && self.left
     }
 }
 

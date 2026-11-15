@@ -7,6 +7,7 @@ use sctk::shell::xdg::window::{DecorationMode, WindowConfigure};
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use tracing::warn;
+use winit_core::window::TiledEdges;
 
 #[cfg(feature = "sctk-adwaita")]
 use super::create_sctk_adwaita_config;
@@ -186,7 +187,7 @@ impl WindowState {
         configure: WindowConfigure,
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
-    ) -> bool {
+    ) -> (bool, Option<TiledEdges>) {
         let new_size = self.configure_frame_and_size(&configure, shm, subcompositor);
 
         let new_state = configure.state;
@@ -197,11 +198,27 @@ impl WindowState {
                     "configure_xdg_toplevel called for a `Popup`. This should never happen, \
                      because popups are configured through `configure_popup`"
                 );
-                return false;
+                return (false, None);
             },
         };
 
         let old_state = last_configure.as_ref().map(|configure| configure.state);
+
+        let new_tiled = TiledEdges {
+            top: new_state.contains(XdgWindowState::TILED_TOP),
+            right: new_state.contains(XdgWindowState::TILED_RIGHT),
+            bottom: new_state.contains(XdgWindowState::TILED_BOTTOM),
+            left: new_state.contains(XdgWindowState::TILED_LEFT),
+        };
+
+        let old_tiled = old_state.map(|s| TiledEdges {
+            top: s.contains(XdgWindowState::TILED_TOP),
+            right: s.contains(XdgWindowState::TILED_RIGHT),
+            bottom: s.contains(XdgWindowState::TILED_BOTTOM),
+            left: s.contains(XdgWindowState::TILED_LEFT),
+        });
+
+        let tiled = if old_tiled.unwrap_or_default() != new_tiled { Some(new_tiled) } else { None };
 
         let state_change_requires_resize = old_state
             .map(|old_state| {
@@ -216,11 +233,13 @@ impl WindowState {
         // NOTE: Set the configure before doing a resize, since we query it during it.
         *last_configure = Some(configure);
 
-        if state_change_requires_resize || new_size != self.surface_size() {
+        let resized = if state_change_requires_resize || new_size != self.surface_size() {
             self.resize(new_size);
             true
         } else {
             false
-        }
+        };
+
+        (resized, tiled)
     }
 }

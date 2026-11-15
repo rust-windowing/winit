@@ -27,7 +27,7 @@ use wayland_protocols::xdg::shell::client::xdg_toplevel;
 use wayland_protocols::xdg::toplevel_icon::v1::client::xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1;
 use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
-use winit_core::window::{ResizeDirection, Theme, WindowAttributes, WindowId};
+use winit_core::window::{ResizeDirection, Theme, TiledEdges, WindowAttributes, WindowId};
 
 use crate::event_loop::OwnedDisplayHandle;
 use crate::seat::{
@@ -596,6 +596,33 @@ impl WindowState {
         last_configure
             .as_ref()
             .map(|last_configure| last_configure.is_maximized())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn is_tiled(&self) -> bool {
+        let last_configure = match &self.window {
+            WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => return false,
+        };
+        last_configure.as_ref().map(|last_configure| last_configure.is_tiled()).unwrap_or_default()
+    }
+
+    pub(crate) fn tiled_edges(&self) -> TiledEdges {
+        let last_configure = match &self.window {
+            WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Popup { .. } => return TiledEdges::default(),
+        };
+        last_configure
+            .as_ref()
+            .map(|configure| {
+                use sctk::reexports::csd_frame::WindowState as XdgWindowState;
+                TiledEdges {
+                    top: configure.state.contains(XdgWindowState::TILED_TOP),
+                    right: configure.state.contains(XdgWindowState::TILED_RIGHT),
+                    bottom: configure.state.contains(XdgWindowState::TILED_BOTTOM),
+                    left: configure.state.contains(XdgWindowState::TILED_LEFT),
+                }
+            })
             .unwrap_or_default()
     }
 

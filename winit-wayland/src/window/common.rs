@@ -13,7 +13,7 @@ use winit_core::event::{Ime, WindowEvent};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, WindowId, WindowLevel,
+    TiledEdges, UserAttentionType, WindowId, WindowLevel,
 };
 
 use crate::window::Handles;
@@ -264,6 +264,20 @@ impl WindowCommon {
     pub(super) fn is_maximized(&self) -> bool {
         let s = self.state.lock().unwrap();
         s.is_maximized()
+    }
+
+    /// Only meaningful for a top-level surface.
+    pub(super) fn is_tiled(&self) -> bool {
+        let Some(s) = self.state.lock().ok() else { return false };
+        s.is_tiled()
+    }
+
+    /// Only meaningful for a top-level surface.
+    pub(super) fn tiled_edges(&self) -> TiledEdges {
+        let Some(s) = self.state.lock().ok() else {
+            return TiledEdges::default();
+        };
+        s.tiled_edges()
     }
 
     /// Only meaningful for a top-level surface.
