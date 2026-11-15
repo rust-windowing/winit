@@ -16,7 +16,7 @@ use crate::event_loop::{AsyncRequestSerial, DndAction};
 use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
 #[cfg(doc)]
 use crate::window::Window;
-use crate::window::{ActivationToken, Theme};
+use crate::window::{ActivationToken, Theme, TiledEdges};
 
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,6 +70,13 @@ pub enum WindowEvent {
     ///
     /// - **iOS / Android / Web / Wayland:** Unsupported.
     Moved(PhysicalPosition<i32>),
+
+    /// The window's tiling state has changed.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Supported via `xdg_toplevel` configure states.
+    Tiled(TiledEdges),
 
     /// The window has been requested to close.
     CloseRequested,
