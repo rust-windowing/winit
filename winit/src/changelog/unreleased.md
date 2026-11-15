@@ -44,6 +44,11 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `TiledEdges` struct, `Window::is_tiled()`, and `Window::tiled_edges()`, implemented on Wayland.
+- Add `WindowEvent::Tiled` to report tiling state changes from the compositor.
+
 ### Changed
 
 - On Wayland, a window created with a parent window now calls `xdg_toplevel.set_parent` with that
