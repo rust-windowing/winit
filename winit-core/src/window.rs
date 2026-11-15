@@ -1198,7 +1198,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
         false
     }
 
-    /// Returns the edges on which the window is currently tiled against the desktop or other windows.
+    /// Returns the edges on which the window is currently tiled against the desktop or other
+    /// windows.
     ///
     /// ## Platform-specific
     ///
