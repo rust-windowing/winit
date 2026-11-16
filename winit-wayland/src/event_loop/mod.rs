@@ -316,35 +316,6 @@ impl EventLoop {
         self.single_iteration(app, cause);
     }
 
-    /// Recursive closing all windows from the child to the parent
-    fn find_windows_to_close(
-        window_id: &WindowId,
-        state: &mut WinitState,
-        out: &mut Vec<WindowId>,
-    ) -> bool {
-        if !state.window_requests.get_mut().get(window_id).unwrap().closed.load(Ordering::Relaxed) {
-            return false;
-        }
-
-        out.push(*window_id);
-        fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
-            // We don't need to check here if it should be closed, because if the parent should
-            // be closed all children must be closed as well
-            let Some(window_state) = state.windows.get_mut().get(window_id) else {
-                return;
-            };
-            let children = window_state.lock().unwrap().children().clone();
-            // First all children and then all subchildren
-            out.extend(&children);
-            for child in children.clone() {
-                window_to_close(&child, out, state);
-            }
-        }
-        window_to_close(window_id, out, state);
-
-        true
-    }
-
     fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
         // NOTE currently just indented to simplify the diff
 
@@ -367,6 +338,12 @@ impl EventLoop {
         // Indicate user wake up.
         if self.with_state(|state| mem::take(&mut state.proxy_wake_up)) {
             app.proxy_wake_up(&self.active_event_loop);
+        }
+
+        let destroyed_windows =
+            self.with_state(|state| mem::take(&mut state.destroyed_windows_outside_event_loop));
+        for window_id in destroyed_windows {
+            app.window_event(&self.active_event_loop, window_id, WindowEvent::Destroyed);
         }
 
         // Drain the pending compositor updates.
@@ -500,27 +477,12 @@ impl EventLoop {
                 continue; // The element might not exist anymore so just ignore
             }
             let mut windows_to_close = Vec::new();
-            if self.with_state(|state| {
-                Self::find_windows_to_close(window_id, state, &mut windows_to_close)
-            }) {
+            if self
+                .with_state(|state| state.find_windows_to_close(window_id, &mut windows_to_close))
+            {
                 for w in windows_to_close.into_iter().rev() {
                     self.with_state(|state| {
-                        let parent =
-                            state.windows.get_mut().get_mut(&w).unwrap().lock().unwrap().parent();
-
-                        if let Some(p) = parent.and_then(|p| state.windows.get_mut().get_mut(&p)) {
-                            p.lock().unwrap().remove_child(&w)
-                        }
-
-                        let window_requests = state.window_requests.get_mut();
-                        window_requests.get(&w).unwrap().take_closed();
-                        mem::drop(window_requests.remove(&w));
-                        mem::drop(state.windows.get_mut().remove(&w));
-                        // Creating a popup during an application callback can enqueue its
-                        // initial configure after this iteration has taken pending updates.
-                        // Remove updates for the destroyed window so the next iteration
-                        // cannot process them against the state we just removed.
-                        state.window_compositor_updates.retain(|update| update.window_id != w);
+                        state.remove_window(&w);
                     });
                     app.window_event(&self.active_event_loop, w, WindowEvent::Destroyed);
                 }
