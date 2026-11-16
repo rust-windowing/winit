@@ -1,5 +1,6 @@
 use std::cell::OnceCell;
 use std::f64;
+use std::time::Duration;
 
 use dpi::{LogicalPosition, PhysicalPosition, Position};
 use smol_str::SmolStr;
@@ -8,8 +9,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Event, KeyboardEvent, MouseEvent, Navigator, PointerEvent, WheelEvent};
 use winit_core::event::{
-    ButtonSource, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind, PointerSource,
-    TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt,
+    ButtonSource, EventTime, FingerId, Force, MouseButton, MouseScrollDelta, PointerKind,
+    PointerSource, TabletToolAngle, TabletToolButton, TabletToolData, TabletToolKind,
+    TabletToolTilt,
 };
 use winit_core::keyboard::{
     Key, KeyCode, KeyLocation, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey,
@@ -42,6 +44,10 @@ impl From<TabletToolButton> for ButtonsState {
 pub fn pointer_buttons(event: &MouseEvent) -> ButtonsState {
     #[allow(clippy::disallowed_methods)]
     ButtonsState::from_bits_retain(event.buttons())
+}
+
+pub fn event_time(event: &Event) -> Option<EventTime> {
+    Some(EventTime(Duration::from_secs_f64(event.time_stamp() / 1000.0)))
 }
 
 pub fn raw_button(event: &MouseEvent) -> Option<u16> {
@@ -335,6 +341,18 @@ pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEv
     } else {
         Some(event).into_iter().chain(None.into_iter().flatten())
     }
+}
+
+/// The samples the browser coalesced into a `pointermove` event, ordered from oldest to newest.
+///
+/// The last coalesced event is the dispatched event itself, so it is skipped.
+pub fn pointer_move_history(event: &PointerEvent) -> impl Iterator<Item = PointerEvent> {
+    has_coalesced_events_support(event).then(|| event.get_coalesced_events()).into_iter().flat_map(
+        |events| {
+            let count = events.length().saturating_sub(1) as usize;
+            events.into_iter().take(count).map(PointerEvent::unchecked_from_js)
+        },
+    )
 }
 
 // TODO: Remove when Safari supports `getCoalescedEvents`.

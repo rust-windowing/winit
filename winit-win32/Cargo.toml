@@ -20,7 +20,7 @@ rwh_06.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
 tracing.workspace = true
-winit-common = { workspace = true, features = ["positioner"] }
+winit-common = { workspace = true, features = ["positioner", "timestamp-handler"] }
 winit-core.workspace = true
 
 # Platform-specific
