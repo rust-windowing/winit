@@ -76,6 +76,42 @@ enum AppStateImpl {
     Terminated,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WakerAction {
+    Stop,
+    Start,
+    StartAt(Instant),
+}
+
+fn waker_action_after_events_cleared(
+    previous_control_flow: ControlFlow,
+    control_flow: ControlFlow,
+    has_queued_gpu_redraws: bool,
+) -> WakerAction {
+    match (previous_control_flow, control_flow) {
+        (ControlFlow::WaitUntil(previous), ControlFlow::WaitUntil(instant))
+            if previous == instant && !has_queued_gpu_redraws =>
+        {
+            WakerAction::StartAt(instant)
+        },
+        (_, ControlFlow::Wait) => {
+            if has_queued_gpu_redraws {
+                WakerAction::Start
+            } else {
+                WakerAction::Stop
+            }
+        },
+        (_, ControlFlow::WaitUntil(instant)) => {
+            if has_queued_gpu_redraws {
+                WakerAction::Start
+            } else {
+                WakerAction::StartAt(instant)
+            }
+        },
+        (_, ControlFlow::Poll) => WakerAction::Start,
+    }
+}
+
 pub(crate) struct AppState {
     state: Cell<AppStateImpl>,
     control_flow: Cell<ControlFlow>,
@@ -184,35 +220,25 @@ impl AppState {
             AppStateImpl::ProcessingRedraws { active_control_flow } => active_control_flow,
             s => bug!("unexpected state {:?}", s),
         };
+        let has_queued_gpu_redraws = self.has_queued_gpu_redraws();
 
         let new = self.control_flow.get();
-        match (old, new) {
-            (ControlFlow::Wait, ControlFlow::Wait) => {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                self.waker.stop()
-            },
-            (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
-                if old_instant == new_instant =>
-            {
+        let waker_action = waker_action_after_events_cleared(old, new, has_queued_gpu_redraws);
+        match new {
+            ControlFlow::Wait | ControlFlow::WaitUntil(_) => {
                 let start = Instant::now();
                 self.state.set(AppStateImpl::Waiting { start });
             },
-            (_, ControlFlow::Wait) => {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                self.waker.stop()
-            },
-            (_, ControlFlow::WaitUntil(new_instant)) => {
-                let start = Instant::now();
-                self.state.set(AppStateImpl::Waiting { start });
-                self.waker.start_at(new_instant)
-            },
-            // Unlike on macOS, handle Poll to Poll transition here to call the waker
-            (_, ControlFlow::Poll) => {
+            // Unlike on macOS, handle Poll to Poll transition here.
+            ControlFlow::Poll => {
                 self.state.set(AppStateImpl::PollFinished);
-                self.waker.start()
             },
+        }
+
+        match waker_action {
+            WakerAction::Stop => self.waker.stop(),
+            WakerAction::Start => self.waker.start(),
+            WakerAction::StartAt(instant) => self.waker.start_at(instant),
         }
     }
 
@@ -234,19 +260,30 @@ impl AppState {
     pub(crate) fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
     }
+
+    fn has_queued_gpu_redraws(&self) -> bool {
+        let queued_gpu_redraws = self.queued_gpu_redraws.take();
+        let has_queued_gpu_redraws = !queued_gpu_redraws.is_empty();
+        self.queued_gpu_redraws.set(queued_gpu_redraws);
+        has_queued_gpu_redraws
+    }
 }
 
 pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Retained<WinitUIWindow>) {
     let this = AppState::get(mtm);
     match this.state.get() {
-        AppStateImpl::Initial | AppStateImpl::ProcessingEvents { .. } => {
+        AppStateImpl::Initial
+        | AppStateImpl::ProcessingEvents { .. }
+        | AppStateImpl::ProcessingRedraws { .. }
+        | AppStateImpl::Waiting { .. }
+        | AppStateImpl::PollFinished => {
             let mut queued_gpu_redraws = this.queued_gpu_redraws.take();
             let _ = queued_gpu_redraws.insert(window);
             this.queued_gpu_redraws.set(queued_gpu_redraws);
+            if !matches!(this.state.get(), AppStateImpl::Initial) {
+                this.waker.start();
+            }
         },
-        s @ AppStateImpl::ProcessingRedraws { .. }
-        | s @ AppStateImpl::Waiting { .. }
-        | s @ AppStateImpl::PollFinished => bug!("unexpected state {:?}", s),
         AppStateImpl::Terminated => {
             panic!("Attempt to create a `Window` after the app has terminated")
         },
@@ -528,5 +565,36 @@ impl EventLoopWaker {
                 duration.subsec_nanos() as f64 / 1_000_000_000.0 + duration.as_secs() as f64;
             self.timer.set_next_fire_date(current + fsecs);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use winit_core::event_loop::ControlFlow;
+
+    use super::{WakerAction, waker_action_after_events_cleared};
+
+    #[test]
+    fn drained_gpu_queue_rearms_wait_until_deadline() {
+        let deadline = Instant::now() + Duration::from_secs(1);
+
+        assert_eq!(
+            waker_action_after_events_cleared(
+                ControlFlow::WaitUntil(deadline),
+                ControlFlow::WaitUntil(deadline),
+                false,
+            ),
+            WakerAction::StartAt(deadline),
+        );
+        assert_eq!(
+            waker_action_after_events_cleared(
+                ControlFlow::WaitUntil(deadline),
+                ControlFlow::WaitUntil(deadline),
+                true,
+            ),
+            WakerAction::Start,
+        );
     }
 }
