@@ -59,4 +59,5 @@ changelog entry.
 - Fix `RgbaIcon::new` and `CustomCursorSource::from_rgba` rejecting every valid
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
+- On macOS, avoid activating `NSTextInputContext` and forwarding events to it when IME is disabled.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
