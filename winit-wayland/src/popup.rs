@@ -36,6 +36,9 @@ impl Popup {
     ) -> Result<Self, CreateWindowError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
+        // A closed popup counts as the topmost one until its Wayland objects are destroyed,
+        // and mapping a popup with a grab then fails with `not_the_topmost_popup`.
+        state.execute_close_window();
         let parent = WindowParent::from_attributes(&state, &attributes)?
             .ok_or(InvalidInput::new("Popup without a parent is not supported"))?;
         let parent_state = parent.state.clone();
