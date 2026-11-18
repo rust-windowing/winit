@@ -35,6 +35,7 @@ use crate::seat::{
     WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
 use crate::types::bgr_effects::BgrEffectManager;
+use crate::types::system_bell::SystemBellState;
 use crate::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::types::wp_tablet_input_v2::TabletManager;
 use crate::types::wp_viewporter::ViewporterState;
@@ -97,6 +98,9 @@ pub struct WinitState {
 
     /// Xdg activation.
     pub xdg_activation: Option<XdgActivationState>,
+
+    /// Xdg system bell.
+    pub system_bell: Option<SystemBellState>,
 
     /// Xdg toplevel icon manager
     pub xdg_toplevel_icon_manager: Option<XdgToplevelIconManagerState>,
@@ -214,6 +218,7 @@ impl WinitState {
 
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(|err| os_error!(err))?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
+            system_bell: SystemBellState::bind(globals, queue_handle).ok(),
             xdg_toplevel_icon_manager: XdgToplevelIconManagerState::bind(globals, queue_handle)
                 .ok(),
 
