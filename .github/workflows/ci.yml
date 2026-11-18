@@ -199,7 +199,7 @@ jobs:
       run: cargo $CMD test -p winit-common --features xkb,x11,wayland --no-run
 
     - name: Test winit AppKit
-      if: contains(matrix.platform.target, 'macos')
+      if: contains(matrix.platform.target, 'darwin')
       run: cargo $CMD test -p winit-appkit $OPTIONS
 
     - name: Test winit Orbital
