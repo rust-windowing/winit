@@ -35,6 +35,7 @@ windows-sys = { workspace = true, features = [
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Com",
     "Win32_System_DataExchange",
+    "Win32_System_Diagnostics_Debug",
     "Win32_System_LibraryLoader",
     "Win32_System_Memory",
     "Win32_System_Ole",
