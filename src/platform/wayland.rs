@@ -13,6 +13,10 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
+//!
+//! The default title renderer uses FreeType and Fontconfig. Building it on Linux requires
+//! Fontconfig development files and either a system FreeType installation or a C++ compiler for
+//! the bundled FreeType build.
 
 use std::ffi::c_void;
 use std::ptr::NonNull;

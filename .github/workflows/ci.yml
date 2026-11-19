@@ -122,16 +122,29 @@ jobs:
            cargo update -p unicode-ident --precise 1.0.10
            cargo update -p syn@2 --precise 2.0.114
 
-    - name: Keep macOS macro compatible with MSRV
-      if: matrix.toolchain == '1.70.0' && matrix.platform.name == 'macOS'
+    - name: Keep font macro compatible with MSRV
+      if: >-
+        matrix.toolchain == '1.70.0' &&
+        (matrix.platform.name == 'macOS' || contains(matrix.platform.target, 'linux-gnu'))
       env:
         CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
-      # 0.2.4はsyn 3経由でRust 1.71を要求するため、最低対応版のmacOSだけ固定する。
+      # 0.2.4はsyn 3経由でRust 1.71を要求する。
       run: cargo update -p foreign-types-macros@0.2 --precise 0.2.3
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
-      run: sudo apt-get update && sudo apt-get install gcc-multilib
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib libfontconfig1-dev:i386 libfreetype-dev:i386
+        echo 'PKG_CONFIG_ALLOW_CROSS=1' >> "$GITHUB_ENV"
+        echo 'PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig' >> "$GITHUB_ENV"
+
+    - name: Install Wayland font dependencies
+      if: matrix.platform.name == 'Linux 64bit'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev libfreetype-dev
 
     - name: Cache cargo-apk
       if: contains(matrix.platform.target, 'android')
@@ -242,11 +255,22 @@ jobs:
 
     steps:
     - uses: taiki-e/checkout-action@v1
+    - name: Resolve the 0.30 compatibility graph
+      run: |
+        cargo generate-lockfile
+        cargo update -p android-activity --precise 0.6.0
+        cargo update -p jni-sys@0.3 --precise 0.3.0
+        cargo update -p serde --precise 1.0.228
+        cargo update -p foreign-types-macros --precise 0.2.3
+        cargo update -p orbclient --precise 0.3.47
+        cargo update -p pin-project --precise 1.1.10
+        # The web bindings are published together and must be resolved together.
+        cargo update -p wasm-bindgen-futures -p web-sys -p js-sys -p wasm-bindgen -p tracing-web --precise 0.4.55
     - uses: EmbarkStudios/cargo-deny-action@v2
       with:
         command: check
         log-level: error
-        arguments: --all-features --target ${{ matrix.platform.target }}
+        arguments: --locked --all-features --target ${{ matrix.platform.target }}
 
   swc:
     name: Minimize JavaScript
