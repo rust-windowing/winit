@@ -48,7 +48,8 @@ jobs:
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
           - { name: 'Windows 32bit MSVC', target: i686-pc-windows-msvc,     os: windows-latest,  }
           - { name: 'Windows 64bit GNU',  target: x86_64-pc-windows-gnu,    os: windows-latest, host: -x86_64-pc-windows-gnu }
-          - { name: 'Windows 32bit GNU',  target: i686-pc-windows-gnu,      os: windows-latest, host: -i686-pc-windows-gnu }
+          # The 32-bit target is still distributed for the 64-bit GNU host.
+          - { name: 'Windows 32bit GNU',  target: i686-pc-windows-gnu,      os: windows-latest, host: -x86_64-pc-windows-gnu }
           - { name: 'Linux 32bit',        target: i686-unknown-linux-gnu,   os: ubuntu-latest,   }
           - { name: 'Linux 64bit',        target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
@@ -107,6 +108,9 @@ jobs:
 
     - name: Generate lockfile
       # Also updates the crates.io index
+      env:
+        # 最低対応Rust版のジョブだけ、その版で利用できる依存を解決する。
+        CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: ${{ matrix.toolchain == '1.70.0' && 'fallback' || 'allow' }}
       run: |
            cargo generate-lockfile
            cargo update -p ahash --precise 0.8.7
@@ -115,9 +119,20 @@ jobs:
            cargo update -p objc2-encode --precise 4.0.3
            cargo update -p orbclient --precise 0.3.47
            cargo update -p image --precise 0.25.0
-           cargo update -p gethostname@1.1.0 --precise 1.0.2
+           cargo update -p gethostname@1 --precise 1.0.2
            cargo update -p unicode-ident --precise 1.0.10
-           cargo update -p syn --precise 2.0.114
+           cargo update -p syn@2 --precise 2.0.114
+
+    - name: Resolve web dependencies compatible with Rust 1.70
+      if: startsWith(matrix.platform.target, 'wasm32-')
+      run: bash .github/scripts/resolve-web-dependencies.sh
+
+    - name: Keep macOS macro compatible with MSRV
+      if: matrix.toolchain == '1.70.0' && matrix.platform.name == 'macOS'
+      env:
+        CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+      # 0.2.4はsyn 3経由でRust 1.71を要求するため、最低対応版のmacOSだけ固定する。
+      run: cargo update -p foreign-types-macros@0.2 --precise 0.2.3
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -231,11 +246,20 @@ jobs:
 
     steps:
     - uses: taiki-e/checkout-action@v1
+    - name: Resolve the 0.30 compatibility graph
+      run: |
+        cargo generate-lockfile
+        cargo update -p android-activity --precise 0.6.0
+        cargo update -p jni-sys@0.3 --precise 0.3.0
+        cargo update -p serde --precise 1.0.228
+        cargo update -p foreign-types-macros --precise 0.2.3
+        cargo update -p orbclient --precise 0.3.47
+        bash .github/scripts/resolve-web-dependencies.sh
     - uses: EmbarkStudios/cargo-deny-action@v2
       with:
         command: check
         log-level: error
-        arguments: --all-features --target ${{ matrix.platform.target }}
+        arguments: --locked --all-features --target ${{ matrix.platform.target }}
 
   swc:
     name: Minimize JavaScript

@@ -23,6 +23,11 @@ targets = [
     { triple = "x86_64-unknown-redox" },
 ]
 
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; pulled in by sctk-adwaita via ab_glyph/owned_ttf_parser" },
+]
+
 [licenses]
 allow = [
     "Apache-2.0",   # https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)
