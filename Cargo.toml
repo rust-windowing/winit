@@ -69,7 +69,7 @@ wayland = [
     "memmap2",
 ]
 wayland-dlopen = ["wayland-backend/dlopen"]
-wayland-csd-adwaita = ["wayland-csd-adwaita-crossfont"]
+wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 android-native-activity = ["android-activity/native-activity"]
