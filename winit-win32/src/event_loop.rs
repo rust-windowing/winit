@@ -1882,6 +1882,9 @@ unsafe fn public_window_callback_inner(
                 delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
                 source: ScrollSource::Unknown,
+                // `value` is the raw wheel delta in notches (already divided by
+                // `WHEEL_DELTA`), before the system scroll-lines multiplier above.
+                tick_count: Some((0.0, value as f64)),
             });
 
             result = ProcResult::Value(0);
@@ -1916,6 +1919,9 @@ unsafe fn public_window_callback_inner(
                 delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
                 source: ScrollSource::Unknown,
+                // `value` is the raw horizontal wheel delta in notches (already divided by
+                // `WHEEL_DELTA` and inverted), before the scroll-characters multiplier above.
+                tick_count: Some((value as f64, 0.0)),
             });
 
             result = ProcResult::Value(0);
@@ -2677,12 +2683,18 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         if util::has_flag(button_flags as u32, RI_MOUSE_WHEEL) {
             let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
             let delta = button_data as f32 / WHEEL_DELTA as f32;
-            userdata.send_device_event(device_id, MouseWheel { delta: LineDelta(0.0, delta) });
+            userdata.send_device_event(device_id, MouseWheel {
+                delta: LineDelta(0.0, delta),
+                tick_count: Some((0.0, delta as f64)),
+            });
         }
         if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
             let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
             let delta = inverted_wheel_delta(button_data);
-            userdata.send_device_event(device_id, MouseWheel { delta: LineDelta(delta, 0.0) });
+            userdata.send_device_event(device_id, MouseWheel {
+                delta: LineDelta(delta, 0.0),
+                tick_count: Some((delta as f64, 0.0)),
+            });
         }
 
         let button_state = raw_input::get_raw_mouse_button_state(button_flags as u32);

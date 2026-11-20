@@ -29,6 +29,7 @@ objc2.workspace = true
 objc2-app-kit = { workspace = true, features = [
     "std",
     "objc2-core-foundation",
+    "objc2-core-graphics",
     "NSAppearance",
     "NSApplication",
     "NSBitmapImageRep",
@@ -76,10 +77,13 @@ objc2-core-foundation = { workspace = true, features = [
 objc2-core-graphics = { workspace = true, features = [
     "std",
     "libc",
+    "objc2",
     "CGDirectDisplay",
     "CGDisplayConfiguration",
     "CGDisplayFade",
     "CGError",
+    "CGEvent",
+    "CGEventTypes",
     "CGRemoteOperation",
     "CGWindowLevel",
 ] }
