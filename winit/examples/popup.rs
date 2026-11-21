@@ -43,6 +43,21 @@ fn main() -> Result<(), impl std::error::Error> {
         context: Context<OwnedDisplayHandle>,
     }
 
+    impl Application {
+        fn move_window(
+            &mut self,
+            (offset_x, offset_y): (i32, i32),
+            window_id: winit::window::WindowId,
+        ) {
+            let window = self.windows.get(&window_id).unwrap().surface.window();
+            if let Ok(mut pos) = window.outer_position() {
+                pos.x += offset_x;
+                pos.y += offset_y;
+                window.set_outer_position(pos.into());
+            }
+        }
+    }
+
     impl ApplicationHandler for Application {
         fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
             let attributes = WindowAttributes::default()
@@ -148,6 +163,10 @@ fn main() -> Result<(), impl std::error::Error> {
                             //     self.windows.remove(&l);
                             // }
                         },
+                        KeyCode::ArrowLeft => self.move_window((-10, 0), window_id),
+                        KeyCode::ArrowUp => self.move_window((0, -10), window_id),
+                        KeyCode::ArrowRight => self.move_window((10, 0), window_id),
+                        KeyCode::ArrowDown => self.move_window((0, 10), window_id),
                         _ => (),
                     }
                 },
