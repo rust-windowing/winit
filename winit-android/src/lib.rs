@@ -73,6 +73,8 @@
 #![warn(clippy::exhaustive_enums)]
 
 mod event_loop;
+#[cfg(feature = "game-activity")]
+mod ime;
 mod keycodes;
 
 use winit_core::event_loop::ActiveEventLoop as CoreActiveEventLoop;
