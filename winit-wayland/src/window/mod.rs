@@ -146,6 +146,7 @@ impl Window {
 
         let surface = state.compositor_state.create_surface(&queue_handle);
         let compositor = state.compositor_state.clone();
+        let system_bell = state.system_bell.as_ref().map(|bell_state| bell_state.global().clone());
         let display = event_loop_window_target.handle.connection.display();
 
         // We prefer server side decorations, however to not have decorations we ask for client
@@ -187,6 +188,7 @@ impl Window {
                     compositor,
 
                     xdg_activation,
+                    system_bell,
                     attention_requested: Arc::new(AtomicBool::new(false)),
                 },
             },
@@ -398,6 +400,10 @@ impl CoreWindow for Window {
 
     fn reset_dead_keys(&self) {
         self.common.reset_dead_keys();
+    }
+
+    fn beep(&self) {
+        self.common.handles.beep(Some(self.surface()));
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {

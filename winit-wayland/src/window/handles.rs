@@ -5,6 +5,7 @@ use sctk::compositor::{CompositorState, Region};
 use sctk::reexports::client::QueueHandle;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use sctk::reexports::protocols::xdg::system_bell::v1::client::xdg_system_bell_v1::XdgSystemBellV1;
 use tracing::warn;
 use winit_core::error::RequestError;
 use winit_core::event::WindowEvent;
@@ -36,6 +37,9 @@ pub struct Handles {
     /// Xdg activation to request user attention.
     pub(crate) xdg_activation: Option<XdgActivationV1>,
 
+    /// Xdg system bell.
+    pub(crate) system_bell: Option<XdgSystemBellV1>,
+
     /// The state of the requested attention from the `xdg_activation`.
     pub(crate) attention_requested: Arc<AtomicBool>,
 
@@ -44,6 +48,12 @@ pub struct Handles {
 }
 
 impl Handles {
+    pub(crate) fn beep(&self, surface: Option<&WlSurface>) {
+        if let Some(system_bell) = self.system_bell.as_ref() {
+            system_bell.ring(surface);
+        }
+    }
+
     pub(crate) fn request_redraw(&self) {
         // NOTE: try to not wake up the loop when the event was already scheduled and not yet
         // processed by the loop, because if at this point the value was `true` it could only

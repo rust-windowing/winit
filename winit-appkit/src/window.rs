@@ -6,7 +6,7 @@ use dispatch2::MainThreadBound;
 use dpi::{Position, Size};
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::{MainThreadMarker, Message, define_class};
-use objc2_app_kit::{NSPanel, NSResponder, NSWindow};
+use objc2_app_kit::{NSBeep, NSPanel, NSResponder, NSWindow};
 use objc2_foundation::NSObject;
 use tracing::trace_span;
 use winit_core::cursor::Cursor;
@@ -134,6 +134,10 @@ impl CoreWindow for Window {
 
     fn reset_dead_keys(&self) {
         self.maybe_wait_on_main(|delegate| delegate.reset_dead_keys());
+    }
+
+    fn beep(&self) {
+        self.maybe_wait_on_main(|_| NSBeep());
     }
 
     fn surface_position(&self) -> dpi::PhysicalPosition<i32> {

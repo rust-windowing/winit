@@ -44,6 +44,10 @@ changelog entry.
 
 ## Unreleased
 
+### Added
+
+- Add `Window::beep()`, implemented on Windows, macOS, X11, and Wayland.
+
 ### Changed
 
 - On Wayland, a window created with a parent window now calls `xdg_toplevel.set_parent` with that

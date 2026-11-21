@@ -105,6 +105,10 @@ impl CoreWindow for Window {
         winit_common::xkb::reset_dead_keys();
     }
 
+    fn beep(&self) {
+        let _ = self.0.xconn.xcb_connection().bell(0);
+    }
+
     fn surface_position(&self) -> PhysicalPosition<i32> {
         self.0.surface_position()
     }

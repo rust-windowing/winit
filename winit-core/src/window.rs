@@ -810,6 +810,17 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     // extension trait
     fn reset_dead_keys(&self);
 
+    /// Rings the system bell.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Uses `MessageBeep`.
+    /// - **macOS:** Uses `NSBeep`.
+    /// - **X11:** Uses the core `Bell` request.
+    /// - **Wayland:** Uses the `xdg_system_bell_v1` protocol if the compositor supports it.
+    /// - **Android, iOS, Orbital and Web:** Unsupported.
+    fn beep(&self) {}
+
     /// The position of the top-left hand corner of the surface relative to the top-left hand corner
     /// of the window.
     ///
