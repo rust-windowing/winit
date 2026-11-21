@@ -60,3 +60,6 @@ changelog entry.
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On X11, fix a missing `PointerMoved` when, after the pointer entered the
+  window, the window gained focus or a touch began, the pointer moved straight
+  back to where it last moved in the window.

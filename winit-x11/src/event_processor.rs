@@ -1435,7 +1435,7 @@ impl EventProcessor {
             }
         }
 
-        if self.window_exists(window) {
+        if self.record_cursor_pos(window, (event.event_x, event.event_y)) {
             let device_id = Some(device_id);
             let position = PhysicalPosition::new(event.event_x, event.event_y);
 
@@ -1515,6 +1515,7 @@ impl EventProcessor {
             .get(&mkdid(xev.deviceid as xinput::DeviceId))
             .map(|device| mkdid(device.attachment as xinput::DeviceId));
 
+        self.record_cursor_pos(window, (xev.event_x, xev.event_y));
         let event = WindowEvent::PointerMoved {
             device_id,
             primary: true,
@@ -1586,6 +1587,7 @@ impl EventProcessor {
             let is_first_touch =
                 is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase);
             if is_first_touch {
+                self.record_cursor_pos(window, (xev.event_x, xev.event_y));
                 let event = WindowEvent::PointerMoved {
                     device_id: None,
                     primary: true,
@@ -2041,6 +2043,17 @@ impl EventProcessor {
                 }
             }
         }
+    }
+
+    /// Records the cursor position reported to the application for `window_id`, which
+    /// `xinput2_mouse_motion` compares against to skip motion that didn't move the cursor.
+    ///
+    /// Returns `false` if the window doesn't exist.
+    fn record_cursor_pos(&self, window_id: xproto::Window, position: (f64, f64)) -> bool {
+        self.with_window(window_id, |window| {
+            window.shared_state_lock().cursor_pos = Some(position);
+        })
+        .is_some()
     }
 
     fn window_exists(&self, window_id: xproto::Window) -> bool {
