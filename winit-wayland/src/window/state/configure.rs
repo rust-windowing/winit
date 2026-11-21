@@ -56,8 +56,8 @@ impl WindowState {
     /// Creates (or drops) the CSD frame per `configure`'s decoration mode, and computes the
     /// surface size to apply, accounting for borders, configure bounds, and resize increments.
     ///
-    /// Used by [`Self::configure_xdg_toplevel`] to configure an `xdg_toplevel`-based surface from
-    /// a [`WindowConfigure`] event.
+    /// Used by [`Self::configure_xdg_toplevel`] to configure the `xdg_toplevel`-based `Window`
+    /// and `Dialog` surfaces from the same [`WindowConfigure`] event shape.
     fn configure_frame_and_size(
         &mut self,
         configure: &WindowConfigure,
@@ -179,7 +179,8 @@ impl WindowState {
 
     /// Update the last-received configure and resize if necessary.
     ///
-    /// Used for surfaces backed by an `xdg_toplevel` (unlike `Popup`, handled by
+    /// Used for both `Window` and `Dialog`, since both are backed by an `xdg_toplevel` and
+    /// receive the same [`WindowConfigure`] event shape (unlike `Popup`, handled by
     /// [`Self::configure_popup`]).
     pub fn configure_xdg_toplevel(
         &mut self,
@@ -191,7 +192,8 @@ impl WindowState {
 
         let new_state = configure.state;
         let last_configure = match &mut self.window {
-            WindowType::Window { last_configure, .. } => last_configure,
+            WindowType::Window { last_configure, .. }
+            | WindowType::Dialog { last_configure, .. } => last_configure,
             WindowType::Popup { .. } => {
                 tracing::error!(
                     "configure_xdg_toplevel called for a `Popup`. This should never happen, \

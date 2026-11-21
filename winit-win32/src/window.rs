@@ -34,19 +34,22 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem, FLASHW_ALL,
-    FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GWLP_HINSTANCE,
-    GetClientRect, GetCursorPos, GetForegroundWindow, GetParent, GetSystemMenu, GetSystemMetrics,
-    GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT,
-    HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible,
-    LoadCursorW, MENU_ITEM_STATE, MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE,
-    PeekMessageW, PostMessageW, RegisterClassExW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE,
-    SC_RESTORE, SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-    SWP_NOZORDER, SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem,
+    AdjustWindowRectEx, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, EnableMenuItem,
+    FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, FLASHWINFO, FlashWindowEx, GA_ROOT,
+    GW_OWNER, GWLP_HINSTANCE, GetAncestor, GetClientRect, GetCursorPos, GetForegroundWindow,
+    GetParent, GetPropW, GetSystemMenu, GetSystemMetrics, GetWindow, GetWindowPlacement,
+    GetWindowTextLengthW, GetWindowTextW, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT,
+    HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsWindowVisible, LoadCursorW, MENU_ITEM_STATE,
+    MF_BYCOMMAND, MFS_DISABLED, MFS_ENABLED, NID_READY, PM_NOREMOVE, PeekMessageW, PostMessageW,
+    RegisterClassExW, RemovePropW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE,
+    SC_SIZE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+    SendMessageW, SetCursor, SetCursorPos, SetForegroundWindow, SetMenuDefaultItem, SetPropW,
     SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, TPM_LEFTALIGN,
     TPM_RETURNCMD, TrackPopupMenu, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SETICON,
-    WM_SYSCOMMAND, WNDCLASSEXW,
+    WM_SYSCOMMAND, WNDCLASSEXW, WS_CAPTION, WS_SIZEBOX,
 };
+use windows_sys::core::PCWSTR;
+use windows_sys::w;
 use winit_common::positioner::place_window;
 use winit_core::cursor::Cursor;
 use winit_core::error::{CreateWindowError, InvalidInput, RequestError};
@@ -142,7 +145,7 @@ impl Window {
         if window_flags.contains(WindowFlags::ANCHORED)
             && !window_flags.contains(WindowFlags::CHILD)
         {
-            let parent = unsafe { GetParent(self.hwnd()) };
+            let parent = parent(self.hwnd());
             if !parent.is_null() {
                 unsafe {
                     ScreenToClient(parent, &mut point);
@@ -443,12 +446,84 @@ impl Window {
     }
 }
 
+/// Window property on an owner window counting the modal dialogs currently disabling it.
+const MODAL_COUNT_PROP: PCWSTR = w!("Winit::ModalDialogCount");
+
+/// Disables `owner` on behalf of a new modal dialog.
+unsafe fn acquire_modal_owner(owner: HWND) {
+    unsafe {
+        let count = GetPropW(owner, MODAL_COUNT_PROP) as usize;
+        SetPropW(owner, MODAL_COUNT_PROP, (count + 1) as _);
+        EnableWindow(owner, 0);
+    }
+}
+
+/// Releases `owner` from a modal dialog, re-enabling it once no other modal dialog disables it
+/// anymore, and reactivating it if `activate` is set.
+unsafe fn release_modal_owner(owner: HWND, activate: bool) {
+    unsafe {
+        let count = (GetPropW(owner, MODAL_COUNT_PROP) as usize).saturating_sub(1);
+        if count > 0 {
+            SetPropW(owner, MODAL_COUNT_PROP, count as _);
+            return;
+        }
+        RemovePropW(owner, MODAL_COUNT_PROP);
+        EnableWindow(owner, 1);
+        if activate {
+            SetForegroundWindow(owner);
+        }
+    }
+}
+
+/// For a modal dialog, disables or releases its owner, unless it already is in that state. Must
+/// be called on the event loop thread.
+fn set_modal_owner_disabled(window_state: &Mutex<WindowState>, disabled: bool) {
+    let owner = {
+        let mut state = window_state.lock().unwrap();
+        match state.modal_owner {
+            Some(owner) if state.modal_owner_disabled != disabled => {
+                state.modal_owner_disabled = disabled;
+                owner as HWND
+            },
+            _ => return,
+        }
+    };
+    // Don't hold the lock here: the owner's (re)activation sends messages to this window.
+    match disabled {
+        true => unsafe { acquire_modal_owner(owner) },
+        false => unsafe { release_modal_owner(owner, true) },
+    }
+}
+
+/// Called when a modal dialog is destroyed. A dialog can be destroyed without `Window::drop`,
+/// e.g. by Win32 along with its owner, so this releases the owner if the dialog still holds it and
+/// forgets it, so that a later drop doesn't touch a destroyed (or reused) owner HWND. The owner
+/// isn't reactivated, since it may be the one being destroyed. Must be called on the event loop
+/// thread.
+pub(crate) fn forget_modal_owner(window_state: &Mutex<WindowState>) {
+    let (owner, disabled) = {
+        let mut state = window_state.lock().unwrap();
+        let Some(owner) = state.modal_owner.take() else { return };
+        (owner as HWND, std::mem::take(&mut state.modal_owner_disabled))
+    };
+    if disabled {
+        unsafe { release_modal_owner(owner, false) };
+    }
+}
+
 impl Drop for Window {
     fn drop(&mut self) {
         // Restore fullscreen video mode on exit.
         if matches!(self.fullscreen(), Some(Fullscreen::Exclusive(_, _))) {
             self.set_fullscreen(None);
         }
+
+        // Release the owner of a modal dialog before destroying this window, matching the order
+        // Win32 modal dialogs are expected to close in. This runs on the event loop thread, so it
+        // is ordered after any pending `set_visible`.
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor
+            .execute_in_thread(move || set_modal_owner_disabled(&window_state, false));
 
         unsafe {
             // The window must be destroyed from the same thread that created it, so we send a
@@ -511,6 +586,7 @@ impl CoreWindow for Window {
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
+            set_modal_owner_disabled(&window_state, visible);
             WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
                 f.set(WindowFlags::VISIBLE, visible)
             });
@@ -661,8 +737,14 @@ impl CoreWindow for Window {
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window.hwnd(), |f| {
-                f.set(WindowFlags::MINIMIZABLE, buttons.contains(WindowButtons::MINIMIZE));
+            let window_state = window_state.lock().unwrap();
+            // A minimized modal dialog has no taskbar button to restore it from, while its owner
+            // stays disabled, so the application would look frozen. Like a sheet on macOS, it
+            // can't be minimized.
+            let minimizable =
+                buttons.contains(WindowButtons::MINIMIZE) && window_state.modal_owner.is_none();
+            WindowState::set_window_flags(window_state, window.hwnd(), |f| {
+                f.set(WindowFlags::MINIMIZABLE, minimizable);
                 f.set(WindowFlags::MAXIMIZABLE, buttons.contains(WindowButtons::MAXIMIZE));
                 f.set(WindowFlags::CLOSABLE, buttons.contains(WindowButtons::CLOSE))
             });
@@ -816,6 +898,12 @@ impl CoreWindow for Window {
     }
 
     fn set_minimized(&self, minimized: bool) {
+        // A modal dialog can't be minimized: it has no taskbar button to restore it from while its
+        // owner stays disabled (see `WindowAttributes::with_modal`).
+        if minimized && self.window_state_lock().modal_owner.is_some() {
+            return;
+        }
+
         let window = self.window;
         let window_state = Arc::clone(&self.window_state);
 
@@ -1239,6 +1327,22 @@ fn outer_size_of(hwnd: HWND) -> PhysicalSize<u32> {
         .unwrap()
 }
 
+/// Returns the screen position that centers a window with the given outer `size` over the content
+/// area of `parent` (like on macOS), clamped to the monitor's work area.
+fn centered_over_parent(parent: HWND, size: PhysicalSize<u32>) -> Option<(i32, i32)> {
+    let parent_rect = util::WindowArea::Inner.get_rect(parent).ok()?;
+
+    let mut x = parent_rect.left + ((parent_rect.right - parent_rect.left) - size.width as i32) / 2;
+    let mut y = parent_rect.top + ((parent_rect.bottom - parent_rect.top) - size.height as i32) / 2;
+
+    if let Some((work_pos, work_size)) = monitor::current_monitor(parent).work_area() {
+        x = x.min(work_pos.x + work_size.width as i32 - size.width as i32).max(work_pos.x);
+        y = y.min(work_pos.y + work_size.height as i32 - size.height as i32).max(work_pos.y);
+    }
+
+    Some((x, y))
+}
+
 fn surface_size_of(hwnd: HWND) -> PhysicalSize<u32> {
     util::WindowArea::Inner
         .get_rect(hwnd)
@@ -1246,6 +1350,15 @@ fn surface_size_of(hwnd: HWND) -> PhysicalSize<u32> {
             PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
         })
         .unwrap()
+}
+
+/// Returns the parent or owner of this window
+/// Child Window (WS_CHILD) -> Parent
+/// Popup (WS_POPUP) -> Owner
+/// Dialog (Own Toplevel window) -> Owner
+fn parent(hwnd: HWND) -> HWND {
+    let parent = unsafe { GetParent(hwnd) };
+    if !parent.is_null() { parent } else { unsafe { GetWindow(hwnd, GW_OWNER) } }
 }
 
 // If the window is anchored the position is relative to the parent window and not relative to
@@ -1263,7 +1376,7 @@ fn translate_outer_position(
 
     let window_flags = window_state.lock().unwrap().window_flags;
     if window_flags.contains(WindowFlags::ANCHORED) && !window_flags.contains(WindowFlags::CHILD) {
-        let parent = unsafe { GetParent(hwnd) };
+        let parent = parent(hwnd);
         if !parent.is_null() {
             unsafe {
                 ClientToScreen(parent, &mut point);
@@ -1307,7 +1420,7 @@ fn compute_anchored_placement(
     // parent, both the anchor rect and `set_outer_position` operate directly in screen
     // coordinates instead, so the origin is left at zero and the clip region stays in screen
     // space.
-    let parent = unsafe { GetParent(hwnd) };
+    let parent = parent(hwnd);
     let mut parent_origin = POINT { x: 0, y: 0 };
     if !parent.is_null() {
         unsafe { ClientToScreen(parent, &mut parent_origin) };
@@ -1389,6 +1502,8 @@ pub(super) struct InitData<'a> {
     pub attributes: WindowAttributes,
     pub win_attributes: Box<WindowAttributesWindows>,
     pub window_flags: WindowFlags,
+    /// For a modal dialog: the owner window it disables while visible.
+    pub modal_owner: Option<HWND>,
     // outputs
     pub window: Option<Window>,
 }
@@ -1429,6 +1544,10 @@ impl InitData<'_> {
         enable_non_client_dpi_scaling(window);
 
         unsafe { ImeContext::set_ime_allowed(window, false) };
+
+        // If this is a modal dialog, remember its owner window; it's disabled while the dialog is
+        // visible (see `set_modal_owner_disabled`).
+        window_state.lock().unwrap().modal_owner = self.modal_owner.map(|owner| owner as isize);
 
         Window {
             window: SyncWindowHandle(window),
@@ -1530,16 +1649,11 @@ impl InitData<'_> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
+        // Removes the minimize button from a modal dialog, see `set_enabled_buttons`.
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        let size = attributes.surface_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-        let max_size = attributes
-            .max_surface_size
-            .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-        let min_size =
-            attributes.min_surface_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
-        let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-        let _ = win.request_surface_size(clamped_size);
+        let _ =
+            win.request_surface_size(initial_surface_size(&self.attributes, win.scale_factor()));
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,
@@ -1549,7 +1663,9 @@ impl InitData<'_> {
         // };
         // dbg!(DwmExtendFrameIntoClientArea(win.hwnd(), &margins as *const _));
 
-        if let Some(position) = attributes.position {
+        // Dialogs are already positioned at creation, see `init`.
+        let is_dialog = attributes.window_type == WindowType::Dialog;
+        if let Some(position) = attributes.position.filter(|_| !is_dialog) {
             win.set_outer_position(position);
         }
 
@@ -1584,15 +1700,14 @@ unsafe fn init(
     let class_name = util::encode_wide(&win_attributes.class_name);
     unsafe { register_window_class(&class_name) };
 
-    let is_popup = match attributes.window_type {
-        WindowType::Window => false,
-        WindowType::Popup => true,
-        _ => panic!("Unknown WindowType"),
-    };
+    let is_popup = matches!(attributes.window_type, WindowType::Popup);
+    let is_dialog = matches!(attributes.window_type, WindowType::Dialog);
     // Whether this window is positioned relative to its parent via the anchor/gravity/
     // positioner system -- either because it's a `WindowType::Popup`, or because anchor
-    // attributes were explicitly set on a `WindowType::Window` (Windows supports both).
-    let anchored = is_popup || attributes.positioner.is_some();
+    // attributes were explicitly set on a `WindowType::Window` (Windows supports both). Dialogs
+    // only use the parent's coordinate frame; positioner auto-placement stays opt-in (see
+    // `WindowState::anchored`).
+    let anchored = is_popup || is_dialog || attributes.positioner.is_some();
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::POPUP, is_popup);
@@ -1627,18 +1742,26 @@ unsafe fn init(
 
     let parent = match attributes.parent_window() {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            if !is_popup {
+            if !is_popup && !is_dialog {
                 window_flags.set(WindowFlags::CHILD, true);
             }
             if win_attributes.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
-            Some(handle.hwnd.get() as HWND)
+            let parent = handle.hwnd.get() as HWND;
+            // A dialog isn't a child window, so Win32 makes the top-level ancestor of the given
+            // parent its owner. Use that as the parent, so the dialog is placed relative to the
+            // same window that `outer_position` and `set_outer_position` use, and a modal dialog
+            // disables the window that actually owns it.
+            if is_dialog { Some(unsafe { GetAncestor(parent, GA_ROOT) }) } else { Some(parent) }
         },
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
         None => {
             if is_popup {
                 return Err(InvalidInput::new("Popup without a parent is not supported!").into());
+            }
+            if is_dialog {
+                return Err(InvalidInput::new("Dialog without a parent is not supported!").into());
             }
             fallback_parent()
         },
@@ -1647,17 +1770,58 @@ unsafe fn init(
     let menu = win_attributes.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
-    let mut initdata = InitData { runner, attributes, win_attributes, window_flags, window: None };
-
     let (style, ex_style) = window_flags.to_window_styles();
+
+    // Dialogs are placed at creation, relative to their parent (an explicit position is relative to
+    // the parent's client area, otherwise the dialog is centered over the parent). This can't be
+    // done afterwards: the parent isn't yet queryable via `GetParent` during `WM_CREATE`, and a
+    // position set before the first show is overridden by the `CW_USEDEFAULT` cascade.
+    let initial_position = parent.filter(|_| is_dialog).and_then(|parent| {
+        let dpi = unsafe { hwnd_dpi(parent) };
+        let scale_factor = dpi_to_scale_factor(dpi);
+        if let Some(position) = attributes.position {
+            let position = position.to_physical::<i32>(scale_factor);
+            let mut point = POINT { x: position.x, y: position.y };
+            unsafe { ClientToScreen(parent, &mut point) };
+            return Some((point.x, point.y));
+        }
+
+        // The size the window gets in `on_create`.
+        let size = initial_surface_size(&attributes, scale_factor).to_physical::<u32>(scale_factor);
+        let mut rect =
+            RECT { left: 0, top: 0, right: size.width as i32, bottom: size.height as i32 };
+
+        // Like `WindowFlags::adjust_rect`, which needs an existing window: an undecorated window
+        // has no frame, and the frame size depends on the DPI.
+        let mut frame_style = style;
+        if !window_flags.contains(WindowFlags::MARKER_DECORATIONS) {
+            frame_style &= !(WS_CAPTION | WS_SIZEBOX);
+        }
+        let has_menu = menu.is_some().into();
+        unsafe {
+            match *util::ADJUST_WINDOW_RECT_EX_FOR_DPI {
+                Some(adjust) => adjust(&mut rect, frame_style, has_menu, ex_style, dpi),
+                None => AdjustWindowRectEx(&mut rect, frame_style, has_menu, ex_style),
+            }
+        };
+        let outer =
+            PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32);
+        centered_over_parent(parent, outer)
+    });
+    let (x, y) = initial_position.unwrap_or((CW_USEDEFAULT, CW_USEDEFAULT));
+
+    let modal_owner = parent.filter(|_| is_dialog && attributes.modal);
+    let mut initdata =
+        InitData { runner, attributes, win_attributes, window_flags, modal_owner, window: None };
+
     let handle = unsafe {
         CreateWindowExW(
             ex_style,
             class_name.as_ptr(),
             title.as_ptr(),
             style,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
+            x,
+            y,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             parent.unwrap_or_default(),
@@ -1680,6 +1844,14 @@ unsafe fn init(
     // that we *must* have populated the `InitData.window` field.
     let win = initdata.window.unwrap();
 
+    let mut state = win.window_state_lock();
+    if state.modal_owner.is_some()
+        && let Ok(rect) = util::WindowArea::Outer.get_rect(win.hwnd())
+    {
+        state.last_outer_position = Some((rect.left, rect.top));
+    }
+    drop(state);
+
     // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
     // This is because if the size is changed in WM_CREATE, the restored size will be stored in that
     // size.
@@ -1691,6 +1863,17 @@ unsafe fn init(
     }
 
     Ok(win)
+}
+
+/// The surface size a new window gets in `InitData::on_create`: the requested size (800x600 by
+/// default), clamped to the min and max size. Also used to center a dialog over its parent before
+/// it is created, so both must agree.
+fn initial_surface_size(attributes: &WindowAttributes, scale_factor: f64) -> Size {
+    let size = attributes.surface_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+    let min_size = attributes.min_surface_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+    let max_size =
+        attributes.max_surface_size.unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
+    Size::clamp(size, min_size, max_size, scale_factor)
 }
 
 unsafe fn register_window_class(class_name: &[u16]) {

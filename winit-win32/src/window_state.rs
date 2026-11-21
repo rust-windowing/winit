@@ -60,6 +60,9 @@ pub(crate) struct WindowState {
     /// attributes were set on a [`WindowType::Window`]. Stored here (rather than only on the
     /// `Window` struct) so it stays reachable from just an `hwnd` via `GWL_USERDATA` -- e.g. to
     /// reposition an anchored window when its parent moves.
+    ///
+    /// Intentionally not set for [`WindowType::Dialog`]: dialogs use the parent's coordinate frame
+    /// (`WindowFlags::ANCHORED`) but are not auto-placed or moved along with the parent.
     pub anchored: bool,
 
     /// The positioner state backing `anchored` placement, meaningful only when `anchored` is
@@ -81,6 +84,13 @@ pub(crate) struct WindowState {
     pub skip_taskbar: bool,
 
     pub use_system_wheel_speed: bool,
+
+    /// For a modal dialog: its owner (an `HWND`), disabled while the dialog is visible.
+    pub modal_owner: Option<isize>,
+    /// Whether this modal dialog currently holds `modal_owner` disabled.
+    pub modal_owner_disabled: bool,
+    /// The dialog's last seen outer position, used to compute the delta to move `modal_owner` by.
+    pub last_outer_position: Option<(i32, i32)>,
 }
 
 #[derive(Clone)]
@@ -157,7 +167,8 @@ bitflags! {
 
         /// Whether this window is positioned relative to its parent via the anchor/gravity/
         /// positioner system. Independent of `POPUP`, which only selects the OS window style --
-        /// a `WindowType::Window` can be `ANCHORED` too. Used to pick the coordinate frame in
+        /// a `WindowType::Window` can be `ANCHORED` too. Also set for `WindowType::Dialog`, which
+        /// only uses the parent's coordinate frame. Used to pick the coordinate frame in
         /// `translate_outer_position`/`translate_outer_position_to_parent`.
         const ANCHORED = 1 << 23;
 
@@ -224,6 +235,10 @@ impl WindowState {
             skip_taskbar: false,
 
             use_system_wheel_speed: true,
+
+            modal_owner: None,
+            modal_owner_disabled: false,
+            last_outer_position: None,
         }
     }
 
