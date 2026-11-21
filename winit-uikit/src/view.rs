@@ -24,6 +24,8 @@ use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
 
 pub struct WinitViewState {
+    #[cfg(target_os = "ios")]
+    ime: RefCell<Option<Retained<super::ime::ImeField>>>,
     pinch_gesture_recognizer: RefCell<Option<Retained<UIPinchGestureRecognizer>>>,
     doubletap_gesture_recognizer: RefCell<Option<Retained<UITapGestureRecognizer>>>,
     rotation_gesture_recognizer: RefCell<Option<Retained<UIRotationGestureRecognizer>>>,
@@ -360,6 +362,8 @@ impl WinitView {
         frame: CGRect,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(WinitViewState {
+            #[cfg(target_os = "ios")]
+            ime: RefCell::new(None),
             pinch_gesture_recognizer: RefCell::new(None),
             doubletap_gesture_recognizer: RefCell::new(None),
             rotation_gesture_recognizer: RefCell::new(None),
@@ -386,6 +390,34 @@ impl WinitView {
     fn window(&self) -> Option<Retained<WinitUIWindow>> {
         // `WinitView`s should always be installed in a `WinitUIWindow`
         (**self).window().map(|window| window.downcast().unwrap())
+    }
+
+    #[cfg(target_os = "ios")]
+    pub(crate) fn set_ime_enabled(&self, enabled: bool) {
+        let field = {
+            let mut field = self.ivars().ime.borrow_mut();
+            if !enabled && field.is_none() {
+                return;
+            }
+            field
+                .get_or_insert_with(|| {
+                    let field = super::ime::ImeField::new(MainThreadMarker::from(self));
+                    self.addSubview(&field);
+                    field
+                })
+                .clone()
+        };
+        field.set_enabled(enabled);
+    }
+
+    #[cfg(target_os = "ios")]
+    pub(crate) fn send_ime(&self, event: winit_core::event::Ime) {
+        if let Some(window) = self.window() {
+            app_state::handle_nonuser_event(MainThreadMarker::from(self), EventWrapper::Window {
+                window_id: window.id(),
+                event: WindowEvent::Ime(event),
+            });
+        }
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
@@ -682,7 +714,7 @@ impl WinitView {
         }
     }
 
-    fn handle_insert_text(&self, text: &NSString) {
+    pub(crate) fn handle_insert_text(&self, text: &NSString) {
         let window = self.window().unwrap();
         let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
@@ -721,7 +753,7 @@ impl WinitView {
         );
     }
 
-    fn handle_delete_backward(&self) {
+    pub(crate) fn handle_delete_backward(&self) {
         let window = self.window().unwrap();
         let window_id = window.id();
         let mtm = MainThreadMarker::new().unwrap();
