@@ -210,6 +210,9 @@ impl EventLoop {
         if !self.loop_running {
             self.loop_running = true;
 
+            // Clear the exit flag left by a previous run.
+            self.active_event_loop.clear_exit();
+
             // Run the initial loop iteration.
             self.single_iteration(&mut app, StartCause::Init);
         }
