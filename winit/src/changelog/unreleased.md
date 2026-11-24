@@ -47,6 +47,8 @@ changelog entry.
 ### Added
 
 - Add `WindowType::Dialog` and `WindowAttributes::with_modal()`, implemented on Wayland, Windows and macOS. On Wayland, a normal window with the same parent is created if the compositor lacks `xdg-dialog-v1`.
+- Add `tick_count` to `WindowEvent::MouseWheel` and `DeviceEvent::MouseWheel`, reporting how many
+  wheel notches an event represents. Implemented on macOS, Windows, Wayland and X11.
 
 ### Changed
 

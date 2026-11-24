@@ -470,6 +470,7 @@ impl EventLoop {
                     delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                     phase: event::TouchPhase::Moved,
                     source: event::ScrollSource::Unknown,
+                    tick_count: None,
                 });
             },
             EventOption::Quit(QuitEvent {}) => {

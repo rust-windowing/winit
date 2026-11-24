@@ -360,7 +360,7 @@ impl Shared {
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
                     runner.send_event(Event::DeviceEvent {
                         device_id: None,
-                        event: DeviceEvent::MouseWheel { delta },
+                        event: DeviceEvent::MouseWheel { delta, tick_count: None },
                     });
                 }
             }),
