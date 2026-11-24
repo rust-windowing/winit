@@ -60,3 +60,5 @@ changelog entry.
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Wayland and X11, fix `pump_app_events` returning `PumpStatus::Exit` at once when the event
+  loop has run and exited before.
