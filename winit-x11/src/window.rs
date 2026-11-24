@@ -75,6 +75,7 @@ impl Window {
                 Ok(Window(window))
             },
             WindowType::Popup => Err(CreateWindowError::PopupNotSupported),
+            WindowType::Dialog => Err(CreateWindowError::DialogNotSupported),
             _ => panic!("Unknown WindowType"),
         }
     }
