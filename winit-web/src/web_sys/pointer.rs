@@ -3,7 +3,10 @@ use std::rc::Rc;
 
 use dpi::PhysicalPosition;
 use web_sys::PointerEvent;
-use winit_core::event::{ButtonSource, DeviceId, ElementState, PointerKind, PointerSource};
+use winit_core::event::{
+    ButtonSource, DeviceId, ElementState, EventTime, HistoricalMoveEvent, PointerKind,
+    PointerSource,
+};
 use winit_core::keyboard::ModifiersState;
 
 use super::canvas::Common;
@@ -36,7 +39,14 @@ impl PointerHandler {
     pub fn on_pointer_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
         F: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                bool,
+                PhysicalPosition<f64>,
+                PointerKind,
+                Option<EventTime>,
+            ),
     {
         let window = canvas_common.window.clone();
         self.on_cursor_leave =
@@ -47,14 +57,22 @@ impl PointerHandler {
                 let position =
                     event::pointer_position(&event).to_physical(super::scale_factor(&window));
                 let kind = event::pointer_kind(&event, pointer_id);
-                handler(modifiers, device_id, event.is_primary(), position, kind);
+                let event_time = event::event_time(&event);
+                handler(modifiers, device_id, event.is_primary(), position, kind, event_time);
             }));
     }
 
     pub fn on_pointer_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
     where
         F: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, PointerKind),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                bool,
+                PhysicalPosition<f64>,
+                PointerKind,
+                Option<EventTime>,
+            ),
     {
         let window = canvas_common.window.clone();
         self.on_cursor_enter =
@@ -65,14 +83,22 @@ impl PointerHandler {
                 let position =
                     event::pointer_position(&event).to_physical(super::scale_factor(&window));
                 let kind = event::pointer_kind(&event, pointer_id);
-                handler(modifiers, device_id, event.is_primary(), position, kind);
+                let event_time = event::event_time(&event);
+                handler(modifiers, device_id, event.is_primary(), position, kind, event_time);
             }));
     }
 
     pub fn on_pointer_release<C>(&mut self, canvas_common: &Common, mut handler: C)
     where
         C: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                bool,
+                PhysicalPosition<f64>,
+                ButtonSource,
+                Option<EventTime>,
+            ),
     {
         let window = canvas_common.window.clone();
         self.on_pointer_release =
@@ -99,6 +125,7 @@ impl PointerHandler {
                     event.is_primary(),
                     event::pointer_position(&event).to_physical(super::scale_factor(&window)),
                     source,
+                    event::event_time(&event),
                 )
             }));
     }
@@ -110,7 +137,14 @@ impl PointerHandler {
         prevent_default: Rc<Cell<bool>>,
     ) where
         C: 'static
-            + FnMut(ModifiersState, Option<DeviceId>, bool, PhysicalPosition<f64>, ButtonSource),
+            + FnMut(
+                ModifiersState,
+                Option<DeviceId>,
+                bool,
+                PhysicalPosition<f64>,
+                ButtonSource,
+                Option<EventTime>,
+            ),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw().clone();
@@ -161,6 +195,7 @@ impl PointerHandler {
                     event.is_primary(),
                     event::pointer_position(&event).to_physical(super::scale_factor(&window)),
                     source,
+                    event::event_time(&event),
                 )
             }));
     }
@@ -174,10 +209,13 @@ impl PointerHandler {
     ) where
         C: 'static
             + FnMut(
+                ModifiersState,
                 Option<DeviceId>,
-                &mut dyn Iterator<
-                    Item = (ModifiersState, bool, PhysicalPosition<f64>, PointerSource),
-                >,
+                bool,
+                PhysicalPosition<f64>,
+                PointerSource,
+                Option<EventTime>,
+                Vec<HistoricalMoveEvent>,
             ),
         B: 'static
             + FnMut(
@@ -187,6 +225,7 @@ impl PointerHandler {
                 PhysicalPosition<f64>,
                 ElementState,
                 ButtonSource,
+                Option<EventTime>,
             ),
     {
         let window = canvas_common.window.clone();
@@ -239,6 +278,7 @@ impl PointerHandler {
                         event::pointer_position(&event).to_physical(super::scale_factor(&window)),
                         state,
                         button,
+                        event::event_time(&event),
                     );
 
                     return;
@@ -247,16 +287,24 @@ impl PointerHandler {
                 // pointer move event
                 let scale = super::scale_factor(&window);
 
-                cursor_handler(
-                    device_id,
-                    &mut event::pointer_move_event(event).map(|event| {
-                        (
-                            event::mouse_modifiers(&event),
-                            event.is_primary(),
+                let history = event::pointer_move_history(&event)
+                    .filter_map(|event| {
+                        Some(HistoricalMoveEvent::new(
+                            event::event_time(&event)?,
                             event::pointer_position(&event).to_physical(scale),
                             event::pointer_source(&event, kind),
-                        )
-                    }),
+                        ))
+                    })
+                    .collect();
+
+                cursor_handler(
+                    event::mouse_modifiers(&event),
+                    device_id,
+                    primary,
+                    event::pointer_position(&event).to_physical(scale),
+                    event::pointer_source(&event, kind),
+                    event::event_time(&event),
+                    history,
                 );
             }));
     }

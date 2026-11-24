@@ -11,5 +11,7 @@ pub mod foundation;
 #[cfg(feature = "positioner")]
 pub mod positioner;
 pub mod text;
+#[cfg(feature = "timestamp-handler")]
+pub mod timestamp_handler;
 #[cfg(feature = "xkb")]
 pub mod xkb;

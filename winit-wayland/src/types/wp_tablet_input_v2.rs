@@ -27,7 +27,7 @@ use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_ring_v2::ZwpTable
 use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_strip_v2::ZwpTabletPadStripV2;
 use wayland_protocols::wp::tablet::zv2::client::zwp_tablet_pad_v2;
 use winit_core::event::{
-    ButtonSource, ElementState, Force, PointerKind, PointerSource, TabletToolButton,
+    ButtonSource, ElementState, EventTime, Force, PointerKind, PointerSource, TabletToolButton,
     TabletToolData as CoreTabletToolData, TabletToolKind, TabletToolTilt, WindowEvent,
 };
 
@@ -171,7 +171,11 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                 let event = TabletEvent::Button { button, state, serial: Some(serial) };
                 data.pending.push(event);
             },
-            ToolEvent::Frame { .. } => {
+            ToolEvent::Frame { time } => {
+                // TODO: instead of creating single events we should use also the history vector on
+                // move
+                let event_time =
+                    Some(EventTime(state.timestamp_extender.extend_timestamp_millisecond(time)));
                 let kind = data.ty;
                 for event in std::mem::take(&mut data.pending) {
                     if let TabletEvent::Enter { surface, serial } = &event {
@@ -206,18 +210,21 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                     let window_event = match event {
                         TabletEvent::Enter { .. } => WindowEvent::PointerEntered {
                             device_id: None,
+                            event_time,
                             position,
                             primary: true,
                             kind: PointerKind::TabletTool(kind),
                         },
                         TabletEvent::Moved => WindowEvent::PointerMoved {
                             device_id: None,
+                            event_time,
                             position,
                             primary: true,
                             source: PointerSource::TabletTool {
                                 kind,
                                 data: data.tool_state.clone(),
                             },
+                            history: Vec::new(),
                         },
                         TabletEvent::Button { button, state, serial } => {
                             // Update serial if we have it.
@@ -227,6 +234,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
 
                             WindowEvent::PointerButton {
                                 device_id: None,
+                                event_time,
                                 state,
                                 position,
                                 primary: true,
@@ -240,6 +248,7 @@ impl Dispatch2<ZwpTabletToolV2, WinitState> for TabletToolData {
                         },
                         TabletEvent::Left => WindowEvent::PointerLeft {
                             device_id: None,
+                            event_time,
                             position: Some(position),
                             primary: true,
                             kind: PointerKind::TabletTool(kind),
