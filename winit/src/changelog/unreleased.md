@@ -60,3 +60,5 @@ changelog entry.
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Windows, fix window repaints being suppressed while an outgoing
+  drag-and-drop operation is in progress.

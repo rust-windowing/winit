@@ -1385,14 +1385,6 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(0);
         },
 
-        WM_PAINT if userdata.event_loop_runner.source_drag.get().is_some() => {
-            // While a source-side drag is in flight, the app handler is on the stack (we're
-            // inside `start_drag` -> `DoDragDrop`), so we can neither dispatch `RedrawRequested`
-            // nor keep re-arming via `RDW_INTERNALPAINT` (that would spin in OLE's modal loop).
-            // Let `DefWindowProcW` validate the region and show stale content for the duration of
-            // the drag; the next real paint happens once `DoDragDrop` returns.
-            result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
-        },
         WM_PAINT => {
             userdata.window_state_lock().redraw_requested =
                 userdata.event_loop_runner.should_buffer();
@@ -2646,6 +2638,7 @@ unsafe extern "system" fn thread_event_target_callback(
     };
 
     let result = userdata.event_loop_runner.catch_unwind(callback).unwrap_or(-1);
+    userdata.event_loop_runner.try_execute_drag_drop();
     if userdata_removed {
         drop(userdata);
     } else {

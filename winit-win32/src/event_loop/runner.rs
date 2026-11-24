@@ -146,6 +146,14 @@ impl EventLoopRunner {
     }
 
     pub(super) fn try_execute_drag_drop(self: &Rc<Self>) {
+        // Do not enter OLE's modal `DoDragDrop` loop while an outer `ApplicationHandler` callback
+        // still holds `event_handler` (e.g. a re-entrant window procedure call): incoming
+        // `Drag*` and `RedrawRequested` events would otherwise be buffered until `DoDragDrop`
+        // returns.
+        if self.should_buffer() {
+            return;
+        }
+
         let Some(PendingDrag { data_object, drop_source, id, allowed_effects, window_id }) =
             self.pending_drag.take()
         else {
@@ -153,10 +161,9 @@ impl EventLoopRunner {
         };
 
         // Make the drag visible to our own target-side `IDropTarget` so it can recognize
-        // self-drops and reuse this id + action mask without going through the (buffered) app
-        // handler. The guard ensures the flag is cleared on any exit path - if anything between
-        // here and `DoDragDrop`'s return panics, the stale flag would otherwise permanently
-        // disable `WM_PAINT` dispatch and misclassify all future external drags as self-drops.
+        // self-drops and reuse the source's `DataTransferId`. The guard ensures the flag is
+        // cleared on any exit path - if anything between here and `DoDragDrop`'s return panics,
+        // the stale flag would otherwise misclassify all future external drags as self-drops.
         struct ClearOnDrop<'a>(&'a Cell<Option<SourceDrag>>);
         impl Drop for ClearOnDrop<'_> {
             fn drop(&mut self) {
