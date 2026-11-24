@@ -9,8 +9,8 @@ use objc2::runtime::{AnyObject, Sel};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, Message, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSDragOperation, NSDraggingSession, NSEvent, NSEventPhase,
-    NSResponder, NSTextInputClient, NSTrackingArea, NSTrackingAreaOptions, NSView,
-    NSViewLayerContentsRedrawPolicy, NSWindow,
+    NSResponder, NSTextInputClient, NSTextInputContext, NSTrackingArea, NSTrackingAreaOptions,
+    NSView, NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::{
@@ -210,6 +210,15 @@ define_class!(
             true
         }
 
+        #[unsafe(method_id(inputContext))]
+        fn input_context(&self) -> Option<Retained<NSTextInputContext>> {
+            if self.ivars().ime_capabilities.get().is_some() {
+                unsafe { msg_send![super(self), inputContext] }
+            } else {
+                None
+            }
+        }
+
         // This is necessary to prevent a beefy terminal error on MacBook Pros:
         // IMKInputSession [0x7fc573576ff0
         // presentFunctionRowItemTextInputViewWithEndpoint:completionHandler:] : [self
@@ -329,8 +338,9 @@ define_class!(
             let _entered = debug_span!("unmarkText").entered();
             *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
 
-            let input_context = self.inputContext().expect("input context");
-            input_context.discardMarkedText();
+            if let Some(input_context) = self.inputContext() {
+                input_context.discardMarkedText();
+            }
 
             self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             if self.is_ime_enabled() {
@@ -899,7 +909,6 @@ impl WinitView {
             option_as_alt: Cell::new(option_as_alt),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
-        *this.ivars().input_source.borrow_mut() = this.current_input_source();
 
         // Ask AppKit to redisplay the layer while the view is being resized so layer-backed
         // surfaces keep painting.
@@ -1005,8 +1014,7 @@ impl WinitView {
 
     fn current_input_source(&self) -> String {
         self.inputContext()
-            .expect("input context")
-            .selectedKeyboardInputSource()
+            .and_then(|input_context| input_context.selectedKeyboardInputSource())
             .map(|input_source| input_source.to_string())
             .unwrap_or_default()
     }
@@ -1049,6 +1057,9 @@ impl WinitView {
         self.ivars().ime_capabilities.set(Some(capabilities));
         *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
         self.ivars().pending_commit.set(false);
+        NSApplication::sharedApplication(MainThreadMarker::from(self)).updateWindows();
+        let current_source = self.current_input_source();
+        *self.ivars().input_source.borrow_mut() = current_source;
     }
     pub(super) fn disable_ime(&self) {
         // Tell the input method to drop any composition in progress. Otherwise it keeps the
@@ -1069,6 +1080,7 @@ impl WinitView {
         // `set_ime_allowed`
         *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
         self.ivars().pending_commit.set(false);
+        NSApplication::sharedApplication(MainThreadMarker::from(self)).updateWindows();
     }
 
     pub(super) fn ime_capabilities(&self) -> Option<ImeCapabilities> {
@@ -1078,8 +1090,9 @@ impl WinitView {
     pub(super) fn set_ime_cursor_area(&self, position: NSPoint, size: NSSize) {
         self.ivars().ime_position.set(position);
         self.ivars().ime_size.set(size);
-        let input_context = self.inputContext().expect("input context");
-        input_context.invalidateCharacterCoordinates();
+        if let Some(input_context) = self.inputContext() {
+            input_context.invalidateCharacterCoordinates();
+        }
     }
 
     /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
