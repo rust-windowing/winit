@@ -1698,6 +1698,12 @@ impl WindowDelegate {
     }
 
     pub(crate) fn is_zoomed(&self) -> bool {
+        // The temporary style mask below resizes a borderless popup's content view,
+        // which emits `SurfaceResized` on every query.
+        if self.window_type() == WindowType::Popup {
+            return false;
+        }
+
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporarily.
         let curr_mask = self.window().styleMask();
@@ -2016,7 +2022,8 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        if decorations == self.ivars().decorations.get() {
+        if self.window_type() == WindowType::Popup || decorations == self.ivars().decorations.get()
+        {
             return;
         }
 
