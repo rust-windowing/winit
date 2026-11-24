@@ -1,15 +1,20 @@
 //! Touch handling.
 
+use std::time::Duration;
+
 use dpi::LogicalPosition;
+use sctk::compositor::SurfaceData;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::csd_frame::FrameClick;
 use sctk::seat::touch::{TouchData, TouchHandler};
 use tracing::warn;
 use winit_core::event::{
     ButtonSource, ElementState, FingerId, PointerKind, PointerSource, WindowEvent,
 };
+use winit_core::window::WindowId;
 
 use crate::state::WinitState;
 
@@ -20,11 +25,47 @@ impl TouchHandler for WinitState {
         _: &QueueHandle<Self>,
         touch: &WlTouch,
         serial: u32,
-        _: u32,
+        time: u32,
         surface: WlSurface,
         id: i32,
         position: (f64, f64),
     ) {
+        let parent_surface =
+            surface.data::<SurfaceData<()>>().and_then(|data| data.parent_surface().cloned());
+        if let Some(parent_surface) = parent_surface.filter(|parent| *parent != surface) {
+            let window_id = crate::make_wid(&parent_surface);
+            let mut window = match self.windows.get_mut().get_mut(&window_id) {
+                Some(window) => window.lock().unwrap(),
+                None => return,
+            };
+            let seat = touch.seat();
+            window.frame_point_moved(seat, &surface, Duration::ZERO, position.0, position.1);
+            window.frame_click(
+                FrameClick::Normal,
+                true,
+                seat,
+                serial,
+                Duration::from_millis(time as u64),
+                window_id,
+                &mut self.window_compositor_updates,
+            );
+            drop(window);
+
+            let seat_state = match self.seats.get_mut(&touch.seat().id()) {
+                Some(seat_state) => seat_state,
+                None => {
+                    warn!("Received wl_touch::down without seat");
+                    return;
+                },
+            };
+            seat_state.touch_map.insert(id, TouchPoint {
+                surface,
+                location: LogicalPosition::<f64>::from(position),
+                frame_of: Some(window_id),
+            });
+            return;
+        }
+
         let window_id = crate::make_wid(&surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => {
@@ -51,7 +92,7 @@ impl TouchHandler for WinitState {
             seat_state.first_touch_id = Some(id);
         }
         let primary = seat_state.first_touch_id == Some(id);
-        seat_state.touch_map.insert(id, TouchPoint { surface, location });
+        seat_state.touch_map.insert(id, TouchPoint { surface, location, frame_of: None });
 
         let position = location.to_physical(scale_factor);
         let finger_id = FingerId::from_raw(id as usize);
@@ -83,8 +124,8 @@ impl TouchHandler for WinitState {
         _: &Connection,
         _: &QueueHandle<Self>,
         touch: &WlTouch,
-        _: u32,
-        _: u32,
+        serial: u32,
+        time: u32,
         id: i32,
     ) {
         let seat_state = match self.seats.get_mut(&touch.seat().id()) {
@@ -100,6 +141,23 @@ impl TouchHandler for WinitState {
             Some(touch_point) => touch_point,
             None => return,
         };
+
+        if let Some(window_id) = touch_point.frame_of {
+            if let Some(window) = self.windows.get_mut().get_mut(&window_id) {
+                let mut window = window.lock().unwrap();
+                window.frame_click(
+                    FrameClick::Normal,
+                    false,
+                    touch.seat(),
+                    serial,
+                    Duration::from_millis(time as u64),
+                    window_id,
+                    &mut self.window_compositor_updates,
+                );
+                window.frame_point_left();
+            }
+            return;
+        }
 
         // Update the primary touch point.
         let primary = seat_state.first_touch_id == Some(id);
@@ -153,7 +211,7 @@ impl TouchHandler for WinitState {
         _: &Connection,
         _: &QueueHandle<Self>,
         touch: &WlTouch,
-        _: u32,
+        time: u32,
         id: i32,
         position: (f64, f64),
     ) {
@@ -170,6 +228,20 @@ impl TouchHandler for WinitState {
             Some(touch_point) => touch_point,
             None => return,
         };
+
+        if let Some(window_id) = touch_point.frame_of {
+            let surface = touch_point.surface.clone();
+            if let Some(window) = self.windows.get_mut().get_mut(&window_id) {
+                window.lock().unwrap().frame_point_moved(
+                    touch.seat(),
+                    &surface,
+                    Duration::from_millis(time as u64),
+                    position.0,
+                    position.1,
+                );
+            }
+            return;
+        }
 
         let primary = seat_state.first_touch_id == Some(id);
 
@@ -205,6 +277,13 @@ impl TouchHandler for WinitState {
         };
 
         for (id, touch_point) in seat_state.touch_map.drain() {
+            if let Some(window_id) = touch_point.frame_of {
+                if let Some(window) = self.windows.get_mut().get_mut(&window_id) {
+                    window.lock().unwrap().frame_point_left();
+                }
+                continue;
+            }
+
             let window_id = crate::make_wid(&touch_point.surface);
             let scale_factor = match self.windows.get_mut().get(&window_id) {
                 Some(window) => {
@@ -257,6 +336,9 @@ pub struct TouchPoint {
 
     /// The location of the point on the surface.
     pub location: LogicalPosition<f64>,
+
+    /// Window whose client-side decorations this touch point targets, if any.
+    pub frame_of: Option<WindowId>,
 }
 
 pub trait TouchDataExt {
