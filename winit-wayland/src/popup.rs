@@ -45,6 +45,7 @@ impl Popup {
         let monitors = state.monitors.clone();
         let xdg_activation =
             state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
+        let system_bell = state.system_bell.as_ref().map(|bell_state| bell_state.global().clone());
         let xdg_positioner = XdgPositioner::new(&state.xdg_shell).map_err(|e| os_error!(e))?;
 
         let WindowPositioner {
@@ -217,6 +218,7 @@ impl Popup {
                     window_events_sink,
 
                     xdg_activation,
+                    system_bell,
                     attention_requested: Arc::new(AtomicBool::new(false)),
 
                     compositor: state.compositor_state.clone(),
@@ -295,6 +297,10 @@ impl CoreWindow for Popup {
 
     fn reset_dead_keys(&self) {
         self.common.reset_dead_keys();
+    }
+
+    fn beep(&self) {
+        self.common.handles.beep(None);
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
