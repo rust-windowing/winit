@@ -13,7 +13,7 @@ use super::create_sctk_adwaita_config;
 use super::{WindowState, WindowType, WinitFrame};
 
 impl WindowState {
-    pub fn configure_popup(&mut self, configure: PopupConfigure) -> bool {
+    pub fn configure_popup(&mut self, mut configure: PopupConfigure) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -28,8 +28,11 @@ impl WindowState {
             LogicalSize { width: configure.width as u32, height: configure.height as u32 };
 
         // NOTE: Set the configure before doing a resize, since we query it during it.
-        if let WindowType::Popup { last_configure, .. } = &mut self.window {
+        if let WindowType::Popup { last_configure, parent_origin, .. } = &mut self.window {
             let kind = configure.kind.clone();
+            // Consider the frame
+            configure.position.0 += parent_origin.x;
+            configure.position.1 += parent_origin.y;
             *last_configure = Some(configure);
 
             // Always resize on the initial configure to properly initialize the viewport
