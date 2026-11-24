@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::error::{CustomCursorError, EventLoopError, NotSupportedError};
+use winit_core::event_loop::never_return::EventLoopExtNeverReturn;
+use winit_core::event_loop::register::EventLoopExtRegister;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy, OwnedDisplayHandle,
@@ -43,10 +45,6 @@ impl EventLoop {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 
-    pub fn register_app<A: ApplicationHandler + 'static>(self, app: A) {
-        self.elw.run(Box::new(app));
-    }
-
     pub fn window_target(&self) -> &dyn RootActiveEventLoop {
         &self.elw
     }
@@ -83,9 +81,21 @@ impl EventLoop {
 }
 
 impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(self, app: A) -> Result<(), EventLoopError> {
+    fn run_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> Result<(), EventLoopError> {
         self.register_app(app);
         Ok(())
+    }
+
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
+        Ok(self)
+    }
+
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
+        Err(self)
     }
 
     fn create_proxy(&self) -> EventLoopProxy {
@@ -94,6 +104,10 @@ impl EventLoopProvider for EventLoop {
 
     fn owned_display_handle(&self) -> OwnedDisplayHandle {
         self.window_target().owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self.window_target().rwh_06_handle()
     }
 
     fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -109,5 +123,11 @@ impl EventLoopProvider for EventLoop {
         custom_cursor: CustomCursorSource,
     ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
+impl EventLoopExtRegister for EventLoop {
+    fn register_app(self: Box<Self>, app: Box<dyn ApplicationHandler>) {
+        self.elw.run(app);
     }
 }

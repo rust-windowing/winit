@@ -8,8 +8,11 @@ use crate::{
 
 /// Additional methods for [`EventLoopProvider`] to return control flow to the caller.
 ///
+/// Access via [`EventLoopProvider::run_on_demand_ext`].
+///
 /// [`EventLoopProvider`]: crate::event_loop::EventLoopProvider
-pub trait EventLoopExtRunOnDemand {
+/// [`EventLoopProvider::run_on_demand_ext`]: crate::event_loop::EventLoopProvider::run_on_demand_ext
+pub trait EventLoopExtRunOnDemand: std::fmt::Debug {
     /// Run the application with the event loop on the calling thread.
     ///
     /// Unlike [`EventLoopProvider::run_app`], this function accepts non-`'static` (i.e. non-`move`)
@@ -53,5 +56,6 @@ pub trait EventLoopExtRunOnDemand {
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`EventLoopProvider::run_app`]: crate::event_loop::EventLoopProvider::run_app
-    fn run_app_on_demand<A: ApplicationHandler>(&mut self, app: A) -> Result<(), EventLoopError>;
+    fn run_app_on_demand(&mut self, app: &mut dyn ApplicationHandler)
+    -> Result<(), EventLoopError>;
 }

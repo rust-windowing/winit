@@ -18,7 +18,7 @@ fn main() -> std::process::ExitCode {
     use tracing::info;
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+    use winit::event_loop::pump_events::PumpStatus;
     use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
     use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -73,7 +73,7 @@ fn main() -> std::process::ExitCode {
 
     loop {
         let timeout = Some(Duration::ZERO);
-        let status = event_loop.pump_app_events(timeout, &mut app);
+        let status = event_loop.pump_events_ext().unwrap().pump_app_events(timeout, &mut app);
 
         if let PumpStatus::Exit(exit_code) = status {
             break ExitCode::from(exit_code as u8);
@@ -88,7 +88,14 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-#[cfg(any(ios_platform, web_platform))]
+#[cfg(not(any(
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    android_platform,
+    orbital_platform,
+)))]
 fn main() {
     panic!("This platform doesn't support pump_events.")
 }

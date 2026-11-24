@@ -55,7 +55,7 @@ serde = [
     "winit-core/serde",
     "winit-uikit/serde",
 ]
-wayland = ["winit-wayland"]
+wayland = ["winit-wayland", "dep:libc", "dep:rustix", "dep:winit-common"]
 wayland-csd-adwaita = ["winit-wayland/csd-adwaita"]
 wayland-csd-adwaita-cosmic-text = ["winit-wayland/csd-adwaita-cosmic-text"]
 wayland-csd-adwaita-crossfont = ["winit-wayland/csd-adwaita-crossfont"]
@@ -63,7 +63,7 @@ wayland-csd-adwaita-notitle = ["winit-wayland/csd-adwaita-notitle"]
 wayland-csd-adwaita-notitlebar = ["winit-wayland/csd-adwaita-notitlebar"]
 wayland-csd-adwaita-skrifa = ["winit-wayland/csd-adwaita-skrifa"]
 wayland-dlopen = ["winit-wayland/dlopen"]
-x11 = ["winit-x11"]
+x11 = ["winit-x11", "dep:libc", "dep:rustix", "dep:winit-common"]
 
 [build-dependencies]
 cfg_aliases.workspace = true
@@ -102,9 +102,9 @@ winit-win32.workspace = true
 
 # Linux
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_vendor = "apple"))))'.dependencies]
-libc.workspace = true
-rustix = { workspace = true, features = ["std", "thread"] }
-winit-common = { workspace = true, features = ["xkb"] }
+libc = { workspace = true, optional = true }
+rustix = { workspace = true, optional = true, features = ["std", "thread"] }
+winit-common = { workspace = true, optional = true, features = ["xkb"] }
 winit-wayland = { workspace = true, optional = true, default-features = false }
 winit-x11 = { workspace = true, optional = true }
 

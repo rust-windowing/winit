@@ -1,7 +1,10 @@
 use crate::application::ApplicationHandler;
 
 /// Additional methods on `EventLoop` for platforms whose run method never return.
-pub trait EventLoopExtNeverReturn {
+///
+/// Access via
+/// [`EventLoopProvider::into_never_return`][super::EventLoopProvider::into_never_return].
+pub trait EventLoopExtNeverReturn: std::fmt::Debug {
     /// Run the event loop and call `process::exit` once finished.
     ///
     /// ## Platform-specific
@@ -10,5 +13,5 @@ pub trait EventLoopExtNeverReturn {
     /// - **macOS**: Unimplemented (TODO: Should call `NSApplicationMain`).
     /// - **Android/Orbital/Wayland/Windows/X11**: Unsupported.
     /// - **Web**: Impossible to support properly.
-    fn run_app_never_return<A: ApplicationHandler + 'static>(self, app: A) -> !;
+    fn run_app_never_return(self: Box<Self>, app: Box<dyn ApplicationHandler>) -> !;
 }

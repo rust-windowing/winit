@@ -18,7 +18,10 @@ use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::error::{CreateWindowError, CustomCursorError, EventLoopError};
 use winit_core::event::{self, Modifiers, StartCause};
-use winit_core::event_loop::pump_events::PumpStatus;
+use winit_core::event_loop::never_return::EventLoopExtNeverReturn;
+use winit_core::event_loop::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit_core::event_loop::register::EventLoopExtRegister;
+use winit_core::event_loop::run_on_demand::EventLoopExtRunOnDemand;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider,
     EventLoopProxy as CoreEventLoopProxy, EventLoopProxyProvider,
@@ -355,12 +358,12 @@ impl EventLoop {
         })
     }
 
-    fn process_event<A: ApplicationHandler>(
+    fn process_event(
         window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
         window_target: &ActiveEventLoop,
-        app: &mut A,
+        app: &mut dyn ApplicationHandler,
     ) {
         let text_input_event = event_state.text_input_event.take();
         if text_input_event.is_some() && !matches!(event_option, EventOption::Key(_)) {
@@ -521,28 +524,7 @@ impl EventLoop {
         }
     }
 
-    pub fn run_app_on_demand<A: ApplicationHandler>(
-        &mut self,
-        mut app: A,
-    ) -> Result<(), EventLoopError> {
-        self.window_target.exit.set(false);
-        let res = loop {
-            match self.pump_app_events(None, &mut app) {
-                PumpStatus::Exit(0) => {
-                    break Ok(());
-                },
-                PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
-                },
-                _ => {
-                    continue;
-                },
-            }
-        };
-
-        drop(app);
-
-        // Handle window destroys that happened when dropping the app.
+    fn cleanup_destroyed_windows(&mut self) {
         while let Some(destroy_id) = {
             let mut destroys = self.window_target.destroys.lock().unwrap();
             destroys.pop_front()
@@ -550,11 +532,9 @@ impl EventLoop {
             self.windows
                 .retain(|(window, _event_state)| WindowId::from_raw(window.fd()) != destroy_id);
         }
-
-        res
     }
 
-    fn single_iteration<A: ApplicationHandler>(&mut self, app: &mut A, cause: StartCause) {
+    fn single_iteration(&mut self, app: &mut dyn ApplicationHandler, cause: StartCause) {
         // TODO: Unindent
         {
             app.new_events(&self.window_target, cause);
@@ -667,16 +647,85 @@ impl EventLoop {
         }
     }
 
-    pub fn pump_app_events<A: ApplicationHandler>(
+    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
+        &self.window_target
+    }
+}
+
+impl EventLoopProvider for EventLoop {
+    fn run_app(
+        mut self: Box<Self>,
+        mut app: Box<dyn ApplicationHandler>,
+    ) -> Result<(), EventLoopError> {
+        let result = self.run_app_on_demand(&mut *app);
+        // SAFETY: ensure that the state is dropped before the exit from the event loop.
+        drop(app);
+        // Handle window destroys that happened when dropping the app.
+        self.cleanup_destroyed_windows();
+        result
+    }
+
+    #[inline(always)]
+    fn pump_events_ext(&mut self) -> Option<&mut dyn EventLoopExtPumpEvents> {
+        Some(self)
+    }
+
+    #[inline(always)]
+    fn run_on_demand_ext(&mut self) -> Option<&mut dyn EventLoopExtRunOnDemand> {
+        Some(self)
+    }
+
+    fn into_register(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtRegister>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn into_never_return(
+        self: Box<Self>,
+    ) -> Result<Box<dyn EventLoopExtNeverReturn>, Box<dyn EventLoopProvider>> {
+        Err(self)
+    }
+
+    fn create_proxy(&self) -> CoreEventLoopProxy {
+        self.window_target().create_proxy()
+    }
+
+    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
+        self.window_target().owned_display_handle()
+    }
+
+    fn rwh_06_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
+        self.window_target().rwh_06_handle()
+    }
+
+    fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.window_target().listen_device_events(allowed);
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.window_target().set_control_flow(control_flow);
+    }
+
+    fn create_custom_cursor(
+        &self,
+        custom_cursor: CustomCursorSource,
+    ) -> Result<CustomCursor, CustomCursorError> {
+        self.window_target().create_custom_cursor(custom_cursor)
+    }
+}
+
+impl EventLoopExtPumpEvents for EventLoop {
+    fn pump_app_events(
         &mut self,
         timeout: Option<Duration>,
-        mut app: A,
+        app: &mut dyn ApplicationHandler,
     ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // Run the initial loop iteration.
-            self.single_iteration(&mut app, StartCause::Init);
+            self.single_iteration(app, StartCause::Init);
         }
 
         if self.window_target.exit.get() {
@@ -737,48 +786,36 @@ impl EventLoop {
         };
 
         // Do actual event processing
-        self.single_iteration(&mut app, cause);
+        self.single_iteration(app, cause);
 
         PumpStatus::Continue
     }
-
-    pub fn window_target(&self) -> &dyn RootActiveEventLoop {
-        &self.window_target
-    }
 }
 
-impl EventLoopProvider for EventLoop {
-    fn run_app<A: ApplicationHandler + 'static>(
-        mut self,
-        mut app: A,
+impl EventLoopExtRunOnDemand for EventLoop {
+    fn run_app_on_demand(
+        &mut self,
+        app: &mut dyn ApplicationHandler,
     ) -> Result<(), EventLoopError> {
-        let result = self.run_app_on_demand(&mut app);
-        // SAFETY: unsure that the state is dropped before the exit from the event loop.
-        drop(app);
-        result
-    }
+        self.window_target.exit.set(false);
+        let res = loop {
+            match self.pump_app_events(None, app) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
+                },
+                PumpStatus::Exit(code) => {
+                    break Err(EventLoopError::ExitFailure(code));
+                },
+                _ => {
+                    continue;
+                },
+            }
+        };
 
-    fn create_proxy(&self) -> CoreEventLoopProxy {
-        self.window_target().create_proxy()
-    }
+        // Handle window destroys that happened before exiting.
+        self.cleanup_destroyed_windows();
 
-    fn owned_display_handle(&self) -> CoreOwnedDisplayHandle {
-        self.window_target().owned_display_handle()
-    }
-
-    fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.window_target().listen_device_events(allowed);
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target().set_control_flow(control_flow);
-    }
-
-    fn create_custom_cursor(
-        &self,
-        custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, CustomCursorError> {
-        self.window_target().create_custom_cursor(custom_cursor)
+        res
     }
 }
 
