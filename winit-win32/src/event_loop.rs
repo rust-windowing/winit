@@ -319,6 +319,7 @@ impl EventLoop {
             PumpStatus::Exit(code)
         } else {
             self.runner.prepare_wait();
+            self.resume_panic();
             PumpStatus::Continue
         }
     }
@@ -339,6 +340,9 @@ impl EventLoop {
         // `MsgWaitForMultipleObjectsEx`.
         //
         self.runner.prepare_wait();
+        // A panic in `about_to_wait` must not leave us waiting for a message that may never come
+        // (no window, nothing queued).
+        self.resume_panic();
         wait_for_messages_impl(
             &mut self.high_resolution_timer,
             self.runner.control_flow(),
@@ -346,6 +350,14 @@ impl EventLoop {
         );
         // Before we potentially exit, make sure to consistently emit an event for the wake up
         self.runner.wakeup();
+    }
+
+    /// Re-raises a panic caught in the application's callbacks.
+    fn resume_panic(&self) {
+        if let Err(payload) = self.runner.take_panic_error() {
+            self.runner.reset_runner();
+            panic::resume_unwind(payload);
+        }
     }
 
     /// Dispatch all queued messages via `PeekMessageW`
@@ -381,10 +393,7 @@ impl EventLoop {
                 }
             }
 
-            if let Err(payload) = self.runner.take_panic_error() {
-                self.runner.reset_runner();
-                panic::resume_unwind(payload);
-            }
+            self.resume_panic();
 
             if let Some(_code) = self.runner.exit_code() {
                 break;
@@ -2909,7 +2918,111 @@ fn inverted_wheel_delta(value: i16) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use winit_core::event::StartCause;
+
     use super::*;
+
+    /// An application that panics at one point and never creates a window.
+    struct PanicIn {
+        stage: &'static str,
+        waits: u32,
+    }
+
+    impl PanicIn {
+        fn new(stage: &'static str) -> Self {
+            Self { stage, waits: 0 }
+        }
+    }
+
+    impl ApplicationHandler for PanicIn {
+        fn new_events(&mut self, _: &dyn RootActiveEventLoop, cause: StartCause) {
+            if self.stage == "new_events" && cause == StartCause::Poll {
+                panic::panic_any(self.stage);
+            }
+        }
+
+        fn can_create_surfaces(&mut self, event_loop: &dyn RootActiveEventLoop) {
+            match self.stage {
+                "can_create_surfaces" => panic::panic_any(self.stage),
+                "new_events" => event_loop.set_control_flow(ControlFlow::Poll),
+                _ => {},
+            }
+        }
+
+        fn about_to_wait(&mut self, _: &dyn RootActiveEventLoop) {
+            self.waits += 1;
+            // Later waits come after the messages queued at startup have been dispatched.
+            let on_wait = match self.stage {
+                "about_to_wait" => 1,
+                "later_about_to_wait" | "pump_end" => 2,
+                "pump_wait" => 3,
+                _ => return,
+            };
+            if self.waits == on_wait {
+                panic::panic_any(self.stage);
+            }
+        }
+
+        fn window_event(&mut self, _: &dyn RootActiveEventLoop, _: WindowId, _: WindowEvent) {}
+    }
+
+    fn panic_message<T>(result: std::thread::Result<T>) -> Option<&'static str> {
+        result.err().and_then(|payload| payload.downcast_ref::<&str>().copied())
+    }
+
+    // Without a window, a panic raised outside message dispatch used to leave the loop waiting
+    // for a message that never came (#4194). Only one event loop can exist per process, so every
+    // case runs on this one, on its own thread, and a hang fails the test instead.
+    #[test]
+    fn a_panic_without_a_window_reaches_the_caller() {
+        let run_stages =
+            ["can_create_surfaces", "about_to_wait", "new_events", "later_about_to_wait"];
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut attributes =
+                PlatformSpecificEventLoopAttributes { any_thread: true, ..Default::default() };
+            let mut event_loop = EventLoop::new(&mut attributes).unwrap();
+            for stage in run_stages {
+                let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+                    event_loop.run_app_on_demand(PanicIn::new(stage))
+                }));
+                tx.send((stage, panic_message(result), None)).unwrap();
+            }
+
+            // A panic at the end of `pump_app_events` comes out of that call.
+            let mut app = PanicIn::new("pump_end");
+            let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+                event_loop.pump_app_events(Some(Duration::ZERO), &mut app)
+            }));
+            tx.send(("pump_end", panic_message(result), None)).unwrap();
+
+            // A panic just before waiting does not wait out the timeout first.
+            let mut app = PanicIn::new("pump_wait");
+            let first = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+                event_loop.pump_app_events(Some(Duration::ZERO), &mut app)
+            }));
+            if first.is_err() {
+                tx.send(("pump_wait", panic_message(first), None)).unwrap();
+                return;
+            }
+            let start = Instant::now();
+            let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+                event_loop.pump_app_events(Some(Duration::from_secs(5)), &mut app)
+            }));
+            tx.send(("pump_wait", panic_message(result), Some(start.elapsed()))).unwrap();
+        });
+
+        for expected in run_stages.into_iter().chain(["pump_end", "pump_wait"]) {
+            let (stage, message, waited) = rx
+                .recv_timeout(Duration::from_secs(10))
+                .unwrap_or_else(|_| panic!("the event loop hung after a panic in {expected}"));
+            assert_eq!((stage, message), (expected, Some(expected)));
+            if stage == "pump_wait" {
+                let waited = waited.expect("pump_wait panicked in its first call");
+                assert!(waited < Duration::from_secs(1), "pump_wait panicked after {waited:?}");
+            }
+        }
+    }
 
     #[test]
     fn inverted_wheel_delta_handles_minimum_value() {
