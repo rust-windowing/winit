@@ -1247,6 +1247,11 @@ impl UnownedWindow {
         // Check if the self is on this monitor
         let monitor = self.shared_state_lock().last_monitor.clone();
         if monitor.name == new_monitor.name {
+            // `scale_factor()` and `current_monitor()` read `last_monitor`, which otherwise
+            // only a move updates (`ConfigureNotify`). Without this, a scale that changes
+            // while the window stays put is sent in `ScaleFactorChanged`, but
+            // `scale_factor()` goes on returning the old one.
+            self.shared_state_lock().last_monitor = new_monitor.clone();
             let (width, height) = self.surface_size_physical();
             let (new_width, new_height) = self.adjust_for_dpi(
                 // If we couldn't determine the previous scale
