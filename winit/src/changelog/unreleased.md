@@ -64,3 +64,7 @@ changelog entry.
   RGBA buffer.
 - On macOS, fix text selected from the Character Viewer not producing an IME commit.
 - On Wayland, fix text not being copied to some application due to missing some mime types.
+- On Windows, fix events buffered during `WindowEvent::RedrawRequested` or
+  `ApplicationHandler::about_to_wait` being stranded until an unrelated OS
+  message wakes the event loop, and avoid blocking on wait after `exit()` is
+  called from `about_to_wait` or `can_create_surfaces`.

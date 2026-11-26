@@ -339,11 +339,16 @@ impl EventLoop {
         // `MsgWaitForMultipleObjectsEx`.
         //
         self.runner.prepare_wait();
-        wait_for_messages_impl(
-            &mut self.high_resolution_timer,
-            self.runner.control_flow(),
-            timeout,
-        );
+        // Skip blocking in `MsgWaitForMultipleObjectsEx` if `about_to_wait` (or
+        // `can_create_surfaces` on initial entry) requested exit or buffered events that must be
+        // delivered on the upcoming `wakeup()`.
+        if self.runner.exit_code().is_none() && !self.runner.has_buffered_events() {
+            wait_for_messages_impl(
+                &mut self.high_resolution_timer,
+                self.runner.control_flow(),
+                timeout,
+            );
+        }
         // Before we potentially exit, make sure to consistently emit an event for the wake up
         self.runner.wakeup();
     }
@@ -1440,14 +1445,17 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
         },
         WM_PAINT => {
-            userdata.window_state_lock().redraw_requested =
-                userdata.event_loop_runner.should_buffer();
+            let should_buffer = userdata.event_loop_runner.should_buffer();
+            userdata.window_state_lock().redraw_requested = should_buffer;
 
             // We'll buffer only in response to `UpdateWindow`, if win32 decides to redraw the
             // window outside the normal flow of the event loop. This way mark event as handled
             // and request a normal redraw with `RedrawWindow`.
-            if !userdata.event_loop_runner.should_buffer() {
-                userdata.send_window_event(window, WindowEvent::RedrawRequested);
+            let dispatched_redraw = !should_buffer;
+            if dispatched_redraw {
+                userdata
+                    .event_loop_runner
+                    .dispatch_redraw_requested(WindowId::from_raw(window as usize));
             }
 
             // NOTE: calling `RedrawWindow` during `WM_PAINT` does nothing, since to mark
@@ -1457,6 +1465,14 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
             if std::mem::take(&mut userdata.window_state_lock().redraw_requested) {
                 unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
+            }
+
+            // Drain any events buffered during `RedrawRequested` only after `DefWindowProcW`
+            // validates the update region and `redraw_requested` is re-armed, so paint
+            // invalidations or nested `WM_PAINT`s triggered by buffered callbacks are not
+            // swallowed by this `WM_PAINT`.
+            if dispatched_redraw {
+                userdata.event_loop_runner.dispatch_buffered_events();
             }
         },
         WM_WINDOWPOSCHANGING => {

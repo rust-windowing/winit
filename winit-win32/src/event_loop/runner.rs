@@ -277,7 +277,7 @@ impl EventLoopRunner {
             exit,
             last_events_cleared: _,
             event_handler,
-            event_buffer: _,
+            event_buffer,
             data_transfer,
             windows: _,
             source_drag,
@@ -289,6 +289,7 @@ impl EventLoopRunner {
         panic_error.set(None);
         exit.set(None);
         event_handler.set(None);
+        event_buffer.take();
         data_transfer.reset();
         source_drag.set(None);
         pending_drag.take();
@@ -335,6 +336,10 @@ impl EventLoopRunner {
         let should_buffer = handler.is_none();
         self.event_handler.set(handler);
         should_buffer
+    }
+
+    pub(super) fn has_buffered_events(&self) -> bool {
+        !self.event_buffer.borrow().is_empty()
     }
 }
 
@@ -383,20 +388,41 @@ impl EventLoopRunner {
         self.move_state_to(RunnerState::HandlingMainEvents);
     }
 
-    pub(crate) fn send_event(self: &Rc<Self>, event: Event) {
-        if let Event::Window { event: WindowEvent::RedrawRequested, .. } = event {
+    /// Dispatches `WindowEvent::RedrawRequested` without draining `event_buffer`.
+    ///
+    /// `WM_PAINT` must validate the update region (`DefWindowProcW`) and re-arm any deferred
+    /// `redraw_requested` before calling [`Self::dispatch_buffered_events`], so paint
+    /// invalidations or modal loops triggered by buffered callbacks are not swallowed by the
+    /// outer `WM_PAINT`.
+    pub(crate) fn dispatch_redraw_requested(self: &Rc<Self>, window_id: WindowId) {
+        let event = Event::Window { window_id, event: WindowEvent::RedrawRequested };
+        if self.should_buffer() {
+            self.event_buffer.borrow_mut().push_back(event);
+        } else {
             self.call_event_handler(|app, event_loop| event.dispatch_event(app, event_loop));
             // As a rule, to ensure that `pump_events` can't block an external event loop
             // for too long, we always guarantee that `pump_events` will return control to
             // the external loop asap after a `RedrawRequested` event is dispatched.
             self.interrupt_msg_dispatch.set(true);
-        } else if self.should_buffer() {
+        }
+    }
+
+    pub(crate) fn send_event(self: &Rc<Self>, event: Event) {
+        if self.should_buffer() {
             // If the runner is already borrowed, we're in the middle of an event loop invocation.
             // Add the event to a buffer to be processed later.
             self.event_buffer.borrow_mut().push_back(event.buffer_scale_factor())
         } else {
+            let is_redraw =
+                matches!(event, Event::Window { event: WindowEvent::RedrawRequested, .. });
             self.call_event_handler(|app, event_loop| event.dispatch_event(app, event_loop));
             self.dispatch_buffered_events();
+            if is_redraw {
+                // As a rule, to ensure that `pump_events` can't block an external event loop
+                // for too long, we always guarantee that `pump_events` will return control to
+                // the external loop asap after a `RedrawRequested` event is dispatched.
+                self.interrupt_msg_dispatch.set(true);
+            }
         }
     }
 
@@ -420,7 +446,7 @@ impl EventLoopRunner {
         });
     }
 
-    fn dispatch_buffered_events(self: &Rc<Self>) {
+    pub(crate) fn dispatch_buffered_events(self: &Rc<Self>) {
         loop {
             // We do this instead of using a `while let` loop because if we use a `while let`
             // loop the reference returned `borrow_mut()` doesn't get dropped until the end
@@ -429,7 +455,12 @@ impl EventLoopRunner {
             let buffered_event_opt = self.event_buffer.borrow_mut().pop_front();
             match buffered_event_opt {
                 Some(e) => {
-                    self.call_event_handler(|app, event_loop| e.dispatch_event(app, event_loop))
+                    let is_redraw =
+                        matches!(e, Event::Window { event: WindowEvent::RedrawRequested, .. });
+                    self.call_event_handler(|app, event_loop| e.dispatch_event(app, event_loop));
+                    if is_redraw {
+                        self.interrupt_msg_dispatch.set(true);
+                    }
                 },
                 None => break,
             }
@@ -596,5 +627,301 @@ impl Event {
             },
             Self::WakeUp => app.proxy_wake_up(event_loop),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ptr;
+
+    use dpi::PhysicalPosition;
+
+    use super::*;
+
+    type RunnerCallback = Box<dyn FnMut(&Rc<EventLoopRunner>)>;
+
+    struct RecordingApp {
+        runner: Rc<EventLoopRunner>,
+        log: Vec<&'static str>,
+        on_redraw: Option<RunnerCallback>,
+        on_about_to_wait: Option<RunnerCallback>,
+        on_wakeup: Option<RunnerCallback>,
+    }
+
+    impl RecordingApp {
+        fn new(runner: Rc<EventLoopRunner>) -> Self {
+            Self {
+                runner,
+                log: Vec::new(),
+                on_redraw: None,
+                on_about_to_wait: None,
+                on_wakeup: None,
+            }
+        }
+    }
+
+    impl ApplicationHandler for RecordingApp {
+        fn can_create_surfaces(&mut self, _: &dyn RootActiveEventLoop) {
+            self.log.push("can_create_surfaces");
+        }
+
+        fn new_events(&mut self, _: &dyn RootActiveEventLoop, _: StartCause) {
+            self.log.push("new_events");
+        }
+
+        fn proxy_wake_up(&mut self, _: &dyn RootActiveEventLoop) {
+            self.log.push("proxy_wake_up");
+            if let Some(mut cb) = self.on_wakeup.take() {
+                cb(&self.runner);
+            }
+        }
+
+        fn window_event(&mut self, _: &dyn RootActiveEventLoop, _: WindowId, event: WindowEvent) {
+            match event {
+                WindowEvent::RedrawRequested => {
+                    self.log.push("redraw");
+                    if let Some(mut cb) = self.on_redraw.take() {
+                        cb(&self.runner);
+                    }
+                },
+                WindowEvent::Moved(_) => self.log.push("moved"),
+                WindowEvent::Focused(_) => self.log.push("focused"),
+                WindowEvent::Destroyed => self.log.push("destroyed"),
+                _ => self.log.push("other_window_event"),
+            }
+        }
+
+        fn about_to_wait(&mut self, _: &dyn RootActiveEventLoop) {
+            self.log.push("about_to_wait");
+            if let Some(mut cb) = self.on_about_to_wait.take() {
+                cb(&self.runner);
+            }
+        }
+    }
+
+    #[test]
+    fn events_buffered_during_redraw_are_dispatched_immediately() {
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        let mut app = RecordingApp::new(runner.clone());
+        let window_id = WindowId::from_raw(1);
+
+        app.on_redraw = Some(Box::new(move |r| {
+            // Re-entrant events emitted while RedrawRequested holds the handler must be buffered
+            // and then drained before send_event returns.
+            r.send_event(Event::WakeUp);
+            r.send_event(Event::Window {
+                window_id,
+                event: WindowEvent::Moved(PhysicalPosition::new(10, 20)),
+            });
+        }));
+        app.on_wakeup = Some(Box::new(move |r| {
+            // Events buffered during a buffered callback must also drain in FIFO order.
+            r.send_event(Event::Window { window_id, event: WindowEvent::Focused(true) });
+        }));
+
+        {
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.wakeup();
+            runner.interrupt_msg_dispatch.set(false);
+            runner.send_event(Event::Window { window_id, event: WindowEvent::RedrawRequested });
+        }
+
+        assert!(runner.interrupt_msg_dispatch.get());
+        assert!(!runner.has_buffered_events());
+        assert_eq!(app.log, vec![
+            "new_events",
+            "can_create_surfaces",
+            "redraw",
+            "proxy_wake_up",
+            "moved",
+            "focused"
+        ]);
+    }
+
+    #[test]
+    fn reentrant_redraw_is_buffered_without_panicking() {
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        let mut app = RecordingApp::new(runner.clone());
+        let window_id = WindowId::from_raw(1);
+
+        app.on_wakeup = Some(Box::new(move |r| {
+            r.send_event(Event::Window { window_id, event: WindowEvent::RedrawRequested });
+        }));
+
+        {
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.wakeup();
+            runner.interrupt_msg_dispatch.set(false);
+            runner.send_event(Event::WakeUp);
+        }
+
+        assert!(runner.take_panic_error().is_ok());
+        assert!(runner.interrupt_msg_dispatch.get());
+        assert!(!runner.has_buffered_events());
+        assert_eq!(app.log, vec!["new_events", "can_create_surfaces", "proxy_wake_up", "redraw"]);
+    }
+
+    #[test]
+    fn events_buffered_during_about_to_wait_are_reported_and_drained_on_wakeup() {
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        let mut app = RecordingApp::new(runner.clone());
+        let window_id = WindowId::from_raw(1);
+
+        app.on_about_to_wait = Some(Box::new(move |r| {
+            r.send_event(Event::Window { window_id, event: WindowEvent::Destroyed });
+        }));
+
+        {
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.prepare_wait();
+            assert!(runner.has_buffered_events());
+            runner.wakeup();
+            assert!(!runner.has_buffered_events());
+        }
+
+        assert_eq!(app.log, vec![
+            "new_events",
+            "can_create_surfaces",
+            "about_to_wait",
+            "new_events",
+            "destroyed"
+        ]);
+    }
+
+    #[test]
+    fn reset_runner_clears_buffered_events() {
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        // No app is set, so `should_buffer()` is true and the event enters `event_buffer`.
+        runner.send_event(Event::WakeUp);
+        assert!(runner.has_buffered_events());
+
+        runner.reset_runner();
+        assert!(!runner.has_buffered_events());
+    }
+
+    #[test]
+    fn dispatch_redraw_requested_defers_buffered_events_until_explicit_drain() {
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        let mut app = RecordingApp::new(runner.clone());
+        let window_id = WindowId::from_raw(1);
+
+        app.on_redraw = Some(Box::new(move |r| {
+            r.send_event(Event::WakeUp);
+            r.send_event(Event::Window {
+                window_id,
+                event: WindowEvent::Moved(PhysicalPosition::new(42, 24)),
+            });
+        }));
+
+        {
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.wakeup();
+            runner.interrupt_msg_dispatch.set(false);
+            runner.dispatch_redraw_requested(window_id);
+        }
+
+        assert!(runner.interrupt_msg_dispatch.get());
+        assert!(runner.has_buffered_events());
+        assert_eq!(app.log, vec!["new_events", "can_create_surfaces", "redraw"]);
+
+        {
+            // Simulate post-DefWindowProcW drain in WM_PAINT.
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.dispatch_buffered_events();
+        }
+
+        assert!(!runner.has_buffered_events());
+        assert_eq!(app.log, vec![
+            "new_events",
+            "can_create_surfaces",
+            "redraw",
+            "proxy_wake_up",
+            "moved"
+        ]);
+    }
+
+    #[test]
+    fn buffered_events_preserve_wait_until_start_cause() {
+        use std::time::Duration;
+
+        struct CauseApp {
+            runner: Rc<EventLoopRunner>,
+            causes: Vec<StartCause>,
+            delivered: usize,
+        }
+
+        impl ApplicationHandler for CauseApp {
+            fn can_create_surfaces(&mut self, _: &dyn RootActiveEventLoop) {}
+
+            fn new_events(&mut self, _: &dyn RootActiveEventLoop, cause: StartCause) {
+                self.causes.push(cause);
+            }
+
+            fn proxy_wake_up(&mut self, _: &dyn RootActiveEventLoop) {
+                self.delivered += 1;
+            }
+
+            fn window_event(&mut self, _: &dyn RootActiveEventLoop, _: WindowId, _: WindowEvent) {}
+
+            fn about_to_wait(&mut self, _: &dyn RootActiveEventLoop) {
+                self.runner.send_event(Event::WakeUp);
+            }
+        }
+
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        let mut app = CauseApp { runner: runner.clone(), causes: Vec::new(), delivered: 0 };
+
+        let future = Instant::now() + Duration::from_secs(60);
+        let past = Instant::now().checked_sub(Duration::from_secs(1)).unwrap_or_else(Instant::now);
+
+        {
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.set_control_flow(ControlFlow::WaitUntil(future));
+            runner.prepare_wait();
+            assert!(runner.has_buffered_events());
+            runner.wakeup();
+            assert!(!runner.has_buffered_events());
+
+            runner.set_control_flow(ControlFlow::WaitUntil(past));
+            runner.prepare_wait();
+            assert!(runner.has_buffered_events());
+            runner.wakeup();
+            assert!(!runner.has_buffered_events());
+        }
+
+        assert_eq!(app.delivered, 2);
+        assert!(matches!(app.causes[0], StartCause::Init));
+        assert!(matches!(
+            app.causes[1],
+            StartCause::WaitCancelled { requested_resume: Some(t), .. } if t == future
+        ));
+        assert!(matches!(
+            app.causes[2],
+            StartCause::ResumeTimeReached { requested_resume, .. } if requested_resume == past
+        ));
+    }
+
+    #[test]
+    fn panic_during_redraw_does_not_dispatch_buffered_events_or_overwrite_panic() {
+        let runner = Rc::new(EventLoopRunner::new(0, ptr::null_mut()));
+        let mut app = RecordingApp::new(runner.clone());
+        let window_id = WindowId::from_raw(1);
+
+        app.on_redraw = Some(Box::new(move |r| {
+            r.send_event(Event::WakeUp);
+            panic!("redraw boom");
+        }));
+
+        {
+            let _guard = unsafe { runner.set_app(&mut app) };
+            runner.wakeup();
+            runner.dispatch_redraw_requested(window_id);
+            runner.dispatch_buffered_events();
+        }
+
+        let err = runner.take_panic_error().unwrap_err();
+        assert_eq!(err.downcast_ref::<&str>(), Some(&"redraw boom"));
+        assert!(!runner.has_buffered_events());
+        assert_eq!(app.log, vec!["new_events", "can_create_surfaces", "redraw"]);
     }
 }
