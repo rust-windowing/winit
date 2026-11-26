@@ -45,22 +45,23 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumThreadWindows, GW_OWNER, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu,
     GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
     MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
-    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
-    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
-    RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
-    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage, WHEEL_DELTA,
-    WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
-    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_QS_POSTMESSAGE,
+    PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL,
+    RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE,
+    SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage,
+    WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
+    WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP,
     WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR,
     WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE,
     WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
     WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING,
-    WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
-    WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT,
-    WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+    WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER, WM_TOUCH, WM_WINDOWPOSCHANGED,
+    WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT,
+    WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW,
+    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
+    WS_VISIBLE,
 };
 use windows_sys::core::BOOL;
 use winit_core::application::ApplicationHandler;
@@ -364,34 +365,46 @@ impl EventLoop {
         // is the simplest way avoid uninitialized memory in Rust
         let mut msg: MSG = unsafe { mem::zeroed() };
 
-        loop {
-            unsafe {
-                if PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) == false.into() {
-                    break;
+        // `PeekMessageW` only returns `WM_TIMER` once no other message, including `WM_PAINT`, is
+        // pending. So while the application redraws continuously, timers starve. One of those
+        // timers is how Windows delivers the inertia of a precision touchpad flick: it would
+        // stall, and then arrive all at once when the application stops redrawing.
+        //
+        // So we first dispatch the timers that are due, and then all the other messages.
+        let passes = [(WM_TIMER, PM_REMOVE | PM_QS_POSTMESSAGE), (0, PM_REMOVE)];
+
+        'passes: for (filter, flags) in passes {
+            loop {
+                unsafe {
+                    if PeekMessageW(&mut msg, ptr::null_mut(), filter, filter, flags)
+                        == false.into()
+                    {
+                        break;
+                    }
+
+                    let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
+                        callback(&mut msg as *mut _ as *mut _)
+                    } else {
+                        false
+                    };
+                    if !handled {
+                        TranslateMessage(&msg);
+                        DispatchMessageW(&msg);
+                    }
                 }
 
-                let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
-                    callback(&mut msg as *mut _ as *mut _)
-                } else {
-                    false
-                };
-                if !handled {
-                    TranslateMessage(&msg);
-                    DispatchMessageW(&msg);
+                if let Err(payload) = self.runner.take_panic_error() {
+                    self.runner.reset_runner();
+                    panic::resume_unwind(payload);
                 }
-            }
 
-            if let Err(payload) = self.runner.take_panic_error() {
-                self.runner.reset_runner();
-                panic::resume_unwind(payload);
-            }
+                if let Some(_code) = self.runner.exit_code() {
+                    break 'passes;
+                }
 
-            if let Some(_code) = self.runner.exit_code() {
-                break;
-            }
-
-            if self.runner.interrupt_msg_dispatch.get() {
-                break;
+                if self.runner.interrupt_msg_dispatch.get() {
+                    break 'passes;
+                }
             }
         }
     }
