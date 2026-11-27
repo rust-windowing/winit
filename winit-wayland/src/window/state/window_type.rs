@@ -1,5 +1,6 @@
 use dpi::LogicalPosition;
 use sctk::shell::WaylandSurface;
+use sctk::shell::xdg::dialog::Dialog;
 use sctk::shell::xdg::popup::{Popup, PopupConfigure};
 use sctk::shell::xdg::window::{Window, WindowConfigure};
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
@@ -21,6 +22,10 @@ pub enum WindowType {
 
         positioner: WindowPositioner,
     },
+    Dialog {
+        dialog: Dialog,
+        last_configure: Option<WindowConfigure>,
+    },
 }
 
 impl WindowType {
@@ -28,12 +33,14 @@ impl WindowType {
         match self {
             Self::Window { last_configure, .. } => last_configure.is_some(),
             Self::Popup { last_configure, .. } => last_configure.is_some(),
+            Self::Dialog { last_configure, .. } => last_configure.is_some(),
         }
     }
 
     pub fn xdg_toplevel(&self) -> Option<&xdg_toplevel::XdgToplevel> {
         match self {
             WindowType::Window { window, .. } => Some(window.xdg_toplevel()),
+            WindowType::Dialog { dialog, .. } => Some(dialog.xdg_toplevel()),
             WindowType::Popup { .. } => None,
         }
     }
@@ -44,6 +51,7 @@ impl WaylandSurface for WindowType {
         match self {
             Self::Window { window, .. } => window.wl_surface(),
             Self::Popup { popup, .. } => popup.wl_surface(),
+            Self::Dialog { dialog, .. } => dialog.wl_surface(),
         }
     }
 }
@@ -53,6 +61,7 @@ impl XdgSurface for WindowType {
         match self {
             Self::Window { window, .. } => window.xdg_surface(),
             Self::Popup { popup, .. } => popup.xdg_surface(),
+            Self::Dialog { dialog, .. } => dialog.xdg_surface(),
         }
     }
 }

@@ -210,7 +210,9 @@ impl Window {
         let (xdg_toplevel, scale_factor) = {
             let parent_state = parent.state.lock().unwrap();
             let Some(xdg_toplevel) = parent_state.xdg_toplevel() else {
-                return Err(InvalidInput::new("Parent of a window must be a window").into());
+                return Err(
+                    InvalidInput::new("Parent of a window must be a window or a dialog").into()
+                );
             };
             (xdg_toplevel.clone(), parent_state.scale_factor())
         };

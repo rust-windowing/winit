@@ -32,7 +32,6 @@ with it, the migration guide should be added below the entry, like:
   To migrate it we should do X, Y, and then Z, for example:
 
   // Code snippet.
-
 ```
 
 The migration guide could reference other migration examples in the current
@@ -48,6 +47,7 @@ changelog entry.
 
 - Add `TiledEdges` struct, `Window::is_tiled()`, and `Window::tiled_edges()`, implemented on Wayland.
 - Add `WindowEvent::Tiled` to report tiling state changes from the compositor.
+- Add `WindowType::Dialog` and `WindowAttributes::with_modal()`, implemented on Wayland, Windows and macOS. On Wayland, a normal window with the same parent is created if the compositor lacks `xdg-dialog-v1`.
 
 ### Changed
 

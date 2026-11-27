@@ -322,6 +322,7 @@ impl CoreWindow for Popup {
             let logical_position: LogicalPosition<i32> = position.to_logical(scale_factor);
             let logical_size: LogicalSize<i32> = size.to_logical(scale_factor);
             xdg_positioner.set_anchor_rect(
+                // Consider the frame
                 logical_position.x - parent_origin.x,
                 logical_position.y - parent_origin.y,
                 logical_size.width,

@@ -39,6 +39,7 @@ macro_rules! os_error {
 }
 
 mod data_transfer;
+mod dialog;
 mod event_loop;
 mod output;
 mod popup;
@@ -51,6 +52,7 @@ pub use self::data_transfer::{DataOffer, DragSource, MimeData, MimeType};
 pub use self::event_loop::{ActiveEventLoop, EventLoop};
 pub use self::popup::Popup;
 pub use self::window::Window;
+use crate::dialog::Dialog;
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
@@ -94,7 +96,10 @@ pub trait WindowExtWayland {
 impl WindowExtWayland for dyn CoreWindow + '_ {
     #[inline]
     fn xdg_toplevel(&self) -> Option<NonNull<c_void>> {
-        self.cast_ref::<Window>()?.xdg_toplevel()
+        if let Some(window) = self.cast_ref::<Window>() {
+            return window.xdg_toplevel();
+        }
+        self.cast_ref::<Dialog>()?.xdg_toplevel()
     }
 }
 
