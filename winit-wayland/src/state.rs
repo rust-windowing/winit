@@ -26,6 +26,7 @@ use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
+use winit_core::window::TiledEdges;
 
 use crate::WindowId;
 use crate::data_transfer::DataTransferState;
@@ -400,10 +401,16 @@ impl WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[index].resized |= window
-            .lock()
-            .unwrap()
-            .configure_xdg_toplevel(configure, &self.shm, &self.subcompositor_state);
+        let (resized, tiled) = window.lock().unwrap().configure_xdg_toplevel(
+            configure,
+            &self.shm,
+            &self.subcompositor_state,
+        );
+        self.window_compositor_updates[index].resized |= resized;
+
+        if tiled.is_some() {
+            self.window_compositor_updates[index].tiled = tiled;
+        }
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of
         // the users, since it can break a lot of things, thus it'll ask users to redraw instead.
@@ -634,6 +641,9 @@ pub struct WindowCompositorUpdate {
     /// New window size.
     pub resized: bool,
 
+    /// Window tiling state changed.
+    pub tiled: Option<TiledEdges>,
+
     /// New scale factor.
     pub scale_changed: bool,
 
@@ -643,7 +653,7 @@ pub struct WindowCompositorUpdate {
 
 impl WindowCompositorUpdate {
     fn new(window_id: WindowId) -> Self {
-        Self { window_id, resized: false, scale_changed: false, close_window: false }
+        Self { window_id, resized: false, tiled: None, scale_changed: false, close_window: false }
     }
 }
 

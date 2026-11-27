@@ -19,7 +19,7 @@ use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
+    TiledEdges, UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
     WindowLevel,
 };
 
@@ -506,6 +506,14 @@ impl CoreWindow for Window {
 
     fn is_maximized(&self) -> bool {
         self.common.is_maximized()
+    }
+
+    fn is_tiled(&self) -> bool {
+        self.common.is_tiled()
+    }
+
+    fn tiled_edges(&self) -> TiledEdges {
+        self.common.tiled_edges()
     }
 
     fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {

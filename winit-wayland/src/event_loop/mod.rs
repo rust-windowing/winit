@@ -396,6 +396,10 @@ impl EventLoop {
                 }
             }
 
+            if let Some(tiled) = compositor_update.tiled {
+                app.window_event(&self.active_event_loop, window_id, WindowEvent::Tiled(tiled));
+            }
+
             // NOTE: Rescale changed the physical size which winit operates in, thus we should
             // resize.
             if compositor_update.resized || compositor_update.scale_changed {
