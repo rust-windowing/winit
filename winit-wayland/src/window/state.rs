@@ -612,7 +612,7 @@ impl WindowState {
     pub(crate) fn is_tiled(&self) -> bool {
         let last_configure = match &self.window {
             WindowType::Window { last_configure, .. } => last_configure,
-            WindowType::Popup { .. } => return false,
+            WindowType::Popup { .. } | WindowType::Dialog { .. } => return false,
         };
         last_configure.as_ref().map(|last_configure| last_configure.is_tiled()).unwrap_or_default()
     }
@@ -620,7 +620,7 @@ impl WindowState {
     pub(crate) fn tiled_edges(&self) -> TiledEdges {
         let last_configure = match &self.window {
             WindowType::Window { last_configure, .. } => last_configure,
-            WindowType::Popup { .. } => return TiledEdges::default(),
+            WindowType::Popup { .. } | WindowType::Dialog { .. } => return TiledEdges::default(),
         };
         last_configure
             .as_ref()

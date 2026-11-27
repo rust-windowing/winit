@@ -281,7 +281,7 @@ impl WindowCommon {
     }
 
     /// Only meaningful for a top-level surface.
-    pub(super) fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         self.state.lock().unwrap().fullscreen()
     }
 
