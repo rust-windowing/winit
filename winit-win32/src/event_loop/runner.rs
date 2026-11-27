@@ -4,10 +4,11 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use std::{fmt, mem, panic};
+use std::{fmt, mem, panic, ptr};
 
 use dpi::PhysicalSize;
 use windows_sys::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, HWND};
+use windows_sys::Win32::Graphics::Gdi::{RDW_INTERNALPAINT, RedrawWindow};
 use windows_sys::Win32::System::Ole::{
     DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop,
 };
@@ -218,6 +219,43 @@ impl EventLoopRunner {
 
     pub(crate) fn unregister_window(&self, id: WindowId) {
         self.windows.borrow_mut().retain(|window| *window != id);
+    }
+
+    /// Re-issue the redraw requests that haven't resulted in a `RedrawRequested` yet.
+    ///
+    /// The internal paint flag set by `RedrawWindow(RDW_INTERNALPAINT)` can be cleared without a
+    /// `WM_PAINT` being generated. This was observed on Windows 11 when the Microsoft IME starts a
+    /// composition; which component clears the flag wasn't identified. Nothing sets it again, so
+    /// the redraw would be delayed until the next unrelated message.
+    /// This is called before waiting for messages, and re-issues each request only a few times so
+    /// that a window that never gets painted can't keep the event loop awake.
+    pub(super) fn rearm_redraw_requests(&self) {
+        const MAX_REDRAW_REARMS: u8 = 3;
+
+        // `RDW_INTERNALPAINT` doesn't send any message synchronously, so the window procedure
+        // can't re-enter and borrow `windows` mutably while we iterate.
+        for window_id in self.windows.borrow().iter() {
+            let hwnd = window_id.into_raw() as HWND;
+            let userdata = unsafe { get_window_long(hwnd, GWL_USERDATA) } as *const WindowData;
+            if userdata.is_null() {
+                continue;
+            }
+            let userdata = unsafe { &*userdata };
+
+            let rearm = {
+                let mut window_state = userdata.window_state_lock();
+                let rearm = window_state.redraw_requested
+                    && window_state.redraw_rearm_count < MAX_REDRAW_REARMS;
+                if rearm {
+                    window_state.redraw_rearm_count += 1;
+                }
+                rearm
+            };
+
+            if rearm {
+                unsafe { RedrawWindow(hwnd, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
+            }
+        }
     }
 
     pub(super) fn clipboard_window(&self) -> Option<WindowId> {
