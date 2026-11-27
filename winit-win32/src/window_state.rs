@@ -78,6 +78,9 @@ pub(crate) struct WindowState {
 
     // Flag whether redraw was requested.
     pub redraw_requested: bool,
+    // How many times the event loop re-issued the pending redraw request, see
+    // `EventLoopRunner::rearm_redraw_requests`.
+    pub redraw_rearm_count: u8,
 
     pub dragging: bool,
 
@@ -229,6 +232,7 @@ impl WindowState {
             is_active: false,
             is_focused: false,
             redraw_requested: false,
+            redraw_rearm_count: 0,
 
             dragging: false,
 

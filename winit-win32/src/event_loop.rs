@@ -339,6 +339,7 @@ impl EventLoop {
         // `MsgWaitForMultipleObjectsEx`.
         //
         self.runner.prepare_wait();
+        self.runner.rearm_redraw_requests();
         wait_for_messages_impl(
             &mut self.high_resolution_timer,
             self.runner.control_flow(),
@@ -1440,8 +1441,11 @@ unsafe fn public_window_callback_inner(
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
         },
         WM_PAINT => {
-            userdata.window_state_lock().redraw_requested =
-                userdata.event_loop_runner.should_buffer();
+            {
+                let mut window_state = userdata.window_state_lock();
+                window_state.redraw_requested = userdata.event_loop_runner.should_buffer();
+                window_state.redraw_rearm_count = 0;
+            }
 
             // We'll buffer only in response to `UpdateWindow`, if win32 decides to redraw the
             // window outside the normal flow of the event loop. This way mark event as handled
@@ -1453,9 +1457,11 @@ unsafe fn public_window_callback_inner(
             // NOTE: calling `RedrawWindow` during `WM_PAINT` does nothing, since to mark
             // `WM_PAINT` as handled we should call the `DefWindowProcW`. Call it and check whether
             // user asked for redraw during `RedrawRequested` event handling and request it again
-            // after marking `WM_PAINT` as handled.
+            // after marking `WM_PAINT` as handled. The flag stays set until `RedrawRequested` is
+            // sent, so that the request can be re-issued if it gets lost, see
+            // `EventLoopRunner::rearm_redraw_requests`.
             result = ProcResult::Value(unsafe { DefWindowProcW(window, msg, wparam, lparam) });
-            if std::mem::take(&mut userdata.window_state_lock().redraw_requested) {
+            if userdata.window_state_lock().redraw_requested {
                 unsafe { RedrawWindow(window, ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT) };
             }
         },

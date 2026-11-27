@@ -600,7 +600,11 @@ impl CoreWindow for Window {
 
     fn request_redraw(&self) {
         // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
-        self.window_state.lock().unwrap().redraw_requested = true;
+        {
+            let mut window_state = self.window_state.lock().unwrap();
+            window_state.redraw_requested = true;
+            window_state.redraw_rearm_count = 0;
+        }
         unsafe {
             RedrawWindow(self.hwnd(), ptr::null(), ptr::null_mut(), RDW_INTERNALPAINT);
         }
