@@ -7,17 +7,18 @@ use std::{fmt, ptr};
 
 use rwh_06::HasDisplayHandle;
 use winit_core::cursor::CursorIcon;
-use x11rb::connection::Connection;
+use x11rb::connection::{Connection, RequestConnection};
+use x11rb::errors::ReplyError;
 use x11rb::protocol::randr::ConnectionExt as _;
-use x11rb::protocol::render;
 use x11rb::protocol::xproto::{self, ConnectionExt};
-use x11rb::resource_manager;
+use x11rb::protocol::{ErrorKind, randr, render};
 use x11rb::xcb_ffi::XCBConnection;
+use x11rb::{CURRENT_TIME, resource_manager};
 
 use super::atoms::Atoms;
 use super::ffi;
 use super::monitor::MonitorHandle;
-use crate::event_loop::X11Error;
+use crate::event_loop::{CookieResultExt as _, X11Error};
 
 /// A connection to an X server.
 pub struct XConnection {
@@ -26,6 +27,8 @@ pub struct XConnection {
     // TODO(notgull): I'd like to remove this, but apparently Xlib and Xinput2 are tied together
     // for some reason.
     pub xinput2: ffi::XInput2,
+
+    _xfixes: x11_dl::xfixes::Xlib,
 
     pub display: *mut ffi::Display,
 
@@ -84,6 +87,7 @@ impl XConnection {
         let xlib = ffi::Xlib::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
         let xinput2 = ffi::XInput2::open()?;
+        let xfixes = x11_dl::xfixes::Xlib::open()?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -96,6 +100,10 @@ impl XConnection {
             }
             display
         };
+
+        // Register XFixes event converters
+        let (mut event_base, mut error_base) = (0, 0);
+        unsafe { (xfixes.XFixesQueryExtension)(display, &mut event_base, &mut error_base) };
 
         // Open the x11rb XCB connection.
         let xcb = {
@@ -119,11 +127,28 @@ impl XConnection {
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         // Load the RandR version.
+        xcb.extension_information(randr::X11_EXTENSION_NAME)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+            .ok_or(XNotSupported::ExtensionNotSupported(
+                "the X11 backend requires XRandR 1.2 or newer",
+            ))?;
         let randr_version = xcb
             .randr_query_version(1, 3)
-            .expect("failed to request XRandR version")
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
-            .expect("failed to query XRandR version");
+            .map_err(|e| match e {
+                ReplyError::X11Error(error) if error.error_kind == ErrorKind::Request => {
+                    XNotSupported::ExtensionNotSupported(
+                        "the X11 backend requires XRandR 1.2 or newer",
+                    )
+                },
+                error => XNotSupported::XcbConversionError(Arc::new(error)),
+            })?;
+        if (randr_version.major_version, randr_version.minor_version) < (1, 2) {
+            return Err(XNotSupported::ExtensionNotSupported(
+                "the X11 backend requires XRandR 1.2 or newer",
+            ));
+        }
 
         let xsettings_screen = Self::new_xsettings_screen(&xcb, default_screen);
         if xsettings_screen.is_none() {
@@ -147,6 +172,7 @@ impl XConnection {
         Ok(XConnection {
             xlib,
             xinput2,
+            _xfixes: xfixes,
             display,
             xcb: Some(xcb),
             atoms: Box::new(atoms),
@@ -301,6 +327,70 @@ impl XConnection {
 
         Ok(display_handle.into())
     }
+
+    /// Issues a request to convert a selection (e.g. atoms[XdndSelection], atoms[Clipboard]) to a
+    /// particular target type. The result is sent in a [`xproto::SelectionNotifyEvent`].
+    pub fn convert_selection(
+        &self,
+        xwindow: xproto::Window,
+        selection: xproto::Atom,
+        target: xproto::Atom,
+        property: xproto::Atom,
+    ) -> Result<(), X11Error> {
+        trace!(
+            "Requesting {} from selection {} into property {}",
+            self.atom_str(target),
+            self.atom_str(selection),
+            self.atom_str(property),
+        );
+
+        let owner = self.xcb_connection().get_selection_owner(selection)?.reply()?.owner;
+        if owner == 0 {
+            return Err(X11Error::UnexpectedNull("selection owner"));
+        }
+
+        self.xcb_connection()
+            .convert_selection(xwindow, selection, target, property, CURRENT_TIME)?
+            .check()?;
+
+        Ok(())
+    }
+
+    /// Get the window owning the selection, or `None`.
+    pub fn selection_owner(
+        &self,
+        selection: xproto::Atom,
+    ) -> Result<Option<xproto::Window>, X11Error> {
+        let owner = self.xcb_connection().get_selection_owner(selection)?.reply()?.owner;
+
+        Ok((owner != 0).then_some(owner))
+    }
+
+    /// Sets the owner of the [`SelectionType`] so applications requesting it will send an
+    /// [`xproto::SelectionRequestEvent`] event to us.
+    pub fn set_selection_owner(&self, xwindow: xproto::Window, selection: xproto::Atom) {
+        self.xcb_connection()
+            .set_selection_owner(
+                xwindow,
+                selection,
+                // TODO: Using the current time is not the suggested convention but it doesn't seem
+                // to matter https://xorg.freedesktop.org/archive/X11R7.6/doc/xorg-docs/specs/ICCCM/icccm.html#acquiring_selection_ownership
+                CURRENT_TIME,
+            )
+            .expect_then_ignore_error("Failed to send SetSelectionOwner event")
+    }
+
+    /// Gets a user readable string of the atom:
+    /// - If possible, get the name from the X server
+    /// - Otherwise, pretty print as Atom(123)
+    #[must_use]
+    pub fn atom_str(&self, atom: xproto::Atom) -> String {
+        let atom_name = self.xcb_connection().get_atom_name(atom).ok();
+        atom_name
+            .and_then(|cookie| cookie.reply().ok())
+            .and_then(|reply| String::from_utf8(reply.name).ok())
+            .unwrap_or_else(|| format!("Atom({atom})"))
+    }
 }
 
 impl fmt::Debug for XConnection {
@@ -338,7 +428,7 @@ impl fmt::Display for XError {
     }
 }
 
-/// Error returned if this system doesn't have XLib or can't create an X connection.
+/// Error returned if this system doesn't support the X11 backend.
 #[derive(Clone, Debug)]
 pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
@@ -349,6 +439,9 @@ pub enum XNotSupported {
 
     /// We encountered an error while converting the connection to XCB.
     XcbConversionError(Arc<dyn Error + Send + Sync + 'static>),
+
+    /// A required X11 extension is not supported.
+    ExtensionNotSupported(&'static str),
 }
 
 impl From<ffi::OpenError> for XNotSupported {
@@ -364,6 +457,7 @@ impl XNotSupported {
             XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
             XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
             XNotSupported::XcbConversionError(_) => "Failed to convert Xlib connection to XCB",
+            XNotSupported::ExtensionNotSupported(reason) => reason,
         }
     }
 }

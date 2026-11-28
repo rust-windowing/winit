@@ -22,7 +22,7 @@ use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CustomCursor, CustomCursorSource};
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::error::RequestError;
+use winit::error::CustomCursorError;
 use winit::event::{DeviceEvent, DeviceId, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle};
 use winit::icon::{Icon, RgbaIcon};
@@ -83,7 +83,7 @@ struct Application {
     receiver: Receiver<Action>,
     sender: Sender<Action>,
     /// Custom cursors assets.
-    custom_cursors: Result<Vec<CustomCursor>, RequestError>,
+    custom_cursors: Result<Vec<CustomCursor>, CustomCursorError>,
     /// Application icon.
     icon: Icon,
     windows: HashMap<WindowId, WindowState>,

@@ -10,7 +10,7 @@ use std::time::Duration;
 pub(crate) use winit_common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{CustomCursorError, EventLoopError, NotSupportedError};
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProvider, EventLoopProxy,
@@ -201,7 +201,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }

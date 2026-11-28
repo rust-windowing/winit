@@ -13,11 +13,12 @@ use std::marker::PhantomData;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 
 use rwh_06::{DisplayHandle, HandleError, HasDisplayHandle};
+use winit_core::error::CustomCursorError;
 pub use winit_core::event_loop::*;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
-use crate::error::{EventLoopError, RequestError};
+use crate::error::EventLoopError;
 use crate::platform_impl;
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -207,7 +208,7 @@ impl EventLoop {
     pub fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.event_loop.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -236,7 +237,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.create_custom_cursor(custom_cursor)
     }
 }

@@ -4,7 +4,7 @@ use std::ops::BitAnd;
 use std::os::windows::prelude::{OsStrExt, OsStringExt};
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{io, mem, ptr};
+use std::{io, mem};
 
 use windows_sys::Win32::Foundation::{HANDLE, HMODULE, HWND, NTSTATUS, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
@@ -119,7 +119,7 @@ pub fn get_cursor_clip() -> Result<RECT, io::Error> {
 /// Note that calling this will automatically dispatch a `WM_MOUSEMOVE` event.
 pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
     unsafe {
-        let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or(ptr::null());
+        let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or_default();
         win_to_err(ClipCursor(rect_ptr))
     }
 }

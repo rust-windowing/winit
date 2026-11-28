@@ -8,5 +8,8 @@ pub mod core_foundation;
 pub mod event_handler;
 #[cfg(feature = "foundation")]
 pub mod foundation;
+#[cfg(feature = "positioner")]
+pub mod positioner;
+pub mod text;
 #[cfg(feature = "xkb")]
 pub mod xkb;

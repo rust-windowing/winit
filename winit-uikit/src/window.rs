@@ -18,7 +18,7 @@ use objc2_ui_kit::{
 };
 use tracing::{debug, debug_span, warn};
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, NotSupportedError, RequestError};
 use winit_core::event::WindowEvent;
 use winit_core::icon::Icon;
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
@@ -488,11 +488,12 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         mut window_attributes: WindowAttributes,
-    ) -> Result<Window, RequestError> {
-        if window_attributes.window_type() == WindowType::Popup {
-            return Err(RequestError::NotSupported(NotSupportedError::new(
-                "Popups are not implemented for iOS",
-            )));
+    ) -> Result<Window, CreateWindowError> {
+        match window_attributes.window_type() {
+            WindowType::Window => (),
+            WindowType::Popup => return Err(CreateWindowError::PopupNotSupported),
+            WindowType::Dialog => return Err(CreateWindowError::DialogNotSupported),
+            _ => panic!("Unknown WindowType"),
         }
 
         let mtm = event_loop.mtm;

@@ -19,9 +19,13 @@ use tracing::warn;
 use winit_common::xkb::Context;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
-use winit_core::data_transfer::{DataTransfer, DataTransferId, TransferType};
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
+};
 use winit_core::event::{DeviceId, StartCause, WindowEvent};
+use winit_core::event_loop::primary_selection::PrimarySelectionExt;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
     ActiveEventLoop as RootActiveEventLoop, AsyncRequestSerial, ControlFlow, DeviceEvents,
@@ -33,21 +37,21 @@ use winit_core::window::{Theme, Window as CoreWindow, WindowAttributes, WindowId
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
-use x11rb::protocol::{xkb, xproto};
+use x11rb::protocol::{ErrorKind, xkb, xproto};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::atoms::{
-    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, ABS_X, ABS_Y, Atoms,
+    _NET_WM_PING, _NET_WM_SYNC_REQUEST, ABS_PRESSURE, ABS_TILT_X, ABS_TILT_Y, Atoms,
     WM_DELETE_WINDOW,
 };
-use crate::dnd::Dnd;
+use crate::data_transfer::{ClipboardSelectionType, DataTransferState};
 use crate::event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use crate::ime::{self, Ime, ImeCreationError, ImeSender};
 use crate::util::{self, CustomCursor};
 use crate::window::{UnownedWindow, Window};
 use crate::xdisplay::{XConnection, XError, XNotSupported};
-use crate::{Selection, SelectionType, XlibErrorHook, ffi, xsettings};
+use crate::{Selection, XlibErrorHook, ffi, xsettings};
 
 // Xinput constants not defined in x11rb
 pub(crate) const ALL_DEVICES: u16 = 0;
@@ -172,7 +176,7 @@ impl<T> PeekableReceiver<T> {
 #[derive(Debug)]
 pub struct ActiveEventLoop {
     pub(crate) xconn: Arc<XConnection>,
-    pub(crate) dnd: RefCell<Dnd>,
+    pub(crate) data_transfer_state: RefCell<DataTransferState>,
     pub(crate) wm_delete_window: xproto::Atom,
     pub(crate) net_wm_ping: xproto::Atom,
     pub(crate) net_wm_sync_request: xproto::Atom,
@@ -221,6 +225,9 @@ impl EventLoop {
 
         let xconn = match X11_BACKEND.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             Ok(xconn) => xconn.clone(),
+            Err(XNotSupported::ExtensionNotSupported(reason)) => {
+                return Err(NotSupportedError::new(reason).into());
+            },
             Err(err) => return Err(os_error!(err.clone()).into()),
         };
 
@@ -230,8 +237,6 @@ impl EventLoop {
         let wm_delete_window = atoms[WM_DELETE_WINDOW];
         let net_wm_ping = atoms[_NET_WM_PING];
         let net_wm_sync_request = atoms[_NET_WM_SYNC_REQUEST];
-
-        let dnd = Dnd::new(Arc::clone(&xconn)).into();
 
         let (ime_sender, ime_receiver) = mpsc::channel();
         let (ime_event_sender, ime_event_receiver) = mpsc::channel();
@@ -268,27 +273,48 @@ impl EventLoop {
 
         let ime = ime.ok().map(RefCell::new);
 
-        let randr_event_offset =
-            xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
+        let randr_event_offset = xconn.select_xrandr_input(root).map_err(|err| match err {
+            X11Error::MissingExtension(_) => EventLoopError::NotSupported(NotSupportedError::new(
+                "the X11 backend requires XRandR 1.2 or newer",
+            )),
+            error => os_error!(error).into(),
+        })?;
 
         let xi2ext = xconn
             .xcb_connection()
             .extension_information(xinput::X11_EXTENSION_NAME)
-            .expect("Failed to query XInput extension")
-            .expect("X server missing XInput extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| {
+                NotSupportedError::new("the X11 backend requires XInput 2.0 or newer")
+            })?;
         let xkbext = xconn
             .xcb_connection()
             .extension_information(xkb::X11_EXTENSION_NAME)
-            .expect("Failed to query XKB extension")
-            .expect("X server missing XKB extension");
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
+        let xfixesext = xconn
+            .xcb_connection()
+            .extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)
+            .map_err(|err| os_error!(X11Error::from(err)))?
+            .ok_or_else(|| {
+                NotSupportedError::new("the X11 backend requires the XFixes extension")
+            })?;
 
+        let data_transfer_state = DataTransferState::new(Arc::clone(&xconn)).into();
         // Check for XInput2 support.
         xconn
             .xcb_connection()
             .xinput_xi_query_version(2, 3)
-            .expect("Failed to send XInput2 query version request")
+            .map_err(|err| os_error!(X11Error::from(err)))?
             .reply()
-            .expect("Error while checking for XInput2 query version reply");
+            .map_err(|err| match err {
+                ReplyError::X11Error(error) if error.error_kind == ErrorKind::Request => {
+                    EventLoopError::NotSupported(NotSupportedError::new(
+                        "the X11 backend requires XInput 2.0 or newer",
+                    ))
+                },
+                error => os_error!(X11Error::from(error)).into(),
+            })?;
 
         xconn.update_cached_wm_info(root);
 
@@ -338,15 +364,15 @@ impl EventLoop {
             .expect("Failed to register the event loop waker source");
         let event_loop_proxy = EventLoopProxy::new(user_waker);
 
-        let xkb_context =
-            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context = Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection())
+            .map_err(|_| NotSupportedError::new("the X11 backend requires XKB 1.0 or newer"))?;
 
         let mut xmodmap = util::ModifierKeymap::new();
         xmodmap.reload_from_x_connection(&xconn);
 
         let window_target = ActiveEventLoop {
             ime,
-            dnd,
+            data_transfer_state,
             root,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -381,6 +407,7 @@ impl EventLoop {
             xfiltered_modifiers: VecDeque::with_capacity(MAX_MOD_REPLAY_LEN),
             xmodmap,
             xkbext,
+            xfixesext,
             xkb_context,
             num_touch: 0,
             held_key_press: None,
@@ -411,7 +438,7 @@ impl EventLoop {
                     | xkb::EventType::MAP_NOTIFY
                     | xkb::EventType::STATE_NOTIFY,
             )
-            .unwrap();
+            .map_err(|err| os_error!(err))?;
 
         event_processor.init_device(ALL_DEVICES);
 
@@ -677,7 +704,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
@@ -731,6 +758,51 @@ impl ActiveEventLoop {
     pub(crate) fn exit_code(&self) -> Option<i32> {
         self.exit.get()
     }
+
+    /// We must choose a window to get the clipboard from or attach it to. Currently choose the
+    /// focused window (TODO: better strategy?).
+    pub(crate) fn clipboard_window(&self) -> Option<xproto::Window> {
+        self.windows
+            .borrow()
+            .iter()
+            .find(|(_, window)| window.upgrade().is_some_and(|window| window.has_focus()))
+            .map(|(id, _)| id.into_raw() as _)
+            .or_else(|| {
+                self.windows
+                    .borrow()
+                    .iter()
+                    .find(|(_, window)| window.upgrade().is_some())
+                    .map(|(id, _)| id.into_raw() as _)
+            })
+    }
+
+    fn read_clipboard(
+        &self,
+        clipboard: ClipboardSelectionType,
+    ) -> Result<Option<DataTransferId>, TransferError> {
+        let selection = clipboard.selection_atom(self.xconn.atoms());
+        if self.xconn.selection_owner(selection).map_err(|err| os_error!(err))?.is_none() {
+            return Ok(None);
+        }
+
+        let mut data_transfer = self.data_transfer_state.borrow_mut();
+
+        Ok(Some(data_transfer.request_clipboard_read(clipboard)))
+    }
+
+    fn write_clipboard(
+        &self,
+        clipboard: ClipboardSelectionType,
+        send_data: Box<dyn DataTransferSend>,
+    ) -> Result<(), TransferError> {
+        let Some(xwindow) = self.clipboard_window() else {
+            return Err(os_error!("no active window").into());
+        };
+        let mut data_transfer = self.data_transfer_state.borrow_mut();
+        data_transfer.set_clipboard(xwindow, send_data, clipboard);
+
+        Ok(())
+    }
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
@@ -741,14 +813,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         Ok(CoreCustomCursor(Arc::new(CustomCursor::new(self, custom_cursor)?)))
     }
 
@@ -798,88 +870,90 @@ impl RootActiveEventLoop for ActiveEventLoop {
         self
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let dnd = self.dnd.borrow();
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        let data_transfer = self.data_transfer_state.borrow();
 
-        if dnd.state().is_none_or(|state| state.transfer_id != id) {
-            return Err(RequestError::Ignored);
+        if let Some(state) = data_transfer.state()
+            && state.transfer_id == id
+        {
+            return Ok(Box::new(Selection::new(state.types.clone())));
         }
 
-        let Some(state) = dnd.state() else {
-            return Err(RequestError::Ignored);
-        };
+        if let Some(clipboard) = data_transfer.resolve_clipboard_type(id) {
+            return Ok(Box::new(
+                data_transfer.get_clipboard(clipboard).get_types(self.x_connection().atoms()),
+            ));
+        }
 
-        Ok(Box::new(Selection::new(state.types.clone())))
+        Err(UnknownTransfer(id))
     }
 
     fn fetch_data_transfer(
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
-        let mut dnd = self.dnd.borrow_mut();
+    ) -> Result<AsyncRequestSerial, FetchError> {
+        let mut data_transfer = self.data_transfer_state.borrow_mut();
 
-        let serial = AsyncRequestSerial::get();
-
-        let type_ = type_
-            .cast_ref::<SelectionType>()
-            .or_else(|| dnd.find_type_by_hint(type_.hint()?))
-            .cloned()
-            .ok_or(RequestError::NotSupported(NotSupportedError::new("Unknown type hint")))?;
-
-        let new_convert_selection = {
-            let Some(state) = dnd.state_mut() else {
-                return Err(RequestError::Ignored);
-            };
-
-            if state.transfer_id != id {
-                return Err(RequestError::NotSupported(NotSupportedError::new(
-                    "Unknown data transfer",
-                )));
-            }
-
-            // If it's non-empty, assume that we're still waiting on some other fetch operation.
-            // The `SelectionNotify` handler will send a new `convert_selection` event if any
-            // more are on the stack.
-            let should_emit_convert_selection = state.pending_fetch_types.is_empty();
-
-            let atom = type_.atom();
-
-            state.pending_fetch_types.push_back((serial, type_));
-
-            should_emit_convert_selection.then_some((
-                state.target_window,
-                self.xconn.timestamp(),
-                atom,
-            ))
-        };
-
-        if let Some((window, time, new_type)) = new_convert_selection {
-            // This results in the `SelectionNotify` event
-            dnd.convert_selection(window, time, new_type);
+        if let Some(state) = data_transfer.state()
+            && state.transfer_id == id
+        {
+            return data_transfer.fetch_dnd_data_transfer(type_);
         }
 
-        Ok(serial)
+        if let Some(clipboard) = data_transfer.resolve_clipboard_type(id) {
+            let clip_win = self
+                .clipboard_window()
+                .ok_or_else(|| os_error!("unable to determine focused window"))?;
+            data_transfer.fetch_clipboard_data_transfer(clipboard, type_, clip_win)
+        } else {
+            Err(FetchError::UnknownTransfer(id))
+        }
     }
 
     fn set_valid_dnd_actions(
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
-        let mut dnd = self.dnd.borrow_mut();
+    ) -> Result<(), UnknownTransfer> {
+        let mut data_transfer = self.data_transfer_state.borrow_mut();
 
-        let Some(state) = dnd.state_mut() else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+        let Some(state) = data_transfer.state_mut() else {
+            return Err(UnknownTransfer(id));
         };
 
         if state.transfer_id != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+            return Err(UnknownTransfer(id));
         }
 
         state.accepted = !actions.is_empty();
 
         Ok(())
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
+        self.read_clipboard(ClipboardSelectionType::Clipboard)
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
+        self.write_clipboard(ClipboardSelectionType::Clipboard, send_data)
+    }
+
+    fn primary_selection_ext(&self) -> Option<&dyn PrimarySelectionExt> {
+        Some(self)
+    }
+}
+
+impl PrimarySelectionExt for ActiveEventLoop {
+    fn primary_selection(&self) -> Result<Option<DataTransferId>, TransferError> {
+        self.read_clipboard(ClipboardSelectionType::Primary)
+    }
+
+    fn set_primary_selection(
+        &self,
+        send_data: Box<dyn DataTransferSend>,
+    ) -> Result<(), TransferError> {
+        self.write_clipboard(ClipboardSelectionType::Primary, send_data)
     }
 }
 
@@ -888,19 +962,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         self.xconn.display_handle()
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 pub(crate) struct DeviceInfo<'a> {
     xconn: &'a XConnection,
@@ -1188,9 +1249,15 @@ impl Device {
                     let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
                     let atom = info.label as xproto::Atom;
 
-                    if atom == atoms[ABS_X]
-                        || atom == atoms[ABS_Y]
-                        || atom == atoms[ABS_PRESSURE]
+                    // Absolute X/Y axes alone do not identify a stylus:
+                    // emulated pointing devices in virtual machines (the
+                    // QEMU/VMware/VirtualBox USB tablets, and thus any
+                    // desktop accessed through SPICE or similar viewers)
+                    // expose Abs X/Y without pressure or tilt. Treating them
+                    // as pens makes the mouse-only event filters drop all
+                    // their motion and button input. Only pressure and tilt
+                    // axes indicate actual stylus hardware.
+                    if atom == atoms[ABS_PRESSURE]
                         || atom == atoms[ABS_TILT_X]
                         || atom == atoms[ABS_TILT_Y]
                     {

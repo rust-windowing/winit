@@ -1,4 +1,6 @@
 //! The [`Window`] trait and associated types.
+mod positioner;
+
 use std::any::Any;
 use std::fmt;
 
@@ -7,6 +9,7 @@ use cursor_icon::CursorIcon;
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
+pub use positioner::{WindowAnchor, WindowConstraintAdjustment, WindowGravity};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +60,9 @@ pub enum WindowType {
     /// tooltip. Requires a parent set via [`WindowAttributes::with_parent_window`], and its
     /// position is interpreted relative to that parent.
     ///
+    /// The anchor/gravity/positioning system described on [`WindowAttributes::with_positioner`]
+    /// can be used to position the popup or window in a more advanced way
+    ///
     /// ## Platform-specific
     ///
     /// - **macOS:** A borderless, non-activating child window. The system does *not* draw rounded
@@ -64,6 +70,97 @@ pub enum WindowType {
     ///   [`WindowAttributes::with_transparent`]) and render the round border yourself.
     /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
     Popup,
+    /// A native modal or non-modal dialog anchored to a parent window, requiring a parent set
+    /// via [`WindowAttributes::with_parent_window`].
+    ///
+    /// See [`WindowAttributes::with_modal`] to control whether the dialog is modal.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** An `xdg_toplevel` with its parent set via `xdg_toplevel.set_parent`, extended
+    ///   with the `xdg-dialog-v1` protocol. If the compositor doesn't support `xdg-dialog-v1` (no
+    ///   `xdg_wm_dialog_v1` global), a normal window with the same parent is created instead. In
+    ///   that case [`WindowAttributes::with_modal`] has no effect, and the created window's
+    ///   [`Window::window_type`] returns [`WindowType::Window`] rather than [`WindowType::Dialog`].
+    /// - **Windows:** An owned window (see MSDN's [owned windows]) that is always on top of its
+    ///   parent. When modal, the parent is disabled via `EnableWindow` while the dialog is visible,
+    ///   and re-enabled and reactivated once no modal dialog on it is visible anymore (hidden or
+    ///   closed). Positions (via [`WindowAttributes::with_position`], [`Window::outer_position`]
+    ///   and [`Window::set_outer_position`]) are relative to the parent's client area; without an
+    ///   initial position, the dialog is centered over its parent. Moving a modal dialog moves its
+    ///   parent along with it, so the dialog keeps its position relative to the parent.
+    /// - **macOS:** A non-modal dialog is a child window of its parent (moving along with it),
+    ///   positioned like on Windows. A modal dialog is presented as a sheet attached to its parent,
+    ///   which AppKit positions itself, so it can't be moved and any position is ignored.
+    /// - **X11, Web, Android, iOS, Orbital:** An error is returned because it is not implemented.
+    ///
+    /// [owned windows]: https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows
+    Dialog,
+}
+
+/// The positioner state backing a window's anchor-based placement.
+///
+/// Set at window creation via [`WindowAttributes::with_positioner`], and read/mutated at runtime
+/// through [`Window::positioner`]/[`Window::set_positioner`]. See those methods for
+/// platform-specific behavior, and [`WindowPositioner::default`] for the values used when
+/// [`WindowAttributes::with_positioner`] is never called.
+///
+/// The structure is based on the wayland structure. For more information see the wayland
+/// documentation [XDG Positioner](https://wayland.app/protocols/xdg-shell#xdg_positioner)
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WindowPositioner {
+    /// The edge or corner of the anchor rect used to position the window relative to it.
+    ///
+    /// Combined with [`gravity`](Self::gravity), this controls which corner/edge of the anchor
+    /// rectangle the window is pinned to. Defaults to [`WindowAnchor::Center`].
+    pub anchor: WindowAnchor,
+    /// The anchor rectangle the window is positioned relative to.
+    ///
+    /// The [`Position`] is the top-left corner of the rectangle relative to the parent window's
+    /// content area, and the [`Size`] its dimensions. Defaults to a `1x1` rectangle at the
+    /// content origin. Passing a [`WindowPositioner`] to [`WindowAttributes::with_positioner`]
+    /// overrides the position value set with [`WindowAttributes::with_position`].
+    pub anchor_rect: (Position, Size),
+    /// The window's position relative to the anchor rect. Defaults to no offset.
+    pub offset: Position,
+    /// The direction the window surface extends away from the anchor point.
+    ///
+    /// Combined with [`anchor`](Self::anchor), this determines the final position of the window
+    /// relative to its anchor rectangle. Defaults to [`WindowGravity::Center`].
+    pub gravity: WindowGravity,
+    /// How the window should be repositioned when it would be constrained.
+    ///
+    /// The flags in [`WindowConstraintAdjustment`] can be combined to allow sliding, flipping,
+    /// and/or resizing the window independently on each axis. Defaults to no adjustment.
+    pub constraint_adjustment: WindowConstraintAdjustment,
+}
+
+impl WindowPositioner {
+    pub fn new(
+        anchor: WindowAnchor,
+        anchor_rect: (Position, Size),
+        offset: Position,
+        gravity: WindowGravity,
+        constraint_adjustment: WindowConstraintAdjustment,
+    ) -> Self {
+        WindowPositioner { anchor, anchor_rect, offset, gravity, constraint_adjustment }
+    }
+}
+
+impl Default for WindowPositioner {
+    fn default() -> Self {
+        Self {
+            anchor: WindowAnchor::default(),
+            anchor_rect: (
+                Position::Logical(LogicalPosition::new(0.0, 0.0)),
+                Size::Logical(LogicalSize::new(1.0, 1.0)),
+            ),
+            offset: Position::Logical(LogicalPosition::new(0.0, 0.0)),
+            gravity: WindowGravity::default(),
+            constraint_adjustment: WindowConstraintAdjustment::empty(),
+        }
+    }
 }
 
 /// Attributes used when creating a window.
@@ -76,9 +173,7 @@ pub struct WindowAttributes {
     pub surface_resize_increments: Option<Size>,
     /// The initial position of the window in screen coordinates.
     ///
-    /// For popups, this position is relative to the parent window.
-    ///
-    /// **Wayland:** See `WindowAttributesWayland` for more options to position a popup.
+    /// For popups and dialogs, this position is relative to the parent window.
     pub position: Option<Position>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
@@ -105,6 +200,9 @@ pub struct WindowAttributes {
     pub fullscreen: Option<Fullscreen>,
     pub platform: Option<Box<dyn PlatformWindowAttributes>>,
     pub window_type: WindowType,
+    /// See [`WindowAttributes::with_positioner`].
+    pub positioner: Option<WindowPositioner>,
+    pub modal: bool,
 }
 
 impl WindowAttributes {
@@ -395,11 +493,23 @@ impl WindowAttributes {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows** : A child window has the WS_CHILD style and is confined
-    ///   to the client area of its parent window. For more information, see
+    /// - **Windows** : For [`WindowType::Window`], a child window has the WS_CHILD style and is
+    ///   confined to the client area of its parent window. For more information, see
     ///   <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    ///   For [`WindowType::Popup`] and [`WindowType::Dialog`], the window instead becomes an
+    ///   *owned* window (no WS_CHILD style) positioned relative to, and always on top of, this
+    ///   parent -- see [`WindowType::Dialog`]'s platform-specific notes.
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Android / iOS / Wayland / Web:** Unsupported.
+    /// - **Wayland:** The parent must be a window created by the same event loop. For
+    ///   [`WindowType::Window`] and [`WindowType::Dialog`], the parent must be a window or a dialog
+    ///   (not a popup). The child is attached to it with `xdg_toplevel.set_parent`; where it is
+    ///   placed is up to the compositor. When the parent is closed, its children are closed as well
+    ///   and receive [`WindowEvent::Destroyed`]. They stay visible until the application drops
+    ///   them, and so does the parent, which is only destroyed once all its children have been
+    ///   dropped.
+    /// - **Android / iOS / Web:** Unsupported.
+    ///
+    /// [`WindowEvent::Destroyed`]: crate::event::WindowEvent::Destroyed
     #[inline]
     pub unsafe fn with_parent_window(
         mut self,
@@ -438,6 +548,49 @@ impl WindowAttributes {
     pub fn window_type(&self) -> WindowType {
         self.window_type
     }
+
+    /// Sets the positioner used to place the window relative to its anchor rect.
+    ///
+    /// See [`WindowPositioner`] and its fields for what each part of the positioner controls and
+    /// its default when left as `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Only takes effect when the window is a [`WindowType::Popup`], since the
+    ///   Wayland positioner is part of the `xdg_popup` protocol role.
+    /// - **macOS, Windows:** Works for both [`WindowType::Window`] and [`WindowType::Popup`]. A
+    ///   [`WindowType::Popup`] always requires a parent window to be set via
+    ///   [`with_parent_window`](Self::with_parent_window). A [`WindowType::Window`] without a
+    ///   parent is positioned relative to the screen's available space instead of the parent's
+    ///   content area.
+    /// - **X11, Web, Android, iOS, Orbital:** No effect.
+    #[inline]
+    pub fn with_positioner(mut self, positioner: WindowPositioner) -> Self {
+        self.positioner = Some(positioner);
+        self
+    }
+
+    /// Sets whether a [`WindowType::Dialog`] is modal, i.e. blocks interaction with its parent
+    /// while open. Has no effect on other [`WindowType`]s.
+    ///
+    /// The default is non-modal.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Implemented via the `xdg-dialog-v1` protocol's modal state
+    ///   (`xdg_dialog_v1.set_modal`). Ignored if the compositor doesn't support `xdg-dialog-v1`,
+    ///   since a normal window is then created instead of a dialog (see [`WindowType::Dialog`]).
+    /// - **Windows:** Implemented by disabling the parent window (`EnableWindow`) while the dialog
+    ///   is visible. The dialog can't be minimized, since a minimized dialog has no taskbar button
+    ///   to restore it from while the parent stays disabled.
+    /// - **macOS:** Implemented by presenting the dialog as a sheet on its parent window.
+    /// - **X11, Web, Android, iOS, Orbital:** No effect, since [`WindowType::Dialog`] is not
+    ///   implemented.
+    #[inline]
+    pub fn with_modal(mut self, modal: bool) -> Self {
+        self.modal = modal;
+        self
+    }
 }
 
 impl Clone for WindowAttributes {
@@ -466,6 +619,8 @@ impl Clone for WindowAttributes {
             fullscreen: self.fullscreen.clone(),
             platform: self.platform.as_ref().map(|platform| platform.box_clone()),
             window_type: self.window_type,
+            positioner: self.positioner,
+            modal: self.modal,
         }
     }
 }
@@ -497,6 +652,8 @@ impl Default for WindowAttributes {
             cursor: Cursor::default(),
             blur: Default::default(),
             window_type: Default::default(),
+            positioner: Default::default(),
+            modal: Default::default(),
         }
     }
 }
@@ -540,6 +697,31 @@ impl_dyn_casting!(PlatformWindowAttributes);
 pub trait Window: Any + Send + Sync + fmt::Debug {
     /// Returns the window type of this window
     fn window_type(&self) -> WindowType;
+
+    /// Returns the positioner used to place this window relative to its anchor rect.
+    ///
+    /// Returns [`WindowPositioner::default`] if this window doesn't use anchor positioning, see
+    /// [`WindowAttributes::with_positioner`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Always [`WindowPositioner::default`] unless the window is a
+    ///   [`WindowType::Popup`], since the Wayland positioner is part of the `xdg_popup` protocol
+    ///   role.
+    fn positioner(&self) -> WindowPositioner {
+        WindowPositioner::default()
+    }
+
+    /// Sets the positioner used to place this window relative to its anchor rect.
+    ///
+    /// No-op if this window doesn't use anchor positioning, see
+    /// [`WindowAttributes::with_positioner`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** No-op unless the window is a [`WindowType::Popup`], since the Wayland
+    ///   positioner is part of the `xdg_popup` protocol role.
+    fn set_positioner(&self, _positioner: WindowPositioner) {}
 
     /// Returns an identifier unique to the window.
     fn id(&self) -> WindowId;
@@ -713,9 +895,10 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// The coordinates can be negative if the top-left hand corner of the window is outside
     /// of the visible screen region, or on another monitor than the primary.
     ///
-    /// For a [`WindowType::Popup`] with a parent, the position is instead reported relative to the
-    /// top-left hand corner of the parent window's content area, mirroring the coordinate system
-    /// used by [`Window::set_outer_position`].
+    /// For a [`WindowType::Popup`] or [`WindowType::Dialog`] with a parent, the position is instead
+    /// reported relative to the top-left hand corner of the parent window's content area,
+    /// mirroring the coordinate system used by [`Window::set_outer_position`] and
+    /// [`WindowAttributes::with_position`].
     ///
     /// ## Platform-specific
     ///
@@ -952,7 +1135,15 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: Must enable the `private-apple-apis` Cargo feature.
+    /// - **macOS:** Renders a translucent system material behind the window's contents, which is
+    ///   tinted and follows the window's appearance, rather than a blur of a specific radius. Which
+    ///   material is used can be chosen with `WindowAttributesMacOS::with_blur_material` and
+    ///   `WindowExtMacOS::set_blur_material`. The window's `contentView` is a container holding the
+    ///   view returned by `raw-window-handle`, and the material is a sibling behind it. With the
+    ///   `private-apple-apis` Cargo feature enabled, a private API is used instead to apply an
+    ///   untinted backdrop blur of a fixed radius; this can cause App Store rejection. On macOS
+    ///   10.12 and older, enabling blur makes the window's views layer-backed, which may break the
+    ///   association with an attached `NSOpenGLContext`.
     /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
     /// - **Wayland:** Only works with `org_kde_kwin_blur_manager` or
     ///   `ext_background_effect_manager_v1` protocol.
@@ -1007,6 +1198,8 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Windows:** [`WindowButtons::MINIMIZE`] is ignored for a modal [`WindowType::Dialog`],
+    ///   which can't be minimized (see [`WindowAttributes::with_modal`]).
     /// - **Wayland / X11 / Orbital:** Not implemented.
     /// - **Web / iOS / Android:** Unsupported.
     fn set_enabled_buttons(&self, buttons: WindowButtons);
@@ -1440,7 +1633,7 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     /// ## Platform-specific
     ///
     /// - **X11:** Un-grabs the cursor.
-    /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
+    /// - **Wayland:** Requires a pointer button or touch point to be down inside the window.
     /// - **macOS:** May prevent the button release event to be triggered.
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_window(&self) -> Result<(), RequestError>;
@@ -1452,6 +1645,7 @@ pub trait Window: Any + Send + Sync + fmt::Debug {
     ///
     /// ## Platform-specific
     ///
+    /// - **Wayland:** Requires a pointer button or touch point to be down inside the window.
     /// - **macOS:** Always returns an [`RequestError::NotSupported`]
     /// - **iOS / Android / Web:** Always returns an [`RequestError::NotSupported`].
     fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), RequestError>;
@@ -2249,7 +2443,7 @@ mod tests {
             .is_some()
         );
 
-        let text: &[u8] = ['a' as u8; 8000].as_slice();
+        let text: &[u8] = [b'a'; 8000].as_slice();
         let text = std::str::from_utf8(text).unwrap();
         assert_eq!(
             ImeSurroundingText::new(text.into(), 0, 0),

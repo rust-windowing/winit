@@ -13,7 +13,7 @@ use objc2_foundation::{
     NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString, ns_string,
 };
 use winit_core::cursor::{CursorIcon, CursorImage, CustomCursorProvider, CustomCursorSource};
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CustomCursorError, NotSupportedError, RequestError};
 use winit_core::icon::{Icon, RgbaIcon};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -31,11 +31,11 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn new(cursor: CustomCursorSource) -> Result<CustomCursor, RequestError> {
+    pub(crate) fn new(cursor: CustomCursorSource) -> Result<CustomCursor, CustomCursorError> {
         let cursor = match cursor {
             CustomCursorSource::Image(cursor_image) => cursor_image,
             _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
+                return Err(CustomCursorError::UnsupportedSource);
             },
         };
 
@@ -77,7 +77,9 @@ pub(crate) fn image_from_icon(icon: &Icon) -> Result<Retained<NSImage>, RequestE
     Ok(image)
 }
 
-pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Result<Retained<NSCursor>, RequestError> {
+pub(crate) fn cursor_from_image(
+    cursor: &CursorImage,
+) -> Result<Retained<NSCursor>, CustomCursorError> {
     let width = cursor.width();
     let height = cursor.height();
 
@@ -180,16 +182,16 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Retained<NSCursor> {
     let info: Retained<NSDictionary<NSObject, NSObject>> =
         unsafe { NSDictionary::dictionaryWithContentsOfFile(&info_path) }.unwrap();
     let mut x = 0.0;
-    if let Some(n) = info.objectForKey(ns_string!("hotx")) {
-        if let Ok(n) = n.downcast::<NSNumber>() {
-            x = n.as_cgfloat();
-        }
+    if let Some(n) = info.objectForKey(ns_string!("hotx"))
+        && let Ok(n) = n.downcast::<NSNumber>()
+    {
+        x = n.as_cgfloat();
     }
     let mut y = 0.0;
-    if let Some(n) = info.objectForKey(ns_string!("hoty")) {
-        if let Ok(n) = n.downcast::<NSNumber>() {
-            y = n.as_cgfloat();
-        }
+    if let Some(n) = info.objectForKey(ns_string!("hoty"))
+        && let Ok(n) = n.downcast::<NSNumber>()
+    {
+        y = n.as_cgfloat();
     }
 
     let hotspot = NSPoint::new(x, y);

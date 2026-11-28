@@ -14,13 +14,13 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 use windows_sys::core::PCWSTR;
 use winit_core::cursor::{CursorImage, CustomCursorProvider};
-use winit_core::error::RequestError;
+use winit_core::error::CustomCursorError;
 use winit_core::icon::*;
 
 use super::util;
 use crate::WinIcon;
 
-pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
+pub(crate) const PIXEL_SIZE: usize = mem::size_of::<u32>();
 
 unsafe impl Send for WinIcon {}
 
@@ -94,16 +94,19 @@ impl WinIcon {
     }
 
     pub(crate) fn from_rgba(rgba: &RgbaIcon) -> Result<Self, BadIcon> {
-        let pixel_count = rgba.buffer().len() / PIXEL_SIZE;
-        let mut and_mask = Vec::with_capacity(pixel_count);
-        let pixels = unsafe {
-            std::slice::from_raw_parts_mut(rgba.buffer().as_ptr() as *mut Pixel, pixel_count)
-        };
-        for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
-            pixel.convert_to_bgra();
+        let width = rgba.width() as usize;
+        // The AND mask is a monochrome bitmap: one bit per pixel, set where the pixel is
+        // transparent, with each row padded to a WORD boundary.
+        let mask_stride = width.div_ceil(16) * 2;
+        let mut and_mask = vec![0u8; mask_stride * rgba.height() as usize];
+        let mut bgra = Vec::with_capacity(rgba.buffer().len());
+        for (i, pixel) in rgba.buffer().as_chunks::<PIXEL_SIZE>().0.iter().enumerate() {
+            if pixel[3] == 0 {
+                let (x, y) = (i % width, i / width);
+                and_mask[y * mask_stride + x / 8] |= 0x80 >> (x % 8);
+            }
+            bgra.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
         }
-        assert_eq!(and_mask.len(), pixel_count);
         let handle = unsafe {
             CreateIcon(
                 ptr::null_mut(),
@@ -112,7 +115,7 @@ impl WinIcon {
                 1,
                 (PIXEL_SIZE * 8) as u8,
                 and_mask.as_ptr(),
-                rgba.buffer().as_ptr(),
+                bgra.as_ptr(),
             )
         };
         if !handle.is_null() {
@@ -132,12 +135,6 @@ impl IconProvider for WinIcon {}
 impl fmt::Debug for WinIcon {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         (*self.inner).fmt(formatter)
-    }
-}
-
-impl Pixel {
-    fn convert_to_bgra(&mut self) {
-        mem::swap(&mut self.r, &mut self.b);
     }
 }
 
@@ -183,9 +180,9 @@ impl CustomCursorProvider for WinCursor {
 }
 
 impl WinCursor {
-    pub(crate) fn new(image: &CursorImage) -> Result<Self, RequestError> {
+    pub(crate) fn new(image: &CursorImage) -> Result<Self, CustomCursorError> {
         let mut bgra = Vec::from(image.buffer());
-        bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
+        bgra.as_chunks_mut::<4>().0.iter_mut().for_each(|chunk| chunk.swap(0, 2));
 
         let w = image.width() as i32;
         let h = image.height() as i32;
@@ -251,13 +248,4 @@ impl RaiiCursor {
     pub fn as_raw_handle(&self) -> HICON {
         self.handle
     }
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub(crate) struct Pixel {
-    pub(crate) r: u8,
-    pub(crate) g: u8,
-    pub(crate) b: u8,
-    pub(crate) a: u8,
 }

@@ -44,13 +44,16 @@ confidence-threshold = 1.0
 private = { ignore = true }
 
 [bans]
-multiple-versions = "deny"
+multiple-versions = "warn"
 skip = [
     { crate = "jni-sys@0.3", reason = "uses the semver trick to depend on v0.4, but `ndk` hasn't been updated to v0.4 yet" },
     { crate = "thiserror@1.0", reason = "dep of `ndk` crate, yet to be updated" },
     { crate = "thiserror-impl@1.0", reason = "dep of `thiserror`" },
     { crate = "objc2@0.5", reason = "used by crossfont" },
     { crate = "objc2-foundation@0.2", reason = "used by crossfont" },
+    { crate = "font-types@0.11", reason = "used by cosmic-text's harfrust/skrifa" },
+    { crate = "read-fonts@0.37", reason = "used by cosmic-text's harfrust/skrifa" },
+    { crate = "skrifa@0.40", reason = "used by cosmic-text" },
     { crate = "syn@2", reason = "the ecosystem is in the process of migrating to syn 3" },
 ]
 skip-tree = [

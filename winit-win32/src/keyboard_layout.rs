@@ -240,12 +240,11 @@ impl Layout {
         } else if let Some(key) = self.numlock_off_keys.get(&vkey) {
             return key.clone();
         }
-        if let PhysicalKey::Code(code) = physical_key {
-            if let Some(keys) = self.keys.get(&mods) {
-                if let Some(key) = keys.get(code) {
-                    return key.clone();
-                }
-            }
+        if let PhysicalKey::Code(code) = physical_key
+            && let Some(keys) = self.keys.get(&mods)
+            && let Some(key) = keys.get(code)
+        {
+            return key.clone();
         }
         Key::Unidentified(native_code)
     }
@@ -412,10 +411,10 @@ impl LayoutCache {
                     // Unwrapping here because if we are in the ctrl+alt modifier state
                     // then the alt modifier state must have come before.
                     let simple_keys = layout.keys.get(&WindowsModifiers::empty()).unwrap();
-                    if let Some(Key::Character(key_no_altgr)) = simple_keys.get(&key_code) {
-                        if let Key::Character(key) = &key {
-                            layout.has_alt_graph = key != key_no_altgr;
-                        }
+                    if let Some(Key::Character(key_no_altgr)) = simple_keys.get(&key_code)
+                        && let Key::Character(key) = &key
+                    {
+                        layout.has_alt_graph = key != key_no_altgr;
                     }
                 }
 
@@ -428,10 +427,10 @@ impl LayoutCache {
         if layout.has_alt_graph {
             for mod_state in 0..mods_end {
                 let mod_state = WindowsModifiers::from_bits_retain(mod_state);
-                if let Some(keys) = layout.keys.get_mut(&mod_state) {
-                    if let Some(key) = keys.get_mut(&KeyCode::AltRight) {
-                        *key = Key::Named(NamedKey::AltGraph);
-                    }
+                if let Some(keys) = layout.keys.get_mut(&mod_state)
+                    && let Some(key) = keys.get_mut(&KeyCode::AltRight)
+                {
+                    *key = Key::Named(NamedKey::AltGraph);
                 }
             }
         }
@@ -469,10 +468,10 @@ impl LayoutCache {
                 );
                 if wide_len > 0 {
                     let os_string = OsString::from_wide(&label_wide[0..wide_len as usize]);
-                    if let Ok(label_str) = os_string.into_string() {
-                        if let Some(ch) = label_str.chars().next() {
-                            return ToUnicodeResult::Dead(Some(ch));
-                        }
+                    if let Ok(label_str) = os_string.into_string()
+                        && let Some(ch) = label_str.chars().next()
+                    {
+                        return ToUnicodeResult::Dead(Some(ch));
                     }
                 }
                 return ToUnicodeResult::Dead(None);

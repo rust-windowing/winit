@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 use winit_core::icon::Icon;
 use winit_core::keyboard::ModifiersState;
 use winit_core::monitor::Fullscreen;
-use winit_core::window::{ImeCapabilities, Theme, WindowAttributes};
+use winit_core::window::{ImeCapabilities, Theme, WindowAttributes, WindowPositioner, WindowType};
 
 use crate::{SelectedCursor, WindowAttributesWindows, event_loop, util};
 
@@ -51,6 +51,24 @@ pub(crate) struct WindowState {
 
     pub window_flags: WindowFlags,
 
+    /// The role of this window. Governs creation/role behavior (OS window style, decorations)
+    /// only -- see `anchored` for whether this window is positioned via the anchor system.
+    pub window_type: WindowType,
+
+    /// Whether this window is positioned relative to its parent using the anchor/gravity/
+    /// positioner system, either because it's a [`WindowType::Popup`] or because anchor
+    /// attributes were set on a [`WindowType::Window`]. Stored here (rather than only on the
+    /// `Window` struct) so it stays reachable from just an `hwnd` via `GWL_USERDATA` -- e.g. to
+    /// reposition an anchored window when its parent moves.
+    ///
+    /// Intentionally not set for [`WindowType::Dialog`]: dialogs use the parent's coordinate frame
+    /// (`WindowFlags::ANCHORED`) but are not auto-placed or moved along with the parent.
+    pub anchored: bool,
+
+    /// The positioner state backing `anchored` placement, meaningful only when `anchored` is
+    /// `true`.
+    pub positioner: WindowPositioner,
+
     pub ime_state: ImeState,
     pub ime_capabilities: Option<ImeCapabilities>,
 
@@ -66,6 +84,13 @@ pub(crate) struct WindowState {
     pub skip_taskbar: bool,
 
     pub use_system_wheel_speed: bool,
+
+    /// For a modal dialog: its owner (an `HWND`), disabled while the dialog is visible.
+    pub modal_owner: Option<isize>,
+    /// Whether this modal dialog currently holds `modal_owner` disabled.
+    pub modal_owner_disabled: bool,
+    /// The dialog's last seen outer position, used to compute the delta to move `modal_owner` by.
+    pub last_outer_position: Option<(i32, i32)>,
 }
 
 #[derive(Clone)]
@@ -140,6 +165,13 @@ bitflags! {
 
         const CLIP_CHILDREN = 1 << 22;
 
+        /// Whether this window is positioned relative to its parent via the anchor/gravity/
+        /// positioner system. Independent of `POPUP`, which only selects the OS window style --
+        /// a `WindowType::Window` can be `ANCHORED` too. Also set for `WindowType::Dialog`, which
+        /// only uses the parent's coordinate frame. Used to pick the coordinate frame in
+        /// `translate_outer_position`/`translate_outer_position_to_parent`.
+        const ANCHORED = 1 << 23;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
@@ -186,6 +218,11 @@ impl WindowState {
             preferred_theme,
             window_flags: WindowFlags::empty(),
 
+            window_type: attributes.window_type,
+            anchored: matches!(attributes.window_type, WindowType::Popup)
+                || attributes.positioner.is_some(),
+            positioner: attributes.positioner.unwrap_or_default(),
+
             ime_state: ImeState::Disabled,
             ime_capabilities: None,
 
@@ -198,6 +235,10 @@ impl WindowState {
             skip_taskbar: false,
 
             use_system_wheel_speed: true,
+
+            modal_owner: None,
+            modal_owner_disabled: false,
+            last_outer_position: None,
         }
     }
 
@@ -287,25 +328,24 @@ impl WindowFlags {
             }
         } else {
             style |= WS_CAPTION | WS_SYSMENU | WS_BORDER;
+
+            if self.contains(WindowFlags::RESIZABLE) {
+                style |= WS_SIZEBOX;
+            }
+            if self.contains(WindowFlags::MAXIMIZABLE) {
+                style |= WS_MAXIMIZEBOX;
+            }
+            if self.contains(WindowFlags::MINIMIZABLE) {
+                style |= WS_MINIMIZEBOX;
+            }
+
+            if self.contains(WindowFlags::ON_TASKBAR) {
+                style_ex |= WS_EX_APPWINDOW;
+            }
         };
 
-        if self.contains(WindowFlags::RESIZABLE) {
-            style |= WS_SIZEBOX;
-        }
-        if self.contains(WindowFlags::MAXIMIZABLE) {
-            style |= WS_MAXIMIZEBOX;
-        }
-        if self.contains(WindowFlags::MINIMIZABLE) {
-            style |= WS_MINIMIZEBOX;
-        }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
-        }
-        if self.contains(WindowFlags::ON_TASKBAR) {
-            style_ex |= WS_EX_APPWINDOW;
-        }
-        if self.contains(WindowFlags::ALWAYS_ON_TOP) {
-            style_ex |= WS_EX_TOPMOST;
         }
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
@@ -336,6 +376,19 @@ impl WindowFlags {
             WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
         ) {
             style &= !WS_OVERLAPPEDWINDOW;
+        }
+
+        if self.contains(WindowFlags::ALWAYS_ON_TOP) {
+            style_ex |= WS_EX_TOPMOST;
+
+            // A window with WS_EX_TOPMOST set must have one of the following style flags:
+            // WS_POPUP, WS_BORDER, WS_CAPTION, WS_SYSMENU, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
+            // WS_THICKFRAME, WS_EX_CLIENTEDGE, WS_EX_CONTEXTHELP, WS_EX_DLGMODALFRAME,
+            // WS_EX_TOOLWINDOW, WS_EX_WINDOWEDGE.
+            // If none of them are set, it will cause a DXGI error when creating a swapchain.
+            if style & WS_CAPTION == 0 {
+                style |= WS_POPUP;
+            }
         }
 
         (style, style_ex)

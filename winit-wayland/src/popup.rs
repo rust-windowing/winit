@@ -1,265 +1,212 @@
-use core::sync::atomic::Ordering;
+use core::fmt;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 use dpi::{
     LogicalPosition, LogicalSize, PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size,
 };
-use rwh_06::RawWindowHandle;
-use sctk::compositor::SurfaceData;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::popup::Popup as SctkPopup;
 use sctk::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::Proxy;
-use wayland_client::protocol::wl_display::WlDisplay;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
-use winit_core::event::{Ime, WindowEvent};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::monitor::{Fullscreen, MonitorHandle as CoreMonitorHandle};
 use winit_core::window::{
     CursorGrabMode, ImeCapabilities, ImeRequest, ImeRequestError, ResizeDirection, Theme,
-    UserAttentionType, Window as CoreWindow, WindowAttributes, WindowButtons, WindowId,
-    WindowLevel,
+    UserAttentionType, Window as CoreWindow, WindowAnchor, WindowAttributes, WindowButtons,
+    WindowConstraintAdjustment, WindowGravity, WindowId, WindowLevel, WindowPositioner,
 };
 
 use super::ActiveEventLoop;
-use super::output::MonitorHandle;
-use crate::window::Handles;
-use crate::window::handles::WindowRequests;
-use crate::window::state::{WindowState, WindowType};
-use crate::{PopupExtWayland, WindowAttributesWayland};
+use crate::WindowAttributesWayland;
+use crate::window::common::WindowCommon;
+use crate::window::state::{WindowParent, WindowState, WindowType};
+use crate::window::{Handles, finish_window_setup};
 
 #[derive(Debug)]
 pub struct Popup {
-    /// The state of the popup.
-    /// The only single truth of the state is stored
-    /// in the event loop state, because if the server decides to destroy the popup
-    /// we cannot use it anymore
-    popup_state: Weak<Mutex<WindowState>>,
-
-    /// Window id.
-    window_id: WindowId,
-
-    /// The wayland display used solely for raw window handle.
-    #[allow(dead_code)]
-    display: WlDisplay,
-
-    handles: Handles,
+    common: WindowCommon,
 }
 
 impl Popup {
     pub(crate) fn new(
         event_loop_window_target: &ActiveEventLoop,
         mut attributes: WindowAttributes,
-    ) -> Result<Self, RequestError> {
-        fn error(message: &'static str) -> RequestError {
-            RequestError::NotSupported(NotSupportedError::new(message))
+    ) -> Result<Self, CreateWindowError> {
+        let queue_handle = event_loop_window_target.queue_handle.clone();
+        let mut state = event_loop_window_target.state.borrow_mut();
+        // A closed popup counts as the topmost one until its Wayland objects are destroyed,
+        // and mapping a popup with a grab then fails with `not_the_topmost_popup`.
+        state.execute_close_window();
+        let parent = WindowParent::from_attributes(&state, &attributes)?
+            .ok_or(InvalidInput::new("Popup without a parent is not supported"))?;
+        let parent_state = parent.state.clone();
+        let monitors = state.monitors.clone();
+        let xdg_activation =
+            state.xdg_activation.as_ref().map(|activation_state| activation_state.global().clone());
+        let xdg_positioner = XdgPositioner::new(&state.xdg_shell).map_err(|e| os_error!(e))?;
+
+        let WindowPositioner {
+            anchor,
+            anchor_rect,
+            offset: positioner_offset,
+            gravity,
+            constraint_adjustment,
+            ..
+        } = attributes.positioner.unwrap_or_default();
+        let grab_keyboard = attributes.active;
+
+        let parent_window_state = parent_state.lock().unwrap();
+
+        // Use the scale factor and xdg geometry of the parent.
+        let scale_factor = parent_window_state.scale_factor();
+        const BAD_SIZE_ERROR: InvalidInput =
+            InvalidInput::new("Bad surface size for Popup window (missing or zero)");
+        let size = attributes.surface_size.ok_or(BAD_SIZE_ERROR)?.to_logical(scale_factor);
+        if size.width == 0_i32 || size.height == 0_i32 {
+            return Err(BAD_SIZE_ERROR.into());
         }
 
-        let parent_window_handle =
-            attributes.parent_window().ok_or(error("Popup without a parent is not supported!"))?;
-        if let RawWindowHandle::Wayland(parent_window_handle) = parent_window_handle {
-            let queue_handle = event_loop_window_target.queue_handle.clone();
-            let mut state = event_loop_window_target.state.borrow_mut();
-            let monitors = state.monitors.clone();
-            let xdg_activation = state
-                .xdg_activation
-                .as_ref()
-                .map(|activation_state| activation_state.global().clone());
-            let positioner = XdgPositioner::new(&state.xdg_shell)
-                .map_err(|_| error("Failed to create positioner"))?;
-            let parent_window_id =
-                WindowId::from_raw(parent_window_handle.surface.as_ptr() as usize);
-            let (popup, popup_state) = if let Some(parent_window_state) =
-                state.windows.borrow().get(&parent_window_id)
-            {
-                let wayland_attributes = attributes
-                    .platform
-                    .as_ref()
-                    .and_then(|p| p.cast_ref::<WindowAttributesWayland>())
-                    .cloned()
-                    .unwrap_or_default();
-                let WindowAttributesWayland {
-                    gravity,
+        // Anchoring
+        // The anchor rect is relative to the parent window geometry, so we need to subtract
+        // the geometry origin from the position to get the correct anchor rect.
+        // This is important for client side decorations
+        let geometry_origin = parent_window_state.content_surface_origin();
+        let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
+        if xdg_positioner.version() >= 3 {
+            xdg_positioner.set_reactive();
+        }
+        xdg_positioner.set_anchor(from_anchor(anchor));
+        xdg_positioner.set_gravity(from_gravity(gravity));
+        xdg_positioner.set_constraint_adjustment(from_constraint_adjustment(constraint_adjustment));
+
+        let (anchor_rect_position, anchor_rect_size) = if attributes.positioner.is_some() {
+            let size = anchor_rect.1.to_logical::<i32>(scale_factor);
+            (
+                anchor_rect.0.to_logical::<i32>(scale_factor),
+                LogicalSize::new(size.width.max(1), size.height.max(1)),
+            )
+        } else {
+            // anchor rect was not specified use attributes.position
+            let pos: LogicalPosition<i32> = attributes
+                .position
+                .map(|position| position.to_logical(scale_factor))
+                .unwrap_or_default();
+            (pos, LogicalSize::new(1, 1))
+        };
+
+        let anchor_rect = (
+            LogicalPosition::new(
+                anchor_rect_position.x + anchor_position.x,
+                anchor_rect_position.y + anchor_position.y,
+            ),
+            anchor_rect_size,
+        );
+        xdg_positioner.set_anchor_rect(
+            anchor_rect.0.x,
+            anchor_rect.0.y,
+            anchor_rect.1.width,
+            anchor_rect.1.height,
+        );
+        let offset: LogicalPosition<i32> = positioner_offset.to_logical(scale_factor);
+        xdg_positioner.set_offset(offset.x, offset.y);
+        xdg_positioner.set_size(size.width, size.height);
+
+        let parent_surface = parent_window_state.window.xdg_surface();
+        let surface = state.compositor_state.create_surface(&queue_handle);
+        let popup = SctkPopup::from_surface(
+            Some(parent_surface),
+            &xdg_positioner,
+            &queue_handle,
+            surface.clone(),
+            &state.xdg_shell,
+        )
+        .map_err(|e| os_error!(e))?;
+        drop(parent_window_state);
+
+        let mut popup_state = WindowState::new(
+            event_loop_window_target,
+            &state,
+            size.into(),
+            WindowType::Popup {
+                popup: popup.clone(),
+                xdg_positioner,
+                last_configure: None,
+                parent_origin: geometry_origin,
+                positioner: WindowPositioner::new(
                     anchor,
-                    anchor_rect,
-                    constraint_adjustment,
+                    (anchor_rect_position.into(), anchor_rect_size.into()),
                     positioner_offset,
-                    ..
-                } = wayland_attributes;
-                let grab_keyboard = attributes.active;
+                    gravity,
+                    constraint_adjustment,
+                ),
+            },
+            attributes.preferred_theme,
+            false,
+            scale_factor,
+            Some(parent),
+        );
 
-                let mut parent_window_state = parent_window_state.lock().unwrap();
+        // Set transparency hint.
+        popup_state.set_transparent(attributes.transparent);
 
-                // Use the scale factor and xdg geometry of the parent.
-                let scale_factor = parent_window_state.scale_factor();
-                let size = attributes
-                    .surface_size
-                    .ok_or(error("Invalid size for popup"))?
-                    .to_logical(scale_factor);
-                if size.width == 0_i32 || size.height == 0_i32 {
-                    return Err(error("The popups size must not be zero"));
-                }
+        // Set blur.
+        let _ = popup_state.set_blur(attributes.blur);
 
-                // Anchoring
-                // The anchor rect is relative to the parent window geometry, so we need to subtract
-                // the geometry origin from the position to get the correct anchor rect.
-                // This is important for client side decorations
-                let geometry_origin = parent_window_state.content_surface_origin();
-                let anchor_position = LogicalPosition::new(-geometry_origin.x, -geometry_origin.y);
-                positioner.set_anchor(anchor.unwrap_or(crate::PopupAnchor::TopLeft).into());
-                positioner.set_gravity(gravity.unwrap_or(crate::PopupGravity::BottomRight).into());
-                constraint_adjustment
-                    .inspect(|c| positioner.set_constraint_adjustment((*c).into()));
-                let (anchor_rect_position, anchor_rect_size) = match anchor_rect {
-                    Some((position, size)) => (
-                        position.to_logical::<i32>(scale_factor),
-                        size.to_logical::<i32>(scale_factor),
-                    ),
-                    None => {
-                        // anchor rect was not specified use attributes.position
-                        let pos: LogicalPosition<i32> = attributes
-                            .position
-                            .map(|position| position.to_logical(scale_factor))
-                            .unwrap_or_default();
-                        (pos, LogicalSize::new(1, 1))
-                    },
-                };
-                let anchor_rect = (
-                    LogicalPosition::new(
-                        anchor_rect_position.x + anchor_position.x,
-                        anchor_rect_position.y + anchor_position.y,
-                    ),
-                    LogicalSize::new(anchor_rect_size.width.max(1), anchor_rect_size.height.max(1)),
-                );
-                positioner.set_anchor_rect(
-                    anchor_rect.0.x,
-                    anchor_rect.0.y,
-                    anchor_rect.1.width,
-                    anchor_rect.1.height,
-                );
-                positioner_offset.inspect(|o| {
-                    let o = o.to_logical(scale_factor);
-                    positioner.set_offset(o.x, o.y);
-                });
-                positioner.set_size(size.width, size.height);
+        let WindowAttributesWayland { activation_token, .. } = *attributes
+            .platform
+            .take()
+            .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
+            .unwrap_or_default();
 
-                let parent_surface = parent_window_state.window.xdg_surface();
-                let surface = state.compositor_state.create_surface(&queue_handle);
-                let popup = SctkPopup::from_surface(
-                    Some(parent_surface),
-                    &positioner,
-                    &queue_handle,
-                    surface.clone(),
-                    &state.xdg_shell,
-                )
-                .map_err(|_| error("Failed to create popup"))?;
-                parent_window_state.add_child(super::make_wid(popup.wl_surface()));
-                drop(parent_window_state);
+        // Activate the window when the token is passed.
+        if let (Some(xdg_activation), Some(token)) = (xdg_activation.as_ref(), activation_token) {
+            xdg_activation.activate(token.into_raw(), &surface);
+        }
 
-                let mut popup_state = WindowState::new(
-                    event_loop_window_target,
-                    &state,
-                    size.into(),
-                    WindowType::Popup {
-                        popup: popup.clone(),
-                        positioner,
-                        last_configure: None,
-                        anchor_rect,
-                        parent_origin: geometry_origin,
-                    },
-                    attributes.preferred_theme,
-                    false,
-                    scale_factor,
-                    Some(parent_window_id),
-                );
+        // Request a keyboard grab so the compositor routes key events to
+        // this popup rather than the parent window. Must happen before the
+        // first commit that maps the surface.
+        if grab_keyboard {
+            // Use the seat with the most recent event
+            let grab = state
+                .seat_state
+                .seats()
+                .filter_map(|seat| {
+                    let serial = state.seats.get(&seat.id())?.latest_serial()?;
+                    Some((seat, serial))
+                })
+                .max_by_key(|(_, serial)| *serial);
 
-                // Set transparency hint.
-                popup_state.set_transparent(attributes.transparent);
-
-                // Set blur.
-                let _ = popup_state.set_blur(attributes.blur);
-
-                let WindowAttributesWayland { activation_token, .. } = *attributes
-                    .platform
-                    .take()
-                    .and_then(|p| p.cast::<WindowAttributesWayland>().ok())
-                    .unwrap_or_default();
-
-                // Activate the window when the token is passed.
-                if let (Some(xdg_activation), Some(token)) =
-                    (xdg_activation.as_ref(), activation_token)
-                {
-                    xdg_activation.activate(token.into_raw(), &surface);
-                }
-
-                // Request a keyboard grab so the compositor routes key events to
-                // this popup rather than the parent window. Must happen before the
-                // first commit that maps the surface.
-                if grab_keyboard {
-                    // Use the seat with the most recent event
-                    let grab = state
-                        .seat_state
-                        .seats()
-                        .filter_map(|seat| {
-                            let serial = state.seats.get(&seat.id())?.latest_serial()?;
-                            Some((seat, serial))
-                        })
-                        .max_by_key(|(_, serial)| *serial);
-
-                    if let Some((seat, serial)) = grab {
-                        popup.xdg_popup().grab(&seat, serial);
-                    }
-                }
-
-                popup.wl_surface().commit();
-                // popup.commit(); Trait not implemented in Sctk
-
-                let popup_state = Arc::new(Mutex::new(popup_state));
-
-                (popup, popup_state)
-            } else {
-                return Err(error("Parent window id unknown"));
-            };
-
-            let window_id = super::make_wid(popup.wl_surface());
-            state.windows.get_mut().insert(window_id, popup_state.clone());
-
-            let window_requests = WindowRequests {
-                redraw_requested: AtomicBool::new(true),
-                closed: AtomicBool::new(false),
-            };
-            let window_requests = Arc::new(window_requests);
-            state.window_requests.get_mut().insert(window_id, window_requests.clone());
-
-            // Setup the event sync to insert `WindowEvents` right from the window.
-            let window_events_sink = state.window_events_sink.clone();
-
-            let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
-            let event_queue = wayland_source.queue();
-            // Do a roundtrip.
-            event_queue.roundtrip(&mut state).map_err(|err| os_error!(err))?;
-
-            // XXX Wait for the initial configure to arrive.
-            while !popup_state.lock().unwrap().is_configured() {
-                event_queue.blocking_dispatch(&mut state).map_err(|err| os_error!(err))?;
-                // The compositor may dismiss a popup (e.g. invalid grab serial) by sending
-                // popup_done before configure. Detect that and bail out instead of looping forever.
-                if state
-                    .window_compositor_updates
-                    .iter()
-                    .any(|u| u.window_id == window_id && u.close_window)
-                {
-                    return Err(error("Popup was dismissed by the compositor before configure"));
-                }
+            if let Some((seat, serial)) = grab {
+                popup.xdg_popup().grab(&seat, serial);
             }
+        }
 
-            // Wake-up event loop, so it'll send initial redraw requested.
-            let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
-            event_loop_awakener.ping();
+        // Do initial commit
+        popup.commit();
 
-            Ok(Self {
-                popup_state: Arc::downgrade(&popup_state),
+        let popup_state = Arc::new(Mutex::new(popup_state));
+
+        // Setup the event sync to insert `WindowEvents` right from the window.
+        let window_events_sink = state.window_events_sink.clone();
+
+        let (window_id, window_requests) = finish_window_setup(
+            event_loop_window_target,
+            &mut state,
+            popup.wl_surface(),
+            &popup_state,
+            Some("Popup was dismissed by the compositor before configure"),
+        )?;
+
+        let event_loop_awakener = event_loop_window_target.event_loop_awakener.clone();
+
+        parent_state.lock().unwrap().add_child(window_id);
+
+        Ok(Self {
+            common: WindowCommon {
+                state: popup_state,
                 window_id,
                 display: event_loop_window_target.handle.connection.display().clone(),
                 handles: Handles {
@@ -274,12 +221,8 @@ impl Popup {
 
                     compositor: state.compositor_state.clone(),
                 },
-            })
-        } else {
-            Err(RequestError::NotSupported(NotSupportedError::new(
-                "A Popup requires a parent wayland window handle",
-            )))
-        }
+            },
+        })
     }
 }
 
@@ -288,27 +231,70 @@ impl CoreWindow for Popup {
         winit_core::window::WindowType::Popup
     }
 
+    fn positioner(&self) -> WindowPositioner {
+        if let WindowType::Popup { positioner, .. } = &self.common.state.lock().unwrap().window {
+            *positioner
+        } else {
+            WindowPositioner::default()
+        }
+    }
+
+    fn set_positioner(&self, new_positioner: WindowPositioner) {
+        let mut state = self.common.state.lock().unwrap();
+        let scale_factor = state.scale_factor();
+
+        if let WindowType::Popup { popup, xdg_positioner, parent_origin, positioner, .. } =
+            &mut state.window
+        {
+            let (position, size) = new_positioner.anchor_rect;
+            let mut size: LogicalSize<i32> = size.to_logical(scale_factor);
+            size.width = size.width.max(1);
+            size.height = size.height.max(1);
+            *positioner = new_positioner;
+            positioner.anchor_rect.1 = size.into(); // Set new clamped size
+
+            xdg_positioner.set_anchor(from_anchor(new_positioner.anchor));
+            xdg_positioner.set_gravity(from_gravity(new_positioner.gravity));
+            xdg_positioner.set_constraint_adjustment(from_constraint_adjustment(
+                new_positioner.constraint_adjustment,
+            ));
+
+            let position: LogicalPosition<i32> = position.to_logical(scale_factor);
+            xdg_positioner.set_anchor_rect(
+                position.x - parent_origin.x,
+                position.y - parent_origin.y,
+                size.width.max(1),
+                size.height.max(1),
+            );
+
+            let offset: LogicalPosition<i32> = new_positioner.offset.to_logical(scale_factor);
+            xdg_positioner.set_offset(offset.x, offset.y);
+
+            if popup.xdg_popup().version() >= 3 {
+                popup.reposition(xdg_positioner, 0);
+            }
+        }
+    }
+
     fn id(&self) -> WindowId {
-        self.window_id
+        self.common.id()
     }
 
     fn request_redraw(&self) {
-        self.handles.request_redraw();
+        self.common.request_redraw();
     }
 
     #[inline]
     fn title(&self) -> String {
-        let Some(s) = self.popup_state.upgrade() else { return String::new() };
-        s.lock().unwrap().title().to_owned()
+        self.common.title()
     }
 
     fn pre_present_notify(&self) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        s.lock().unwrap().request_frame_callback();
+        self.common.pre_present_notify();
     }
 
     fn reset_dead_keys(&self) {
-        winit_common::xkb::reset_dead_keys()
+        self.common.reset_dead_keys();
     }
 
     fn surface_position(&self) -> PhysicalPosition<i32> {
@@ -316,119 +302,87 @@ impl CoreWindow for Popup {
     }
 
     fn outer_position(&self) -> Result<PhysicalPosition<i32>, RequestError> {
-        let s = self
-            .popup_state
-            .upgrade()
-            .ok_or_else(|| NotSupportedError::new("the popup has been destroyed"))?;
-        let state = s.lock().unwrap();
+        let state = self.common.state.lock().unwrap();
         if let WindowType::Popup { last_configure: Some(configure), .. } = &state.window {
             let (x, y) = configure.position;
             return Ok(LogicalPosition::new(x, y).to_physical(state.scale_factor()));
         }
-        Err(NotSupportedError::new("the popup has not been configured yet").into())
+        Err(os_error!(PopupError("the popup has not been configured yet")).into())
     }
 
     fn set_outer_position(&self, position: Position) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        let mut state = s.lock().unwrap();
+        let mut state = self.common.state.lock().unwrap();
         let scale_factor = state.scale_factor();
-        if let WindowType::Popup { popup, positioner, anchor_rect, parent_origin, .. } =
+        if let WindowType::Popup { popup, xdg_positioner, positioner, parent_origin, .. } =
             &mut state.window
         {
-            let position = position.to_logical(scale_factor);
-            anchor_rect.0 = position;
-            positioner.set_anchor_rect(
-                anchor_rect.0.x - parent_origin.x,
-                anchor_rect.0.y - parent_origin.y,
-                anchor_rect.1.width,
-                anchor_rect.1.height,
+            let size = positioner.anchor_rect.1;
+            positioner.anchor_rect = (position, size);
+
+            let logical_position: LogicalPosition<i32> = position.to_logical(scale_factor);
+            let logical_size: LogicalSize<i32> = size.to_logical(scale_factor);
+            xdg_positioner.set_anchor_rect(
+                // Consider the frame
+                logical_position.x - parent_origin.x,
+                logical_position.y - parent_origin.y,
+                logical_size.width,
+                logical_size.height,
             );
             if popup.xdg_popup().version() >= 3 {
-                popup.reposition(positioner, 0);
+                popup.reposition(xdg_positioner, 0);
             }
         }
     }
 
     fn surface_size(&self) -> PhysicalSize<u32> {
-        let Some(s) = self.popup_state.upgrade() else { return PhysicalSize::default() };
-        let popup_state = s.lock().unwrap();
-        let scale_factor = popup_state.scale_factor();
-        super::logical_to_physical_rounded(popup_state.surface_size(), scale_factor)
+        self.common.surface_size()
     }
 
     fn request_surface_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        let s = self.popup_state.upgrade()?;
-        let mut popup_state = s.lock().unwrap();
-        let new_size = popup_state.request_surface_size(size);
-        self.request_redraw();
-        Some(new_size)
+        self.common.request_surface_size(size)
     }
 
     fn outer_size(&self) -> PhysicalSize<u32> {
-        let Some(s) = self.popup_state.upgrade() else { return PhysicalSize::default() };
-        let popup_state = s.lock().unwrap();
-        let scale_factor = popup_state.scale_factor();
-        super::logical_to_physical_rounded(popup_state.outer_size(), scale_factor)
+        self.common.outer_size()
     }
 
     fn safe_area(&self) -> PhysicalInsets<u32> {
-        PhysicalInsets::new(0, 0, 0, 0)
+        self.common.safe_area()
     }
 
     fn set_min_surface_size(&self, min_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let min_size = min_size.map(|size| size.to_logical(scale_factor));
-        let Some(s) = self.popup_state.upgrade() else { return };
-        s.lock().unwrap().set_min_surface_size(min_size);
-        // NOTE: Requires commit to be applied.
-        self.request_redraw();
+        self.common.set_min_surface_size(min_size);
     }
 
     /// Set the maximum surface size for the window.
     #[inline]
     fn set_max_surface_size(&self, max_size: Option<Size>) {
-        let scale_factor = self.scale_factor();
-        let max_size = max_size.map(|size| size.to_logical(scale_factor));
-        let Some(s) = self.popup_state.upgrade() else { return };
-        s.lock().unwrap().set_max_surface_size(max_size);
-        // NOTE: Requires commit to be applied.
-        self.request_redraw();
+        self.common.set_max_surface_size(max_size);
     }
 
     fn surface_resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let s = self.popup_state.upgrade()?;
-        let popup_state = s.lock().unwrap();
-        let scale_factor = popup_state.scale_factor();
-        popup_state
-            .resize_increments()
-            .map(|size| super::logical_to_physical_rounded(size, scale_factor))
+        self.common.surface_resize_increments()
     }
 
     fn set_surface_resize_increments(&self, increments: Option<Size>) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        let mut popup_state = s.lock().unwrap();
-        let scale_factor = popup_state.scale_factor();
-        let increments = increments.map(|size| size.to_logical(scale_factor));
-        popup_state.set_resize_increments(increments);
+        self.common.set_surface_resize_increments(increments);
     }
 
     fn set_title(&self, title: &str) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        s.lock().unwrap().set_title(title.to_owned());
+        self.common.set_title(title);
     }
 
     #[inline]
     fn set_transparent(&self, transparent: bool) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        s.lock().unwrap().set_transparent(transparent);
+        self.common.set_transparent(transparent);
     }
 
-    fn set_visible(&self, _visible: bool) {
-        // Not possible on Wayland.
+    fn set_visible(&self, visible: bool) {
+        self.common.set_visible(visible);
     }
 
     fn is_visible(&self) -> Option<bool> {
-        None
+        self.common.is_visible()
     }
 
     fn set_resizable(&self, _resizable: bool) {
@@ -477,16 +431,12 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn scale_factor(&self) -> f64 {
-        let Some(s) = self.popup_state.upgrade() else { return 1.0 };
-        s.lock().unwrap().scale_factor()
+        self.common.scale_factor()
     }
 
     #[inline]
     fn set_blur(&self, blur: bool) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        if s.lock().unwrap().set_blur(blur) {
-            self.request_redraw();
-        }
+        self.common.set_blur(blur);
     }
 
     #[inline]
@@ -510,36 +460,24 @@ impl CoreWindow for Popup {
 
     #[inline]
     fn request_ime_update(&self, request: ImeRequest) -> Result<(), ImeRequestError> {
-        let Some(s) = self.popup_state.upgrade() else { return Ok(()) };
-        let state_changed = s.lock().unwrap().request_ime_update(request)?;
-
-        if let Some(allowed) = state_changed {
-            let event = WindowEvent::Ime(if allowed { Ime::Enabled } else { Ime::Disabled });
-            self.handles.push_window_event(event, self.window_id);
-        }
-
-        Ok(())
+        self.common.request_ime_update(request)
     }
 
     #[inline]
     fn ime_capabilities(&self) -> Option<ImeCapabilities> {
-        let s = self.popup_state.upgrade()?;
-        s.lock().unwrap().ime_allowed()
+        self.common.ime_capabilities()
     }
 
-    fn focus_window(&self) {}
+    fn focus_window(&self) {
+        self.common.focus_window();
+    }
 
     fn has_focus(&self) -> bool {
-        let Some(s) = self.popup_state.upgrade() else { return false };
-        s.lock().unwrap().has_focus()
+        self.common.has_focus()
     }
 
     fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        if let Some(state) = self.popup_state.upgrade() {
-            let state = state.lock().unwrap();
-            let surface = state.window.wl_surface();
-            self.handles.request_user_attention(surface, request_type);
-        }
+        self.common.request_user_attention(request_type)
     }
 
     fn set_theme(&self, _theme: Option<Theme>) {
@@ -551,46 +489,35 @@ impl CoreWindow for Popup {
         None
     }
 
-    fn set_content_protected(&self, _protected: bool) {}
+    fn set_content_protected(&self, protected: bool) {
+        self.common.set_content_protected(protected);
+    }
 
     fn set_cursor(&self, cursor: Cursor) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        let mut popup_state = s.lock().unwrap();
-        match cursor {
-            Cursor::Icon(icon) => popup_state.set_cursor(icon),
-            Cursor::Custom(cursor) => popup_state.set_custom_cursor(cursor),
-        }
+        self.common.set_cursor(cursor);
     }
 
     fn set_cursor_position(&self, position: Position) -> Result<(), RequestError> {
-        let Some(s) = self.popup_state.upgrade() else { return Err(RequestError::Ignored) };
-        let scale_factor = s.lock().unwrap().scale_factor();
-        let position = position.to_logical(scale_factor);
-        s.lock()
-            .unwrap()
-            .set_cursor_position(position)
-            // Request redraw on success, since the state is double buffered.
-            .map(|_| self.request_redraw())
+        self.common.set_cursor_position(position)
     }
 
     fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), RequestError> {
-        let Some(s) = self.popup_state.upgrade() else { return Err(RequestError::Ignored) };
-        s.lock().unwrap().set_cursor_grab(mode)
+        self.common.set_cursor_grab(mode)
     }
 
     fn set_cursor_visible(&self, visible: bool) {
-        let Some(s) = self.popup_state.upgrade() else { return };
-        s.lock().unwrap().set_cursor_visible(visible);
+        self.common.set_cursor_visible(visible);
     }
 
     fn drag_window(&self) -> Result<(), RequestError> {
         // Popup does not support dragging
-        Err(RequestError::Ignored)
+        Err(NotSupportedError::new("drag_window is not supported for WindowType::Popup").into())
     }
 
     fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), RequestError> {
         // Popup does not support dragging
-        Err(RequestError::Ignored)
+        Err(NotSupportedError::new("drag_resize_window is not supported for WindowType::Popup")
+            .into())
     }
 
     fn show_window_menu(&self, _position: Position) {
@@ -598,150 +525,97 @@ impl CoreWindow for Popup {
     }
 
     fn set_cursor_hittest(&self, hittest: bool) -> Result<(), RequestError> {
-        let Some(state) = self.popup_state.upgrade() else {
-            return Err(RequestError::Ignored);
-        };
-
-        self.handles.set_cursor_hittest(state.lock().unwrap().window.wl_surface(), hittest)
+        self.common.set_cursor_hittest(hittest)
     }
 
     fn current_monitor(&self) -> Option<CoreMonitorHandle> {
-        let state = self.popup_state.upgrade()?;
-        let state = state.lock().unwrap();
-        let data = state.window.wl_surface().data::<SurfaceData<()>>()?;
-        data.outputs()
-            .next()
-            .map(MonitorHandle::new)
-            .map(|monitor| CoreMonitorHandle(Arc::new(monitor)))
+        self.common.current_monitor()
     }
 
     fn available_monitors(&self) -> Box<dyn Iterator<Item = CoreMonitorHandle>> {
-        self.handles.available_monitors()
+        self.common.available_monitors()
     }
 
     fn primary_monitor(&self) -> Option<CoreMonitorHandle> {
-        // NOTE: There's no such concept on Wayland.
-        None
+        self.common.primary_monitor()
     }
 
     /// Get the raw-window-handle v0.6 display handle.
     fn rwh_06_display_handle(&self) -> &dyn rwh_06::HasDisplayHandle {
-        self
+        &self.common
     }
 
     /// Get the raw-window-handle v0.6 window handle.
     fn rwh_06_window_handle(&self) -> &dyn rwh_06::HasWindowHandle {
-        self
+        &self.common
     }
 }
 
-impl Drop for Popup {
-    fn drop(&mut self) {
-        self.handles.window_requests.closed.store(true, Ordering::Relaxed);
-        self.handles.event_loop_awakener.ping();
+fn from_gravity(
+    gravity: WindowGravity,
+) -> wayland_protocols::xdg::shell::client::xdg_positioner::Gravity {
+    use wayland_protocols::xdg::shell::client::xdg_positioner::Gravity;
+    match gravity {
+        WindowGravity::Center => Gravity::None,
+        WindowGravity::Top => Gravity::Top,
+        WindowGravity::Bottom => Gravity::Bottom,
+        WindowGravity::Left => Gravity::Left,
+        WindowGravity::Right => Gravity::Right,
+        WindowGravity::TopLeft => Gravity::TopLeft,
+        WindowGravity::BottomLeft => Gravity::BottomLeft,
+        WindowGravity::TopRight => Gravity::TopRight,
+        WindowGravity::BottomRight => Gravity::BottomRight,
+        _ => Gravity::None,
     }
 }
 
-impl rwh_06::HasWindowHandle for Popup {
-    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let state = self.popup_state.upgrade().ok_or(rwh_06::HandleError::Unavailable)?;
-        let raw = rwh_06::WaylandWindowHandle::new({
-            let ptr = state.lock().unwrap().window.wl_surface().id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
-        });
-
-        unsafe { Ok(rwh_06::WindowHandle::borrow_raw(raw.into())) }
+fn from_anchor(
+    value: WindowAnchor,
+) -> wayland_protocols::xdg::shell::client::xdg_positioner::Anchor {
+    use wayland_protocols::xdg::shell::client::xdg_positioner::Anchor;
+    match value {
+        WindowAnchor::Center => Anchor::None,
+        WindowAnchor::Top => Anchor::Top,
+        WindowAnchor::Bottom => Anchor::Bottom,
+        WindowAnchor::Left => Anchor::Left,
+        WindowAnchor::Right => Anchor::Right,
+        WindowAnchor::TopLeft => Anchor::TopLeft,
+        WindowAnchor::BottomLeft => Anchor::BottomLeft,
+        WindowAnchor::TopRight => Anchor::TopRight,
+        WindowAnchor::BottomRight => Anchor::BottomRight,
+        _ => Anchor::None,
     }
 }
 
-impl rwh_06::HasDisplayHandle for Popup {
-    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        if self.popup_state.upgrade().is_none() {
-            return Err(rwh_06::HandleError::Unavailable);
-        };
-        let raw = rwh_06::WaylandDisplayHandle::new({
-            let ptr = self.display.id().as_ptr();
-            std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
-        });
+fn from_constraint_adjustment(
+    value: WindowConstraintAdjustment,
+) -> wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment {
+    use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
 
-        unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw.into())) }
+    const _: () = {
+        assert!(WindowConstraintAdjustment::SLIDE_X.bits() == ConstraintAdjustment::SlideX.bits());
+        assert!(WindowConstraintAdjustment::SLIDE_Y.bits() == ConstraintAdjustment::SlideY.bits());
+        assert!(WindowConstraintAdjustment::FLIP_X.bits() == ConstraintAdjustment::FlipX.bits());
+        assert!(WindowConstraintAdjustment::FLIP_Y.bits() == ConstraintAdjustment::FlipY.bits());
+        assert!(
+            WindowConstraintAdjustment::RESIZE_X.bits() == ConstraintAdjustment::ResizeX.bits()
+        );
+        assert!(
+            WindowConstraintAdjustment::RESIZE_Y.bits() == ConstraintAdjustment::ResizeY.bits()
+        );
+    };
+
+    ConstraintAdjustment::from_bits_retain(value.bits())
+}
+
+/// A request on a popup failed because the popup is gone or not yet configured.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct PopupError(&'static str);
+
+impl fmt::Display for PopupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
-impl PopupExtWayland for Popup {
-    fn set_anchor(&self, anchor: crate::PopupAnchor) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_anchor(anchor.into());
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn anchor_rect(&self) -> Option<(impl Into<Position>, impl Into<Size>)> {
-        let state = self.popup_state.upgrade()?;
-        if let WindowType::Popup { anchor_rect, .. } = &state.lock().unwrap().window {
-            Some(*anchor_rect)
-        } else {
-            None
-        }
-    }
-
-    fn set_anchor_rect(&self, position: impl Into<Position>, size: impl Into<Size>) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        let state = state.lock().unwrap();
-        let scale_factor = state.scale_factor();
-        let size: LogicalSize<i32> = size.into().to_logical(scale_factor);
-        let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
-
-        if let WindowType::Popup { popup, positioner, parent_origin, .. } = &state.window {
-            positioner.set_anchor_rect(
-                position.x - parent_origin.x,
-                position.y - parent_origin.y,
-                size.width.max(1),
-                size.height.max(1),
-            );
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn set_positioner_offset(&self, position: impl Into<Position>) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        let scale_factor = state.lock().unwrap().scale_factor();
-        let position: LogicalPosition<i32> = position.into().to_logical(scale_factor);
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_offset(position.x, position.y);
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn set_constraint_adjustment(&self, constraint_adjustment: crate::PopupConstraintAdjustment) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_constraint_adjustment(constraint_adjustment.into());
-            popup.reposition(positioner, 0);
-        }
-    }
-
-    fn set_gravity(&self, gravity: crate::PopupGravity) {
-        let Some(state) = self.popup_state.upgrade() else {
-            return;
-        };
-
-        if let WindowType::Popup { popup, positioner, .. } = &state.lock().unwrap().window {
-            positioner.set_gravity(gravity.into());
-            popup.reposition(positioner, 0);
-        }
-    }
-}
+impl std::error::Error for PopupError {}

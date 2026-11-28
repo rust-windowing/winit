@@ -12,7 +12,7 @@ use dpi::{PhysicalInsets, PhysicalPosition, PhysicalSize, Position, Size};
 use tracing::{debug, info, warn};
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::Cursor;
-use winit_core::error::{NotSupportedError, RequestError};
+use winit_core::error::{CreateWindowError, InvalidInput, NotSupportedError, RequestError};
 use winit_core::event::{SurfaceSizeWriter, WindowEvent};
 use winit_core::event_loop::AsyncRequestSerial;
 use winit_core::icon::RgbaIcon;
@@ -39,6 +39,7 @@ use crate::atoms::{
     _NET_WM_WINDOW_TYPE, _XEMBED, AtomName, CARD32, UTF8_STRING, WM_CHANGE_STATE,
     WM_CLIENT_MACHINE, WM_DELETE_WINDOW, WM_PROTOCOLS, WM_STATE, XdndAware,
 };
+use crate::data_transfer::ClipboardSelectionType;
 use crate::event_loop::{
     ALL_MASTER_DEVICES, ActivationItem, ActiveEventLoop, CookieResultExt, ICONIC_STATE, VoidCookie,
     WakeSender, X11Error, xinput_fp1616_to_float,
@@ -65,7 +66,7 @@ impl Window {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         attribs: WindowAttributes,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, CreateWindowError> {
         use winit_core::window::WindowType;
         match attribs.window_type() {
             WindowType::Window => {
@@ -73,10 +74,9 @@ impl Window {
                 event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
                 Ok(Window(window))
             },
-            WindowType::Popup => Err(RequestError::NotSupported(NotSupportedError::new(
-                "Popups are not implemented for X11",
-            ))),
-            _ => Err(RequestError::NotSupported(NotSupportedError::new("Unsupported window type"))),
+            WindowType::Popup => Err(CreateWindowError::PopupNotSupported),
+            WindowType::Dialog => Err(CreateWindowError::DialogNotSupported),
+            _ => panic!("Unknown WindowType"),
         }
     }
 }
@@ -460,7 +460,7 @@ impl UnownedWindow {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         mut window_attrs: WindowAttributes,
-    ) -> Result<UnownedWindow, RequestError> {
+    ) -> Result<UnownedWindow, CreateWindowError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
 
@@ -475,13 +475,14 @@ impl UnownedWindow {
             None => xconn.default_screen_index() as c_int,
         };
 
-        let screen = {
-            let screen_id_usize = usize::try_from(screen_id)
-                .map_err(|_| NotSupportedError::new("screen id must be non-negative"))?;
-            xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
-                NotSupportedError::new("requested screen id not present in server's response"),
-            )?
-        };
+        let screen =
+            {
+                let screen_id_usize = usize::try_from(screen_id)
+                    .map_err(|_| InvalidInput::new("screen id must be non-negative"))?;
+                xconn.xcb_connection().setup().roots.get(screen_id_usize).ok_or(
+                    InvalidInput::new("requested screen id not present in server's response"),
+                )?
+            };
 
         let root = match window_attrs.parent_window() {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
@@ -705,6 +706,12 @@ impl UnownedWindow {
                 .ignore_error();
             }
 
+            // Request the initial copy paste targets
+            for (serial, clipboard) in ClipboardSelectionType::iter().enumerate() {
+                let mut data_transfer = event_loop.data_transfer_state.borrow_mut();
+                data_transfer.request_updated_targets(clipboard, window.xwindow, serial as _);
+            }
+
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
                 let (instance, class) = if let Some(name) = x11_attributes.name {
@@ -915,7 +922,7 @@ impl UnownedWindow {
     }
 
     /// Embed this window into a parent window.
-    pub(super) fn embed_window(&self) -> Result<(), RequestError> {
+    pub(super) fn embed_window(&self) -> Result<(), CreateWindowError> {
         let atoms = self.xconn.atoms();
         leap!(
             leap!(self.xconn.change_property(
@@ -1826,11 +1833,11 @@ impl UnownedWindow {
                 );
 
                 #[allow(clippy::mutex_atomic)]
-                if SelectedCursor::Named(icon) != old_cursor && *self.cursor_visible.lock().unwrap()
+                if SelectedCursor::Named(icon) != old_cursor
+                    && *self.cursor_visible.lock().unwrap()
+                    && let Err(err) = self.xconn.set_cursor_icon(self.xwindow, Some(icon))
                 {
-                    if let Err(err) = self.xconn.set_cursor_icon(self.xwindow, Some(icon)) {
-                        tracing::error!("failed to set cursor icon: {err}");
-                    }
+                    tracing::error!("failed to set cursor icon: {err}");
                 }
             },
             Cursor::Custom(cursor) => {
@@ -1843,10 +1850,10 @@ impl UnownedWindow {
                 };
 
                 #[allow(clippy::mutex_atomic)]
-                if *self.cursor_visible.lock().unwrap() {
-                    if let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor) {
-                        tracing::error!("failed to set window icon: {err}");
-                    }
+                if *self.cursor_visible.lock().unwrap()
+                    && let Err(err) = self.xconn.set_custom_cursor(self.xwindow, cursor)
+                {
+                    tracing::error!("failed to set window icon: {err}");
                 }
 
                 *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor.clone());
@@ -2014,7 +2021,12 @@ impl UnownedWindow {
                 0,
                 &rectangles,
             )
-            .map_err(|_e| RequestError::Ignored)?;
+            .map_err(|e| match e {
+                x11rb::errors::ConnectionError::UnsupportedExtension => RequestError::NotSupported(
+                    NotSupportedError::new("set_cursor_hittest is not supported"),
+                ),
+                e => os_error!(e).into(),
+            })?;
         self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
     }

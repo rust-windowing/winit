@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::mem;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
@@ -6,6 +7,7 @@ use foldhash::HashMap;
 use sctk::compositor::{CompositorHandler, CompositorState};
 use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::output::{OutputHandler, OutputState};
+use sctk::primary_selection::PrimarySelectionManagerState;
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::globals::GlobalList;
@@ -17,6 +19,7 @@ use sctk::seat::SeatState;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::WaylandSurface;
 use sctk::shell::xdg::XdgShell;
+use sctk::shell::xdg::dialog::DialogHandler;
 use sctk::shell::xdg::popup::{Popup as XdgPopup, PopupConfigure, PopupHandler};
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shm::slot::SlotPool;
@@ -25,7 +28,7 @@ use sctk::subcompositor::SubcompositorState;
 use winit_core::error::OsError;
 
 use crate::WindowId;
-use crate::dnd::DndState;
+use crate::data_transfer::DataTransferState;
 use crate::event_loop::sink::EventSink;
 use crate::output::MonitorHandle;
 use crate::seat::{
@@ -120,14 +123,17 @@ pub struct WinitState {
     /// Data device manager state on the given window.
     pub data_device_manager_state: Option<DataDeviceManagerState>,
 
+    /// Primary selection manager state.
+    pub primary_selection_manager_state: Option<PrimarySelectionManagerState>,
+
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
     /// Blur manager.
     pub blur_manager: Option<BgrEffectManager>,
 
-    /// Drag-and-drop state.
-    pub dnd_state: DndState,
+    /// Drag-and-drop and clipboard state.
+    pub data_transfer_state: DataTransferState,
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
@@ -138,6 +144,10 @@ pub struct WinitState {
 
     /// Whether the user initiated a wake up.
     pub proxy_wake_up: bool,
+
+    /// The windows destroyed outside of the event loop iteration.
+    /// The event loop must still send `WindowEvent::Destroyed` for them.
+    pub destroyed_windows_outside_event_loop: Vec<WindowId>,
 }
 
 impl WinitState {
@@ -189,6 +199,9 @@ impl WinitState {
             },
         };
 
+        let primary_selection_manager_state =
+            PrimarySelectionManagerState::bind(globals, queue_handle).ok();
+
         let shm = Shm::bind(globals, queue_handle).map_err(|err| os_error!(err))?;
         let image_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
 
@@ -213,10 +226,11 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             data_device_manager_state,
+            primary_selection_manager_state,
             fractional_scaling_manager,
             blur_manager: BgrEffectManager::new(globals, queue_handle).ok(),
 
-            dnd_state: Default::default(),
+            data_transfer_state: Default::default(),
 
             seats,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
@@ -235,7 +249,84 @@ impl WinitState {
             // Make it true by default.
             dispatched_events: true,
             proxy_wake_up: false,
+
+            destroyed_windows_outside_event_loop: Vec::new(),
         })
+    }
+
+    /// Remove all windows when they are requested to close
+    /// This can be used when not in sync with the eventloop a cleanup
+    /// shall be done
+    pub(crate) fn execute_close_window(&mut self) {
+        for id in self
+            .window_requests
+            .get_mut()
+            .iter()
+            .filter_map(|p| if p.1.closed.load(Ordering::Relaxed) { Some(*p.0) } else { None })
+            .collect::<Vec<_>>()
+        {
+            let mut out = Vec::new();
+            if self.find_windows_to_close(&id, &mut out) {
+                for window_id in out.into_iter().rev() {
+                    self.destroyed_windows_outside_event_loop.push(window_id);
+                    self.remove_window(&window_id);
+                }
+            }
+        }
+    }
+
+    /// Drop the window from the window requests and the window list
+    /// If no user application holds a pointer to the window the window will be closed
+    pub(crate) fn remove_window(&mut self, w: &WindowId) {
+        let parent = self.windows.get_mut().get_mut(w).unwrap().lock().unwrap().parent();
+
+        if let Some(p) = parent.and_then(|p| self.windows.get_mut().get_mut(&p)) {
+            p.lock().unwrap().remove_child(w)
+        }
+
+        let window_requests = self.window_requests.get_mut();
+        window_requests.get(w).unwrap().take_closed();
+        mem::drop(window_requests.remove(w));
+        mem::drop(self.windows.get_mut().remove(w));
+        // Creating a popup during an application callback can enqueue its
+        // initial configure after this iteration has taken pending updates.
+        // Remove updates for the destroyed window so the next iteration
+        // cannot process them against the state we just removed.
+        self.window_compositor_updates.retain(|update| update.window_id != *w);
+    }
+
+    /// Recursive closing all windows from the child to the parent
+    pub(crate) fn find_windows_to_close(
+        &mut self,
+        window_id: &WindowId,
+        out: &mut Vec<WindowId>,
+    ) -> bool {
+        if !self
+            .window_requests
+            .get_mut()
+            .get(window_id)
+            .is_some_and(|w| w.closed.load(Ordering::Relaxed))
+        {
+            return false;
+        }
+
+        out.push(*window_id);
+        fn window_to_close(window_id: &WindowId, out: &mut Vec<WindowId>, state: &mut WinitState) {
+            // We don't need to check here if it should be closed, because if the parent should
+            // be closed all children must be closed as well
+            let Some(window_state) = state.windows.get_mut().get(window_id) else {
+                return;
+            };
+            let children = window_state.lock().unwrap().children().clone();
+            // First all children and then all subchildren
+            out.extend(&children);
+            for child in children.clone() {
+                window_to_close(&child, out, state);
+            }
+        }
+        window_to_close(window_id, out, self);
+
+        true
     }
 
     pub fn scale_factor_changed(
@@ -292,30 +383,13 @@ impl WinitState {
 
         updates[pos].close_window = true;
     }
-}
 
-impl ShmHandler for WinitState {
-    fn shm_state(&mut self) -> &mut Shm {
-        &mut self.shm
-    }
-}
-
-impl WindowHandler for WinitState {
-    fn request_close(&mut self, _: &Connection, _: &QueueHandle<Self>, window: &Window) {
-        let window_id = super::make_wid(window.wl_surface());
-        Self::queue_close(&mut self.window_compositor_updates, window_id);
-    }
-
-    fn configure(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        window: &Window,
-        configure: WindowConfigure,
-        _serial: u32,
-    ) {
-        let window_id = super::make_wid(window.wl_surface());
-
+    /// Handle an `xdg_toplevel` configure event, shared by `Window` and `Dialog`
+    fn configure_xdg_toplevel(&mut self, window_id: WindowId, configure: WindowConfigure) {
+        let Some(window) = self.windows.get_mut().get_mut(&window_id) else {
+            tracing::debug!("got configure for dead window {window_id:?}, ignoring it");
+            return;
+        };
         let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
         {
@@ -326,17 +400,13 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
+        self.window_compositor_updates[index].resized |= window
             .lock()
             .unwrap()
-            .configure_window(configure, &self.shm, &self.subcompositor_state);
+            .configure_xdg_toplevel(configure, &self.shm, &self.subcompositor_state);
 
-        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
-        // users, since it can break a lot of things, thus it'll ask users to redraw instead.
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of
+        // the users, since it can break a lot of things, thus it'll ask users to redraw instead.
         self.window_requests
             .get_mut()
             .get(&window_id)
@@ -349,6 +419,35 @@ impl WindowHandler for WinitState {
     }
 }
 
+impl ShmHandler for WinitState {
+    fn shm_state(&mut self) -> &mut Shm {
+        &mut self.shm
+    }
+}
+
+impl WindowHandler for WinitState {
+    fn request_close(&mut self, _: &Connection, _: &QueueHandle<Self>, window: &Window) {
+        let window_id = super::make_wid(window.wl_surface());
+        if !self.windows.get_mut().contains_key(&window_id) {
+            tracing::debug!("got close request for dead window {window_id:?}, ignoring it");
+            return;
+        }
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
+    }
+
+    fn configure(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        window: &Window,
+        configure: WindowConfigure,
+        _serial: u32,
+    ) {
+        let window_id = super::make_wid(window.wl_surface());
+        self.configure_xdg_toplevel(window_id, configure);
+    }
+}
+
 impl PopupHandler for WinitState {
     fn configure(
         &mut self,
@@ -358,6 +457,10 @@ impl PopupHandler for WinitState {
         configure: PopupConfigure,
     ) {
         let window_id = super::make_wid(popup.wl_surface());
+        let Some(window) = self.windows.get_mut().get_mut(&window_id) else {
+            tracing::debug!("got configure for dead window {window_id:?}, ignoring it");
+            return;
+        };
 
         let index = if let Some(index) =
             self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
@@ -368,14 +471,8 @@ impl PopupHandler for WinitState {
             self.window_compositor_updates.len() - 1
         };
 
-        self.window_compositor_updates[index].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure_popup(configure);
+        self.window_compositor_updates[index].resized |=
+            window.lock().unwrap().configure_popup(configure);
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead
@@ -392,9 +489,39 @@ impl PopupHandler for WinitState {
 
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &XdgPopup) {
         let window_id = super::make_wid(popup.wl_surface());
-        let window_requests = self.window_requests.get_mut().iter().find(|r| *r.0 == window_id);
-        if let Some(window_requests) = window_requests {
-            window_requests.1.closed.store(true, Ordering::Relaxed);
+        if !self.windows.get_mut().contains_key(&window_id) {
+            tracing::debug!("got popup_done for dead popup {window_id:?}, ignoring it");
+            return;
+        }
+        if let Some(window_requests) = self.window_requests.get_mut().get(&window_id) {
+            window_requests.closed.store(true, Ordering::Relaxed);
+        }
+        Self::queue_close(&mut self.window_compositor_updates, window_id);
+    }
+}
+
+impl DialogHandler for WinitState {
+    fn configure(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        dialog: &sctk::shell::xdg::dialog::Dialog,
+        configure: sctk::shell::xdg::window::WindowConfigure,
+        _serial: u32,
+    ) {
+        let window_id = super::make_wid(dialog.wl_surface());
+        self.configure_xdg_toplevel(window_id, configure);
+    }
+    fn request_close(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        window: &sctk::shell::xdg::dialog::Dialog,
+    ) {
+        let window_id = super::make_wid(window.wl_surface());
+        if !self.windows.get_mut().contains_key(&window_id) {
+            tracing::debug!("got close request for dead dialog {window_id:?}, ignoring it");
+            return;
         }
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }

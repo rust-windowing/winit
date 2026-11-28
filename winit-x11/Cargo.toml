@@ -38,6 +38,8 @@ x11rb = { workspace = true, features = [
     "sync",
     "xinput",
     "xkb",
+    "xfixes",
+    "extra-traits",
 ] }
 xkbcommon-dl = { workspace = true, features = ["x11"] }
 

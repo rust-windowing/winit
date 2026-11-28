@@ -28,6 +28,7 @@ dispatch2 = { workspace = true, features = ["std", "objc2"] }
 objc2.workspace = true
 objc2-app-kit = { workspace = true, features = [
     "std",
+    "block2",
     "objc2-core-foundation",
     "NSAppearance",
     "NSApplication",
@@ -58,6 +59,7 @@ objc2-app-kit = { workspace = true, features = [
     "NSTrackingArea",
     "NSToolbar",
     "NSView",
+    "NSVisualEffectView",
     "NSWindow",
     "NSWindowScripting",
     "NSWindowTabGroup",
@@ -109,13 +111,19 @@ objc2-foundation = { workspace = true, features = [
     "NSRunLoop",
     "NSString",
     "NSThread",
+    "NSURL",
     "NSValue",
 ] }
-winit-common = { workspace = true, features = ["core-foundation", "event-handler", "foundation"] }
+winit-common = { workspace = true, features = [
+    "core-foundation",
+    "event-handler",
+    "foundation",
+    "positioner",
+] }
 
 [dev-dependencies]
 winit.workspace = true
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["serde"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]

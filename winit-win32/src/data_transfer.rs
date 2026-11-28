@@ -1,34 +1,40 @@
-use std::cell::{Cell, RefCell};
+use std::borrow::Cow;
+use std::cell::{Cell, Ref, RefCell};
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString, c_void};
-use std::io;
 use std::num::NonZeroU32;
 use std::ops::{BitOr, ControlFlow};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf, Prefix};
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicI64, AtomicUsize, Ordering};
+use std::time::Duration;
+use std::{fmt, io, thread};
 
 use dpi::PhysicalPosition;
+use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, percent_encode};
 use windows_sys::Win32::Foundation::{
-    DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, DV_E_FORMATETC, E_ABORT,
-    E_FAIL, E_NOINTERFACE, E_NOTIMPL, E_UNEXPECTED, GlobalFree, HGLOBAL, HWND,
-    OLE_E_ADVISENOTSUPPORTED, POINT, POINTL, S_FALSE, S_OK,
+    CLIPBRD_E_CANT_OPEN, DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS,
+    DV_E_FORMATETC, E_ABORT, E_FAIL, E_NOINTERFACE, E_NOTIMPL, E_UNEXPECTED, GlobalFree, HGLOBAL,
+    HWND, OLE_E_ADVISENOTSUPPORTED, OLE_E_WRONGCOMPOBJ, POINT, POINTL, RPC_E_CHANGED_MODE, S_FALSE,
+    S_OK,
 };
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::System::Com::{
     DVASPECT_CONTENT, FORMATETC, STGMEDIUM, TYMED_ENHMF, TYMED_FILE, TYMED_GDI, TYMED_HGLOBAL,
     TYMED_MFPICT,
 };
-use windows_sys::Win32::System::DataExchange::RegisterClipboardFormatW;
+use windows_sys::Win32::System::DataExchange::{
+    GetClipboardSequenceNumber, RegisterClipboardFormatW,
+};
 use windows_sys::Win32::System::Memory::{
     GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
 };
 use windows_sys::Win32::System::Ole::{
     CF_HDROP, CF_UNICODETEXT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE,
-    OleDuplicateData, ReleaseStgMedium,
+    OleDuplicateData, OleFlushClipboard, OleGetClipboard, OleInitialize, ReleaseStgMedium,
 };
 use windows_sys::Win32::System::SystemServices::{
     MK_LBUTTON, MK_MBUTTON, MK_RBUTTON, MK_XBUTTON1, MK_XBUTTON2,
@@ -38,6 +44,7 @@ use windows_sys::core::{BOOL, GUID, HRESULT, IID_IUnknown};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
+use winit_core::error::{TransferError, UnknownTransfer};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::DndAction;
 use winit_core::window::WindowId;
@@ -54,32 +61,32 @@ use crate::util;
 // winit is still manually implementing refcounting and using the win32 APIs. For now, we
 // just eagerly read all the data supported by cross-platform type hints on Windows. This
 // would be resolved by migrating to `windows-rs`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct DataObject {
     data: HashMap<TypeHint, SendData>,
 }
 
 impl DataObject {
-    unsafe fn from_idataobject(data_obj: *const IDataObject) -> Self {
+    unsafe fn from_idataobject(data_obj: *const IDataObject) -> Result<Self, HRESULT> {
         let mut data = HashMap::new();
 
-        if let Some(text) = unsafe { read_unicode_text(data_obj) } {
+        if let Some(text) = unsafe { read_unicode_text(data_obj) }? {
             data.insert(TypeHint::Plaintext, SendData::String(text));
         }
 
-        if let Some(uris) = unsafe { read_uri_list(data_obj) } {
-            if !uris.is_empty() {
-                data.insert(TypeHint::UriList, SendData::Uris(uris));
-            }
+        if let Some(uris) = unsafe { read_uri_list(data_obj) }?
+            && !uris.is_empty()
+        {
+            data.insert(TypeHint::UriList, SendData::Uris(uris));
         }
 
-        if let Some(png) = unsafe { read_png(data_obj) } {
-            if !png.is_empty() {
-                data.insert(TypeHint::Image { extension_hint: Some("png") }, SendData::Bytes(png));
-            }
+        if let Some(png) = unsafe { read_png(data_obj) }?
+            && !png.is_empty()
+        {
+            data.insert(TypeHint::Image { extension_hint: Some("png") }, SendData::Bytes(png));
         }
 
-        Self { data }
+        Ok(Self { data })
     }
 
     fn resolve(&self, requested: TypeHint) -> Option<TypeHint> {
@@ -91,8 +98,9 @@ impl DataObject {
 struct StgMedium(STGMEDIUM);
 
 impl StgMedium {
-    /// Returns `None` if the object doesn't provide the format.
-    unsafe fn get(data_obj: *const IDataObject, cf_format: u16) -> Option<Self> {
+    /// Returns `Ok(None)` if the object doesn't provide the format, and `Err` if the clipboard
+    /// could not be opened.
+    unsafe fn get(data_obj: *const IDataObject, cf_format: u16) -> Result<Option<Self>, HRESULT> {
         let format = FORMATETC {
             cfFormat: cf_format,
             ptd: std::ptr::null_mut(),
@@ -103,11 +111,11 @@ impl StgMedium {
 
         let mut medium = unsafe { std::mem::zeroed::<STGMEDIUM>() };
         let get_data = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).GetData };
-        if unsafe { get_data(data_obj as *mut _, &format, &mut medium) } < 0 {
-            return None;
+        match unsafe { get_data(data_obj as *mut _, &format, &mut medium) } {
+            CLIPBRD_E_CANT_OPEN => Err(CLIPBRD_E_CANT_OPEN),
+            hr if hr < 0 => Ok(None),
+            _ => Ok(Some(Self(medium))),
         }
-
-        Some(Self(medium))
     }
 
     fn hglobal(&self) -> HGLOBAL {
@@ -121,13 +129,15 @@ impl Drop for StgMedium {
     }
 }
 
-unsafe fn read_unicode_text(data_obj: *const IDataObject) -> Option<String> {
-    let medium = unsafe { StgMedium::get(data_obj, CF_UNICODETEXT) }?;
+unsafe fn read_unicode_text(data_obj: *const IDataObject) -> Result<Option<String>, HRESULT> {
+    let Some(medium) = unsafe { StgMedium::get(data_obj, CF_UNICODETEXT) }? else {
+        return Ok(None);
+    };
     let hglobal = medium.hglobal();
 
     let ptr = unsafe { GlobalLock(hglobal) };
     if ptr.is_null() {
-        return None;
+        return Ok(None);
     }
 
     // `CF_UNICODETEXT` is a NUL-terminated UTF-16 string. Cap the scan by the allocation size in
@@ -139,11 +149,109 @@ unsafe fn read_unicode_text(data_obj: *const IDataObject) -> Option<String> {
 
     unsafe { GlobalUnlock(hglobal) };
 
-    Some(text)
+    Ok(Some(text))
 }
 
-unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<String>> {
-    let medium = unsafe { StgMedium::get(data_obj, CF_HDROP) }?;
+/// Characters that must be percent-encoded inside a `file:` URI path segment.
+///
+/// Covers the control and reserved characters that are not allowed unescaped in a path, plus `%`
+/// so that a literal percent sign in a file name round-trips. Segment separators are added
+/// structurally, so `/` never appears here.
+const URI_SEGMENT: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'%')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
+    .add(b'`')
+    .add(b'{')
+    .add(b'}');
+
+/// Convert an absolute Windows path into a percent-encoded `file:` URI.
+///
+/// Disk paths become `file:///C:/dir/file`, UNC paths become `file://server/share/file`. Returns
+/// `None` for anything that cannot be expressed as a `file:` URI: relative paths or components that
+/// are not valid Unicode.
+fn file_path_to_uri(path: &Path) -> Option<String> {
+    let mut components = path.components();
+    let mut uri = String::from("file://");
+
+    match components.next()? {
+        Component::Prefix(prefix) => match prefix.kind() {
+            Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+                uri.push('/');
+                uri.push(letter.to_ascii_uppercase() as char);
+                uri.push(':');
+            },
+            Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+                uri.extend(percent_encode(server.to_str()?.as_bytes(), URI_SEGMENT));
+                uri.push('/');
+                uri.extend(percent_encode(share.to_str()?.as_bytes(), URI_SEGMENT));
+            },
+            _ => return None,
+        },
+        _ => return None,
+    }
+
+    // The prefix is followed by the root separator and then the path segments.
+    if !matches!(components.next(), Some(Component::RootDir)) {
+        return None;
+    }
+    for component in components {
+        let Component::Normal(segment) = component else { return None };
+        uri.push('/');
+        uri.extend(percent_encode(segment.to_str()?.as_bytes(), URI_SEGMENT));
+    }
+
+    Some(uri)
+}
+
+/// Convert a `file:` URI back into a Windows path, percent-decoding each segment.
+///
+/// Inverse of [`file_path_to_uri`]. Returns `None` if the string is not a `file:` URI describing an
+/// absolute Windows path.
+fn uri_to_file_path(uri: &str) -> Option<PathBuf> {
+    fn decode(segment: &str) -> Option<Cow<'_, str>> {
+        percent_decode_str(segment).decode_utf8().ok()
+    }
+
+    let rest = uri.strip_prefix("file://")?;
+    // `split_once` drops the separator, so `path` never keeps a leading slash.
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+
+    let mut out = String::new();
+    if host.is_empty() {
+        // Local path serialized as `/C:/dir/file`.
+        let mut segments = path.split('/');
+        let drive = decode(segments.next()?)?;
+        let bytes = drive.as_bytes();
+        if bytes.len() != 2 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' {
+            return None;
+        }
+        out.push_str(&drive);
+        for segment in segments {
+            out.push('\\');
+            out.push_str(&decode(segment)?);
+        }
+    } else {
+        // UNC path serialized as `//server/share/file`.
+        out.push_str("\\\\");
+        out.push_str(&decode(host)?);
+        for segment in path.split('/').filter(|s| !s.is_empty()) {
+            out.push('\\');
+            out.push_str(&decode(segment)?);
+        }
+    }
+
+    Some(PathBuf::from(out))
+}
+
+unsafe fn read_uri_list(data_obj: *const IDataObject) -> Result<Option<Vec<String>>, HRESULT> {
+    let Some(medium) = unsafe { StgMedium::get(data_obj, CF_HDROP) }? else {
+        return Ok(None);
+    };
     let hdrop = medium.hglobal() as HDROP;
 
     // The second parameter (0xFFFFFFFF) instructs the function to return the item count.
@@ -164,29 +272,27 @@ unsafe fn read_uri_list(data_obj: *const IDataObject) -> Option<Vec<String>> {
 
         let path = PathBuf::from(OsString::from_wide(&path_buf));
 
-        paths.push(
-            url::Url::from_file_path(&path)
-                .map(String::from)
-                .unwrap_or_else(|_| path.to_string_lossy().into_owned()),
-        );
+        paths.push(file_path_to_uri(&path).unwrap_or_else(|| path.to_string_lossy().into_owned()));
     }
 
-    Some(paths)
+    Ok(Some(paths))
 }
 
-unsafe fn read_png(data_obj: *const IDataObject) -> Option<Vec<u8>> {
+unsafe fn read_png(data_obj: *const IDataObject) -> Result<Option<Vec<u8>>, HRESULT> {
     let format_name = util::encode_wide("PNG");
     let format = unsafe { RegisterClipboardFormatW(format_name.as_ptr()) };
     if format == 0 {
-        return None;
+        return Ok(None);
     }
 
-    let medium = unsafe { StgMedium::get(data_obj, format as u16) }?;
+    let Some(medium) = unsafe { StgMedium::get(data_obj, format as u16) }? else {
+        return Ok(None);
+    };
     let hglobal = medium.hglobal();
 
     let ptr = unsafe { GlobalLock(hglobal) };
     if ptr.is_null() {
-        return None;
+        return Ok(None);
     }
 
     let len = unsafe { GlobalSize(hglobal) };
@@ -194,7 +300,7 @@ unsafe fn read_png(data_obj: *const IDataObject) -> Option<Vec<u8>> {
 
     unsafe { GlobalUnlock(hglobal) };
 
-    Some(bytes)
+    Ok(Some(bytes))
 }
 
 #[derive(Debug)]
@@ -373,7 +479,7 @@ impl FileDropHandler {
             // Drop any transfer still in flight (e.g. the window was destroyed mid-drag, so no
             // `DragLeave`/`Drop` ever arrived to clean it up).
             if let Some(id) = drop_handler.active_data_transfer_id.take() {
-                drop_handler.runner.remove_data_transfer(id);
+                drop_handler.runner.data_transfer().remove_drag(id);
             }
             // Release the shell drop-target helper if we created one.
             if let Some(helper) = drop_handler.drop_target_helper {
@@ -409,8 +515,8 @@ impl FileDropHandler {
 
         let wid = WindowId::from_raw(drop_handler.window.addr());
 
-        let data = Arc::new(unsafe { DataObject::from_idataobject(pDataObj) });
-        drop_handler.runner.register_data_transfer(data_transfer_id, wid, data);
+        let data = Arc::new(unsafe { DataObject::from_idataobject(pDataObj) }.unwrap_or_default());
+        drop_handler.runner.data_transfer().register_drag(data_transfer_id, wid, data);
 
         let pt_screen = POINT { x: pt.x, y: pt.y };
         let mut pt_client = pt_screen;
@@ -426,7 +532,8 @@ impl FileDropHandler {
         // Get actions after the event handler has run, so that we update it based on the user's
         // supplied info.
         {
-            let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+            let actions =
+                drop_handler.runner.data_transfer().current_drag_actions(data_transfer_id);
             let source_allowed = unsafe { pdwEffect.read() };
 
             let new_effect = pick_effect(&actions, grfKeyState, source_allowed);
@@ -477,7 +584,8 @@ impl FileDropHandler {
         }
         let position = PhysicalPosition::new(pt_client.x as f64, pt_client.y as f64);
 
-        let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+        let proposed_action =
+            drop_handler.runner.data_transfer().proposed_dnd_action(data_transfer_id, effects);
 
         (drop_handler.send_event)(WindowEvent::DragPosition {
             id: data_transfer_id,
@@ -487,7 +595,7 @@ impl FileDropHandler {
 
         // Get actions after the event handler has run, so that we update it based on the user's
         // supplied info.
-        let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+        let actions = drop_handler.runner.data_transfer().current_drag_actions(data_transfer_id);
         let new_effect = pick_effect(&actions, grfKeyState, effects);
         unsafe {
             pdwEffect.write(new_effect);
@@ -508,7 +616,7 @@ impl FileDropHandler {
         };
 
         (drop_handler.send_event)(WindowEvent::DragLeft { id: data_transfer_id });
-        drop_handler.runner.remove_data_transfer(data_transfer_id);
+        drop_handler.runner.data_transfer().remove_drag(data_transfer_id);
 
         if let Some(helper) = drop_handler.drop_target_helper {
             let vtbl = unsafe { Self::helper_vtbl(helper) };
@@ -535,7 +643,8 @@ impl FileDropHandler {
         };
 
         let effects = unsafe { pdwEffect.read() };
-        let proposed_action = drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+        let proposed_action =
+            drop_handler.runner.data_transfer().proposed_dnd_action(data_transfer_id, effects);
 
         let pt_screen = POINT { x: pt.x, y: pt.y };
         let mut pt_client = pt_screen;
@@ -552,14 +661,15 @@ impl FileDropHandler {
         });
 
         // New scope to make sure that the `Ref` returned by `current_drag_actions` is dropped
-        // before we call `remove_data_transfer`.
+        // before we call `remove_drag`.
         {
             // Get actions after the event handler has run, so that we update it based on the user's
             // supplied info.
-            let actions = drop_handler.runner.current_drag_actions(data_transfer_id);
+            let actions =
+                drop_handler.runner.data_transfer().current_drag_actions(data_transfer_id);
             let source_allowed = unsafe { pdwEffect.read() };
             let proposed_action =
-                drop_handler.runner.proposed_dnd_action(data_transfer_id, effects);
+                drop_handler.runner.data_transfer().proposed_dnd_action(data_transfer_id, effects);
 
             // Negotiate the effect first so we can pick the right outgoing event. If the app
             // rejected the drop (e.g. via `set_valid_actions(none())`), `pick_effect` returns
@@ -591,7 +701,7 @@ impl FileDropHandler {
         if drop_handler.runner.source_drag.get().is_some() {
             drop_handler.runner.defer_source_drag_cleanup(data_transfer_id);
         } else {
-            drop_handler.runner.remove_data_transfer(data_transfer_id);
+            drop_handler.runner.data_transfer().remove_drag(data_transfer_id);
         }
 
         S_OK
@@ -624,7 +734,7 @@ static DROP_TARGET_VTBL: IDropTargetVtbl = IDropTargetVtbl {
 
 pub(crate) type DropEffect = u32;
 
-/// Map the app's [`DndActions`] to the win32 `DROPEFFECT_*` bitmask.
+/// Map the app's [`DndAction`] to the win32 `DROPEFFECT_*` value.
 pub(crate) fn dnd_action_to_dropeffect_mask(action: DndAction) -> DropEffect {
     match action {
         DndAction::Move => DROPEFFECT_MOVE,
@@ -634,7 +744,7 @@ pub(crate) fn dnd_action_to_dropeffect_mask(action: DndAction) -> DropEffect {
     }
 }
 
-/// Map the app's [`DndActions`] to the win32 `DROPEFFECT_*` bitmask.
+/// Map the app's [`DndAction`]s to the win32 `DROPEFFECT_*` bitmask.
 pub(crate) fn dnd_actions_to_dropeffect_mask(actions: &[DndAction]) -> DropEffect {
     actions
         .iter()
@@ -665,17 +775,15 @@ fn pick_effect(actions: &[DndAction], key_state: u32, source_allowed: u32) -> u3
     }
 
     // If holding a modifier would result in no valid values, ignore
-    // Need to use filter instead of if-let chains for 1.86 compatibility.
-    if let Some(new_allowed) =
-        NonZeroU32::new(allowed & !DROPEFFECT_MOVE).filter(|_| key_state & MK_CONTROL != 0)
+    if let Some(new_allowed) = NonZeroU32::new(allowed & !DROPEFFECT_MOVE)
+        && key_state & MK_CONTROL != 0
     {
         allowed = new_allowed.get();
     }
 
     // If holding a modifier would result in no valid values, ignore
-    // Need to use filter instead of if-let chains for 1.86 compatibility.
-    if let Some(new_allowed) =
-        NonZeroU32::new(allowed & !DROPEFFECT_COPY).filter(|_| key_state & MK_SHIFT != 0)
+    if let Some(new_allowed) = NonZeroU32::new(allowed & !DROPEFFECT_COPY)
+        && key_state & MK_SHIFT != 0
     {
         allowed = new_allowed.get();
     }
@@ -694,11 +802,215 @@ fn pick_effect(actions: &[DndAction], key_state: u32, source_allowed: u32) -> u3
 // Source side: providing data and controlling a `DoDragDrop` session.
 // ============================================================================
 
-/// Mint a unique [`DataTransferId`] for either a target-side `DragEnter` or a source-side
-/// `start_drag` so the two never collide.
+/// Mint a unique [`DataTransferId`] for either a target-side `DragEnter`, a source-side
+/// `start_drag`, or the clipboard, so they never collide.
 pub(crate) fn next_data_transfer_id() -> DataTransferId {
     static COUNTER: AtomicI64 = AtomicI64::new(0);
     DataTransferId::from_raw(COUNTER.fetch_add(1, Ordering::Relaxed))
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct OleInitError(HRESULT);
+
+impl fmt::Display for OleInitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            RPC_E_CHANGED_MODE => write!(
+                f,
+                "OleInitialize failed: `RPC_E_CHANGED_MODE`. Make sure other crates are not using \
+                 multithreaded COM library on the same thread or disable drag-and-drop and \
+                 clipboard support."
+            ),
+            OLE_E_WRONGCOMPOBJ => write!(f, "OleInitialize failed: `OLE_E_WRONGCOMPOBJ`"),
+            hr => write!(f, "OleInitialize failed: 0x{hr:08x}"),
+        }
+    }
+}
+
+impl std::error::Error for OleInitError {}
+
+thread_local! {
+    static OLE_INITIALIZED: Cell<bool> = const { Cell::new(false) };
+}
+
+pub(crate) fn ensure_ole_initialized() -> Result<(), OleInitError> {
+    if OLE_INITIALIZED.get() {
+        return Ok(());
+    }
+
+    let hr = unsafe { OleInitialize(std::ptr::null_mut()) };
+    // `S_FALSE` means OLE was already initialized on this thread.
+    if hr != S_OK && hr != S_FALSE {
+        return Err(OleInitError(hr));
+    }
+
+    OLE_INITIALIZED.set(true);
+    Ok(())
+}
+
+fn snapshot_clipboard() -> Result<DataObject, TransferError> {
+    ensure_ole_initialized().map_err(|err| os_error!(err))?;
+
+    let mut ptr: *mut c_void = std::ptr::null_mut();
+    let hr = unsafe { OleGetClipboard(&mut ptr) };
+    if hr != S_OK || ptr.is_null() {
+        return Err(os_error!(format!("OleGetClipboard failed: 0x{hr:08x}")).into());
+    }
+    let data_obj = ptr as *mut IDataObject;
+
+    let data = unsafe { DataObject::from_idataobject(data_obj) };
+
+    let release = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).parent.Release };
+    unsafe { release(data_obj as *mut IUnknown) };
+
+    data.map_err(|hr| os_error!(format!("Clipboard read failed: 0x{hr:08x}")).into())
+}
+
+/// State for the single drag-and-drop transfer currently in flight (OLE guarantees at most one
+/// active drag per process).
+#[derive(Debug)]
+pub(crate) struct DragState {
+    pub(crate) id: DataTransferId,
+    pub(crate) window_id: WindowId,
+    pub(crate) data: Arc<DataObject>,
+    pub(crate) actions: Vec<DndAction>,
+}
+
+#[derive(Debug)]
+struct ClipboardState {
+    sequence: u32,
+    id: DataTransferId,
+    data: Arc<DataObject>,
+}
+
+impl ClipboardState {
+    fn is_current(&self, id: DataTransferId) -> bool {
+        self.id == id && self.sequence == unsafe { GetClipboardSequenceNumber() }
+    }
+}
+
+/// The state of all in-progress data transfer operations (drag-and-drop and clipboard).
+#[derive(Debug, Default)]
+pub(crate) struct DataTransferState {
+    drag: RefCell<Option<DragState>>,
+    clipboard: RefCell<Option<ClipboardState>>,
+    owns_clipboard: Cell<bool>,
+}
+
+impl DataTransferState {
+    pub(crate) fn register_drag(
+        &self,
+        id: DataTransferId,
+        window_id: WindowId,
+        data: Arc<DataObject>,
+    ) {
+        *self.drag.borrow_mut() =
+            Some(DragState { id, window_id, data, actions: Default::default() });
+    }
+
+    pub(crate) fn remove_drag(&self, id: DataTransferId) {
+        let mut state = self.drag.borrow_mut();
+        if state.as_ref().is_some_and(|s| s.id == id) {
+            *state = None;
+        }
+    }
+
+    pub(crate) fn drag_state(&self, id: DataTransferId) -> Option<Ref<'_, DragState>> {
+        Ref::filter_map(self.drag.borrow(), |state| state.as_ref().filter(|s| s.id == id)).ok()
+    }
+
+    pub(crate) fn current_drag_actions(&self, id: DataTransferId) -> Ref<'_, [DndAction]> {
+        Ref::map(self.drag.borrow(), |state| {
+            state.as_ref().filter(|s| s.id == id).map(|s| &s.actions[..]).unwrap_or_default()
+        })
+    }
+
+    pub(crate) fn set_valid_dnd_actions(&self, id: DataTransferId, actions: &[DndAction]) -> bool {
+        match &mut *self.drag.borrow_mut() {
+            Some(state) if state.id == id => {
+                state.actions.clear();
+                state.actions.extend_from_slice(actions);
+                true
+            },
+            _ => false,
+        }
+    }
+
+    pub(crate) fn proposed_dnd_action(
+        &self,
+        id: DataTransferId,
+        effects: DropEffect,
+    ) -> Option<DndAction> {
+        self.current_drag_actions(id).iter().copied().find(|action| {
+            let effect = match action {
+                DndAction::Move => DROPEFFECT_MOVE,
+                DndAction::Copy => DROPEFFECT_COPY,
+                DndAction::Link => DROPEFFECT_LINK,
+                _ => return false,
+            };
+
+            (effects & effect) != 0
+        })
+    }
+
+    pub(crate) fn clipboard_transfer_id(&self) -> Result<DataTransferId, TransferError> {
+        let sequence = unsafe { GetClipboardSequenceNumber() };
+
+        let mut clipboard = self.clipboard.borrow_mut();
+        if let Some(state) = clipboard.as_ref()
+            && state.sequence == sequence
+        {
+            return Ok(state.id);
+        }
+
+        let id = next_data_transfer_id();
+        let data = Arc::new(snapshot_clipboard()?);
+        *clipboard = Some(ClipboardState { sequence, id, data });
+        Ok(id)
+    }
+
+    pub(crate) fn clipboard_data(
+        &self,
+        id: DataTransferId,
+    ) -> Result<Arc<DataObject>, UnknownTransfer> {
+        match &*self.clipboard.borrow() {
+            Some(state) if state.is_current(id) => Ok(state.data.clone()),
+            _ => Err(UnknownTransfer(id)),
+        }
+    }
+
+    pub(crate) fn set_owns_clipboard(&self) {
+        self.owns_clipboard.set(true);
+    }
+
+    /// Flush data to the clipboard so it outlives our message loop.
+    ///
+    /// See <https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-oleflushclipboard>.
+    ///
+    /// Flushing is retried a few times with a small delay.
+    pub(crate) fn flush_clipboard_blocking(&self) {
+        if !self.owns_clipboard.replace(false) {
+            return;
+        }
+
+        let mut hr = unsafe { OleFlushClipboard() };
+        for _ in 0..4 {
+            if hr != CLIPBRD_E_CANT_OPEN {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+            hr = unsafe { OleFlushClipboard() };
+        }
+
+        if hr != S_OK {
+            tracing::warn!("Failed to flush clipboard: 0x{hr:08x}");
+        }
+    }
+
+    pub(crate) fn reset(&self) {
+        self.drag.take();
+        self.clipboard.take();
+    }
 }
 
 fn guids_eq(a: &GUID, b: &GUID) -> bool {
@@ -883,9 +1195,7 @@ unsafe fn send_data_to_stgmedium(data: SendData, hint: TypeHint) -> Option<STGME
             let mut wide: Vec<u16> = Vec::new();
             for path in paths {
                 let path_from_uri_owned;
-                let encoded = if let Some(path_from_uri) =
-                    url::Url::parse(&path).ok().and_then(|url| url.to_file_path().ok())
-                {
+                let encoded = if let Some(path_from_uri) = uri_to_file_path(&path) {
                     path_from_uri_owned = path_from_uri;
                     OsStr::new(&path_from_uri_owned).encode_wide()
                 } else {
@@ -1164,18 +1474,16 @@ impl SourceDataObjectData {
         }
         // Shell-helper-injected formats live in `extras`; serve those first by duplicating the
         // stored HGLOBAL so the caller can `ReleaseStgMedium` independently of our storage.
-        if let Ok(extras) = me.extras.try_borrow() {
-            if let Some((stored_fmt, stored)) =
+        if let Ok(extras) = me.extras.try_borrow()
+            && let Some((stored_fmt, stored)) =
                 extras.iter().find(|(f, _)| f.cfFormat == format.cfFormat)
-            {
-                if (stored_fmt.tymed & format.tymed) != 0 {
-                    if let Some(dup) = unsafe { duplicate_stgmedium(&stored.0, format.cfFormat) } {
-                        unsafe { *pmedium = dup };
-                        return S_OK;
-                    }
-                    return E_FAIL;
-                }
+            && (stored_fmt.tymed & format.tymed) != 0
+        {
+            if let Some(dup) = unsafe { duplicate_stgmedium(&stored.0, format.cfFormat) } {
+                unsafe { *pmedium = dup };
+                return S_OK;
             }
+            return E_FAIL;
         }
         let Some(&(_, hint)) = me.formats.iter().find(|&&(cf, _)| cf == format.cfFormat) else {
             return DV_E_FORMATETC;
@@ -1222,10 +1530,10 @@ impl SourceDataObjectData {
         if me.formats.iter().any(|&(cf, _)| cf == format.cfFormat) {
             return S_OK;
         }
-        if let Ok(extras) = me.extras.try_borrow() {
-            if extras.iter().any(|(f, _)| f.cfFormat == format.cfFormat) {
-                return S_OK;
-            }
+        if let Ok(extras) = me.extras.try_borrow()
+            && extras.iter().any(|(f, _)| f.cfFormat == format.cfFormat)
+        {
+            return S_OK;
         }
         S_FALSE
     }
@@ -1522,7 +1830,9 @@ pub(crate) unsafe fn apply_drag_image(
     // edges. Without premultiplication, the cursor preview shows a halo on every translucent
     // pixel.
     let dst = unsafe { std::slice::from_raw_parts_mut(bits_ptr as *mut u8, rgba.len()) };
-    for (src_px, dst_px) in rgba.chunks_exact(4).zip(dst.chunks_exact_mut(4)) {
+    for (src_px, dst_px) in
+        rgba.as_chunks::<4>().0.iter().zip(dst.as_chunks_mut::<4>().0.iter_mut())
+    {
         let (r, g, b, a) = (src_px[0] as u32, src_px[1] as u32, src_px[2] as u32, src_px[3]);
         dst_px[0] = ((b * a as u32) / 255) as u8;
         dst_px[1] = ((g * a as u32) / 255) as u8;
@@ -1601,6 +1911,32 @@ mod tests {
         let end_fragment = parse_offset(&buf, "EndFragment");
         let fragment = std::str::from_utf8(&buf[start_fragment..end_fragment]).unwrap();
         assert_eq!(fragment, html);
+    }
+
+    #[test]
+    fn disk_path_round_trips_through_uri() {
+        let uri = file_path_to_uri(Path::new(r"C:\Users\me\my file.txt")).unwrap();
+        assert_eq!(uri, "file:///C:/Users/me/my%20file.txt");
+        assert_eq!(uri_to_file_path(&uri).unwrap(), PathBuf::from(r"C:\Users\me\my file.txt"));
+    }
+
+    #[test]
+    fn unc_path_round_trips_through_uri() {
+        let uri = file_path_to_uri(Path::new(r"\\server\share\dir\file.txt")).unwrap();
+        assert_eq!(uri, "file://server/share/dir/file.txt");
+        assert_eq!(uri_to_file_path(&uri).unwrap(), PathBuf::from(r"\\server\share\dir\file.txt"));
+    }
+
+    #[test]
+    fn relative_path_has_no_uri() {
+        assert_eq!(file_path_to_uri(Path::new(r"me\file.txt")), None);
+    }
+
+    #[test]
+    fn percent_and_unicode_round_trip() {
+        let uri = file_path_to_uri(Path::new(r"C:\100% café")).unwrap();
+        assert_eq!(uri, "file:///C:/100%25%20caf%C3%A9");
+        assert_eq!(uri_to_file_path(&uri).unwrap(), PathBuf::from(r"C:\100% café"));
     }
 
     #[test]

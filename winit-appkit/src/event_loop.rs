@@ -1,4 +1,3 @@
-use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -8,7 +7,8 @@ use objc2::runtime::ProtocolObject;
 use objc2::{AnyThread, MainThreadMarker, available};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDidFinishLaunchingNotification,
-    NSApplicationWillTerminateNotification, NSDraggingItem, NSWindow,
+    NSApplicationWillTerminateNotification, NSDraggingItem, NSPasteboard, NSPasteboardItem,
+    NSPasteboardTypeFileURL, NSPasteboardWriting, NSWindow,
 };
 use objc2_core_foundation::{
     CFIndex, CFRunLoopActivity, CGPoint, CGRect, CGSize, kCFRunLoopCommonModes,
@@ -21,9 +21,12 @@ use winit_common::foundation::create_observer;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor as CoreCustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
-    DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint,
+    DataTransfer, DataTransferId, DataTransferSend, SendData, TransferType, TypeHint, TypedData,
 };
-use winit_core::error::{EventLoopError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, TransferError,
+    UnknownTransfer,
+};
 use winit_core::event::WindowEvent;
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -41,7 +44,10 @@ use super::event::dummy_event;
 use super::monitor;
 use crate::ActivationPolicy;
 use crate::cursor::image_from_icon;
-use crate::dnd::{PasteboardTypeSpec, PasteboardWriter, dnd_actions_to_ns_drag_operation};
+use crate::data_transfer::{
+    Pasteboard, PasteboardType, PasteboardTypeSpec, PasteboardWriter,
+    dnd_actions_to_ns_drag_operation,
+};
 use crate::window::Window;
 
 #[derive(Debug)]
@@ -66,6 +72,15 @@ impl ActiveEventLoop {
     pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
         NSWindow::allowsAutomaticWindowTabbing(self.mtm)
     }
+
+    fn clipboard_by_id(&self, id: DataTransferId) -> Result<Pasteboard, UnknownTransfer> {
+        let pb = Pasteboard::new(id, NSPasteboard::generalPasteboard(), self.mtm);
+        if self.app_state.data_transfer().clipboard_transfer_id(pb.change_count()) == id {
+            Ok(pb)
+        } else {
+            Err(UnknownTransfer(id))
+        }
+    }
 }
 
 impl RootActiveEventLoop for ActiveEventLoop {
@@ -76,14 +91,14 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: winit_core::window::WindowAttributes,
-    ) -> Result<Box<dyn winit_core::window::Window>, RequestError> {
+    ) -> Result<Box<dyn winit_core::window::Window>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         Ok(CoreCustomCursor(Arc::new(CustomCursor::new(source)?)))
     }
 
@@ -141,21 +156,37 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
-        let Some(pb) = self.app_state.pasteboards().get(id) else {
-            return Err(RequestError::Ignored);
+    ) -> Result<AsyncRequestSerial, FetchError> {
+        let (pb, window_id) = match self.app_state.data_transfer().pasteboards().get(id) {
+            Some((pb, window_id)) => (pb, window_id),
+            None => {
+                let pb = self.clipboard_by_id(id)?;
+                let window_id = self
+                    .app_state
+                    .clipboard_window(self.mtm)
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
+                (pb, window_id)
+            },
         };
-        let Some(window_id) = self.app_state.pasteboards().window_id(id) else {
-            return Err(RequestError::Ignored);
+
+        let type_ = match type_.cast_ref::<PasteboardType>() {
+            Some(pb_type) => pb_type.clone(),
+            None => {
+                let hint = type_.hint().ok_or(FetchError::TransferType)?;
+                pb.types()
+                    .iter()
+                    .find(|advertised| {
+                        advertised.hint().is_some_and(|haystack| haystack.matches(&hint))
+                    })
+                    .cloned()
+                    .ok_or(FetchError::TransferType)?
+            },
         };
 
         let serial = AsyncRequestSerial::get();
 
-        let Some(type_) = PasteboardTypeSpec::from_dyn(type_) else {
-            return Err(os_error!(format!("Pasteboard does not contain type {type_:?}")).into());
-        };
-
-        let data = Arc::new(pb.with_type(type_));
+        let data: Arc<dyn TypedData> =
+            Arc::new(pb.with_type(PasteboardTypeSpec::PasteboardType(type_)));
 
         self.app_state.maybe_queue_with_handler(move |app, event_loop| {
             app.window_event(event_loop, window_id, WindowEvent::DataTransferReceived {
@@ -168,32 +199,62 @@ impl RootActiveEventLoop for ActiveEventLoop {
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let Some(pb) = self.app_state.pasteboards().get(id) else {
-            return Err(RequestError::Ignored);
-        };
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        if let Some((pb, _)) = self.app_state.data_transfer().pasteboards().get(id) {
+            return Ok(Box::new(pb));
+        }
+
+        let pb = self.clipboard_by_id(id)?;
 
         Ok(Box::new(pb))
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
+        let pb = NSPasteboard::generalPasteboard();
+        if pb.types().is_none_or(|types| types.is_empty()) {
+            return Ok(None);
+        }
+
+        Ok(Some(self.app_state.data_transfer().clipboard_transfer_id(pb.changeCount())))
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
+        let mut uris = match send_data.data_for_type(&TypeHint::UriList) {
+            Some(SendData::Uris(uris)) => uris,
+            Some(SendData::String(string)) => vec![string],
+            _ => vec![],
+        }
+        .into_iter()
+        .map(|uri| NSString::from_str(&uri));
+
+        let first_uri = uris.next();
+
+        let mut objects: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> =
+            vec![ProtocolObject::from_retained(PasteboardWriter::new(send_data, first_uri))];
+
+        for uri in uris {
+            let item = NSPasteboardItem::new();
+            if !item.setString_forType(&uri, unsafe { NSPasteboardTypeFileURL }) {
+                return Err(os_error!("failed to write a URI to a pasteboard item").into());
+            }
+            objects.push(ProtocolObject::from_retained(item));
+        }
+
+        let pb = NSPasteboard::generalPasteboard();
+        pb.clearContents();
+        if pb.writeObjects(&NSArray::from_retained_slice(&objects)) {
+            Ok(())
+        } else {
+            Err(os_error!("failed to write to the general pasteboard").into())
+        }
     }
 
     fn set_valid_dnd_actions(
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
-        let mut state = self.app_state.drag_state().borrow_mut();
-        let Some(drag_state) = &mut *state else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
-
-        if drag_state.id != id {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        }
-
-        drag_state.valid_actions.clear();
-        drag_state.valid_actions.extend_from_slice(actions);
-
-        Ok(())
+    ) -> Result<(), UnknownTransfer> {
+        self.app_state.data_transfer().set_valid_dnd_actions(id, actions)
     }
 
     fn start_drag(
@@ -202,7 +263,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         let drag_operation = dnd_actions_to_ns_drag_operation(actions);
 
         self.app_state
@@ -211,9 +272,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
                     icon.as_ref().map(|icon| (icon.offset_x, icon.offset_y)).unwrap_or_default();
                 let drag_image = icon.and_then(|icon| image_from_icon(&icon.icon).ok());
 
-                let Some(event) = delegate.window().currentEvent() else {
-                    return Err(RequestError::Ignored);
-                };
+                let event = delegate.window().currentEvent().expect("could not find current event");
 
                 let dragging_rect_size = drag_image
                     .as_ref()
@@ -297,22 +356,9 @@ impl RootActiveEventLoop for ActiveEventLoop {
 
                 Ok(id)
             })
-            .ok_or(RequestError::Ignored)?
+            .ok_or_else(|| os_error!("failed to load window {source:?}"))?
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
@@ -582,7 +628,7 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CoreCustomCursor, RequestError> {
+    ) -> Result<CoreCustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }

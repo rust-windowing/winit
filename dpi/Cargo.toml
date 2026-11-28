@@ -26,6 +26,7 @@ serde = { workspace = true, optional = true }
 [package.metadata.docs.rs]
 features = ["mint", "serde"]
 # These are all tested in CI
+default-target = "x86_64-unknown-linux-gnu"
 rustdoc-args = ["--cfg", "docsrs"]
 targets = [
     # Windows

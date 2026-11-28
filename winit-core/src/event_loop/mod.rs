@@ -1,4 +1,5 @@
 pub mod never_return;
+pub mod primary_selection;
 pub mod pump_events;
 pub mod register;
 pub mod run_on_demand;
@@ -15,7 +16,10 @@ use crate::Instant;
 use crate::application::ApplicationHandler;
 use crate::cursor::{CustomCursor, CustomCursorSource};
 use crate::data_transfer::{DataTransfer, DataTransferId, DataTransferSend, TransferType};
-use crate::error::{EventLoopError, NotSupportedError, RequestError};
+use crate::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
+};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle;
 use crate::window::{Theme, Window, WindowAttributes, WindowId};
@@ -106,7 +110,7 @@ pub trait EventLoopProvider: fmt::Debug {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError>;
+    ) -> Result<CustomCursor, CustomCursorError>;
 }
 
 pub trait ActiveEventLoop: Any + fmt::Debug {
@@ -125,7 +129,7 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn Window>, RequestError>;
+    ) -> Result<Box<dyn Window>, CreateWindowError>;
 
     /// Create custom cursor.
     ///
@@ -135,7 +139,7 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError>;
+    ) -> Result<CustomCursor, CustomCursorError>;
 
     /// Returns the list of all the monitors available on the system.
     ///
@@ -209,36 +213,34 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
 
     /// Request to fetch a type from a [data transfer](crate::data_transfer::DataTransfer).
     ///
-    /// This may be called multiple times on the same [`DataTransferId`] with different types,
-    /// and may be called at any point during the drag operation, including during handling the
-    /// [`DragDropped`](crate::event::WindowEvent::DragDropped) event. After that event has been
-    /// received, though, the data transfer is not guaranteed to be available. The data is
-    /// _not_ guaranteed to be available during (or after) handling of
+    /// This may be called multiple times on the same [`DataTransferId`] with different types.
+    ///
+    /// For drag-and-drop transfers this may be called at any point during the drag operation,
+    /// including during handling the [`DragDropped`](crate::event::WindowEvent::DragDropped) event.
+    /// After that event has been received, though, the data transfer is not guaranteed to be
+    /// available. The data is _not_ guaranteed to be available during (or after) handling of
     /// [`DragLeft](crate::event::WindowEvent::DragLeft).
     ///
     /// Once available, the data will be supplied to the application with the
-    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived) event.
+    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived) event. For
+    /// drag-and-drop transfers, this is sent to the window receiving the drag-and-drop; for
+    /// clipboard requests, this is sent to the window which has focus at the time this method is
+    /// called (this method fails if no such window can be determined).
     fn fetch_data_transfer(
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
-        let _ = id;
+    ) -> Result<AsyncRequestSerial, FetchError> {
         let _ = type_;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(FetchError::UnknownTransfer(id))
     }
 
     /// Get a [data transfer](DataTransfer) by its ID.
     ///
     /// If the ID is invalid (e.g. if the lifetime of the data transfer has expired), this will
     /// return an error.
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let _ = id;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        Err(UnknownTransfer(id))
     }
 
     /// Set a given set of `DndAction`s as the valid actions for the given [`DataTransferId`],
@@ -264,12 +266,9 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
-        let _ = id;
+    ) -> Result<(), UnknownTransfer> {
         let _ = actions;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(UnknownTransfer(id))
     }
 
     /// Initiate a new drag-and-drop operation.
@@ -320,21 +319,62 @@ pub trait ActiveEventLoop: Any + fmt::Debug {
         send_data: Box<dyn DataTransferSend>,
         actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
+    ) -> Result<DataTransferId, TransferError> {
         let _ = source;
         let _ = send_data;
         let _ = actions;
         let _ = icon;
-        Err(RequestError::NotSupported(NotSupportedError::new(
-            DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE,
-        )))
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Get the current clipboard contents as a [data transfer](crate::data_transfer), or `None`
+    /// if the clipboard is empty.
+    ///
+    /// The returned ID can be used with [`data_transfer`](Self::data_transfer) to inspect the
+    /// available types, and with [`fetch_data_transfer`](Self::fetch_data_transfer) to read the
+    /// data.
+    ///
+    /// As the clipboard is not tied to a window, the resulting
+    /// [`DataTransferReceived`](crate::event::WindowEvent::DataTransferReceived)
+    /// event is delivered to the window focused at the time [`Self::fetch_data_transfer`] is
+    /// called.
+    ///
+    /// The ID is only valid until the clipboard contents change.
+    fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Set the clipboard contents.
+    ///
+    /// See [`DataTransferSendBuilder`](crate::data_transfer::DataTransferSendBuilder) for how to
+    /// create a new cross-platform data transfer.
+    ///
+    /// The data is sent lazily where supported by the platform: it is only encoded when another
+    /// application requests one of the advertised types, and otherwise dropped once another
+    /// application takes over the clipboard.
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
+        let _ = send_data;
+        Err(DATA_TRANSFER_NOT_SUPPORTED)
+    }
+
+    /// Access the primary selection platform extension, where available.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Available if supported by the compositor.
+    /// - **X11:** Always available.
+    /// - **Others:** Unsupported.
+    #[inline(always)]
+    fn primary_selection_ext(&self) -> Option<&dyn primary_selection::PrimarySelectionExt> {
+        None
     }
 }
 
-const DATA_TRANSFER_UNSUPPORTED_ERROR_MESSAGE: &str = {
-    "Cross-application data transfer (e.g. drag-and-drop, clipboard) is unsupported on this \
-     platform"
-};
+const DATA_TRANSFER_NOT_SUPPORTED: TransferError =
+    TransferError::NotSupported(NotSupportedError::new(
+        "Cross-application data transfer (e.g. drag-and-drop, clipboard) is unsupported on this \
+         platform",
+    ));
 
 impl HasDisplayHandle for dyn ActiveEventLoop + '_ {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {

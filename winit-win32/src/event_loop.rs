@@ -13,13 +13,14 @@ use std::{fmt, mem, panic, ptr};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 use windows_sys::Win32::Foundation::{
-    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_FAILED, WPARAM,
+    FALSE, GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, S_OK, WAIT_FAILED, WPARAM,
 };
 use windows_sys::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromRect, MonitorFromWindow,
     RDW_INTERNALPAINT, RedrawWindow, SC_SCREENSAVE, ScreenToClient, ValidateRect,
 };
-use windows_sys::Win32::System::Ole::RevokeDragDrop;
+use windows_sys::Win32::System::DataExchange::CountClipboardFormats;
+use windows_sys::Win32::System::Ole::{OleSetClipboard, RevokeDragDrop};
 use windows_sys::Win32::System::Threading::{
     CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, CreateWaitableTimerExW, GetCurrentThreadId, INFINITE,
     SetWaitableTimer, TIMER_ALL_ACCESS,
@@ -40,36 +41,40 @@ use windows_sys::Win32::UI::Input::{
     MOUSE_MOVE_RELATIVE, RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GWL_STYLE,
-    GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu, HTCAPTION, HTCLIENT, LoadCursorW,
-    MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx,
-    NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER, PEN_MASK_PRESSURE, PEN_MASK_ROTATION,
-    PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN, PT_TOUCH, PeekMessageW, PostMessageW,
-    QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, RegisterClassExW, RegisterWindowMessageA,
-    SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetCursor, SetWindowPos,
-    SystemParametersInfoW, TranslateMessage, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE,
-    WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
-    WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
-    WM_INPUT, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP,
-    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL,
-    WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT,
-    WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
-    WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM,
-    WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT,
-    WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+    CREATESTRUCTW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    EnumThreadWindows, GW_OWNER, GWL_STYLE, GWL_USERDATA, GetClientRect, GetCursorPos, GetMenu,
+    GetWindow, HTCAPTION, HTCLIENT, LoadCursorW, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+    MsgWaitForMultipleObjectsEx, NCCALCSIZE_PARAMS, PEN_FLAG_BARREL, PEN_FLAG_ERASER,
+    PEN_MASK_PRESSURE, PEN_MASK_ROTATION, PEN_MASK_TILT_X, PEN_MASK_TILT_Y, PM_REMOVE, PT_PEN,
+    PT_TOUCH, PeekMessageW, PostMessageW, QS_ALLINPUT, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL,
+    RegisterClassExW, RegisterWindowMessageA, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+    SPI_GETWHEELSCROLLCHARS, SPI_GETWHEELSCROLLLINES, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SetCursor, SetWindowPos, SystemParametersInfoW, TranslateMessage, WHEEL_DELTA,
+    WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
+    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP,
+    WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR,
+    WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE,
+    WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SIZING,
+    WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT,
+    WMSZ_RIGHT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
 };
+use windows_sys::core::BOOL;
 use winit_core::application::ApplicationHandler;
 use winit_core::cursor::{CustomCursor, CustomCursorSource};
 use winit_core::data_transfer::{
     DataTransfer, DataTransferId, DataTransferSend, TransferType, TypedData,
 };
-use winit_core::error::{EventLoopError, NotSupportedError, RequestError};
+use winit_core::error::{
+    CreateWindowError, CustomCursorError, EventLoopError, FetchError, NotSupportedError,
+    TransferError, UnknownTransfer,
+};
 use winit_core::event::{
-    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, SurfaceSizeWriter, TabletToolButton,
-    TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId, FingerId, Force, Ime, RawKeyEvent, ScrollSource, SurfaceSizeWriter,
+    TabletToolButton, TabletToolData, TabletToolKind, TabletToolTilt, TouchPhase, WindowEvent,
 };
 use winit_core::event_loop::pump_events::PumpStatus;
 use winit_core::event_loop::{
@@ -85,7 +90,9 @@ pub(super) use self::runner::{Event, EventLoopRunner};
 use super::SelectedCursor;
 use super::window::set_skip_taskbar;
 use crate::dark_mode::try_theme;
-use crate::dnd::{DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData};
+use crate::data_transfer::{
+    DropSource, FileDropHandler, SourceDataObject, WinDataTransfer, WinTypedData,
+};
 use crate::dpi::{become_dpi_aware, dpi_to_scale_factor};
 use crate::event_loop::runner::PendingDrag;
 use crate::icon::WinCursor;
@@ -94,7 +101,7 @@ use crate::keyboard::KeyEventBuilder;
 use crate::keyboard_layout::LAYOUT_CACHE;
 use crate::monitor::{self, MonitorHandle};
 use crate::util::{WIN10_BUILD_VERSION, wrap_device_id};
-use crate::window::{InitData, Window};
+use crate::window::{self, InitData, Window};
 use crate::window_state::{CursorFlags, ImeState, WindowFlags, WindowState};
 use crate::{raw_input, util};
 
@@ -276,6 +283,7 @@ impl EventLoop {
         };
 
         self.runner.loop_destroyed();
+        self.runner.data_transfer().flush_clipboard_blocking();
 
         self.runner.reset_runner();
 
@@ -303,6 +311,7 @@ impl EventLoop {
 
         if let Some(code) = self.runner.exit_code() {
             self.runner.loop_destroyed();
+            self.runner.data_transfer().flush_clipboard_blocking();
 
             // Immediately reset the internal state for the loop to allow
             // the loop to be run more than once.
@@ -422,13 +431,15 @@ impl EventLoopProvider for EventLoop {
     fn create_custom_cursor(
         &self,
         custom_cursor: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         self.window_target().create_custom_cursor(custom_cursor)
     }
 }
 
 impl Drop for EventLoop {
     fn drop(&mut self) {
+        self.runner.data_transfer().flush_clipboard_blocking();
+
         unsafe {
             DestroyWindow(self.runner.thread_msg_target);
         }
@@ -456,19 +467,17 @@ impl RootActiveEventLoop for ActiveEventLoop {
     fn create_window(
         &self,
         window_attributes: WindowAttributes,
-    ) -> Result<Box<dyn CoreWindow>, RequestError> {
+    ) -> Result<Box<dyn CoreWindow>, CreateWindowError> {
         Ok(Box::new(Window::new(self, window_attributes)?))
     }
 
     fn create_custom_cursor(
         &self,
         source: CustomCursorSource,
-    ) -> Result<CustomCursor, RequestError> {
+    ) -> Result<CustomCursor, CustomCursorError> {
         let cursor = match source {
             CustomCursorSource::Image(cursor) => cursor,
-            _ => {
-                return Err(NotSupportedError::new("unsupported cursor kind").into());
-            },
+            _ => return Err(CustomCursorError::UnsupportedSource),
         };
 
         Ok(CustomCursor(Arc::new(WinCursor::new(&cursor)?)))
@@ -522,44 +531,75 @@ impl RootActiveEventLoop for ActiveEventLoop {
         &self,
         id: DataTransferId,
         type_: &dyn TransferType,
-    ) -> Result<AsyncRequestSerial, RequestError> {
-        let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
+    ) -> Result<AsyncRequestSerial, FetchError> {
+        let (data, window_id) = match self.0.data_transfer().drag_state(id) {
+            Some(state) => (state.data.clone(), state.window_id),
+            None => {
+                let data = self.0.data_transfer().clipboard_data(id)?;
+                let window_id = self
+                    .0
+                    .clipboard_window()
+                    .ok_or_else(|| os_error!("unable to determine focused window"))?;
+                (data, window_id)
+            },
         };
-        let hint = type_.hint().ok_or(RequestError::Ignored)?;
-        let typed_data = WinTypedData::new(state.data.clone(), hint)
+        let hint = type_.hint().ok_or(FetchError::TransferType)?;
+        let typed_data = WinTypedData::new(data, hint)
             .map(|value| Arc::new(value) as Arc<dyn TypedData>)
-            .ok_or(RequestError::Ignored)?;
+            .ok_or(FetchError::TransferType)?;
 
         let serial = AsyncRequestSerial::get();
 
         self.0.send_event(Event::Window {
-            window_id: state.window_id,
+            window_id,
             event: WindowEvent::DataTransferReceived { id, serial, value: typed_data },
         });
 
         Ok(serial)
     }
 
-    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, RequestError> {
-        let Some(state) = self.0.drag_state(id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
+    fn data_transfer(&self, id: DataTransferId) -> Result<Box<dyn DataTransfer>, UnknownTransfer> {
+        if let Some(state) = self.0.data_transfer().drag_state(id) {
+            return Ok(Box::new(WinDataTransfer::new(state.data.clone())));
+        }
 
-        Ok(Box::new(WinDataTransfer::new(state.data.clone())))
+        let data = self.0.data_transfer().clipboard_data(id)?;
+
+        Ok(Box::new(WinDataTransfer::new(data)))
+    }
+
+    fn clipboard(&self) -> Result<Option<DataTransferId>, TransferError> {
+        if unsafe { CountClipboardFormats() } == 0 {
+            return Ok(None);
+        }
+
+        self.0.data_transfer().clipboard_transfer_id().map(Some)
+    }
+
+    fn set_clipboard(&self, send_data: Box<dyn DataTransferSend>) -> Result<(), TransferError> {
+        crate::data_transfer::ensure_ole_initialized().map_err(|err| os_error!(err))?;
+
+        let data_object = SourceDataObject::new(send_data);
+        let hr = unsafe { OleSetClipboard(data_object.interface_ptr()) };
+        if hr != S_OK {
+            return Err(os_error!(format!("OleSetClipboard failed: 0x{hr:08x}")).into());
+        }
+
+        self.0.data_transfer().set_owns_clipboard();
+
+        Ok(())
     }
 
     fn set_valid_dnd_actions(
         &self,
         id: DataTransferId,
         actions: &[DndAction],
-    ) -> Result<(), RequestError> {
-        let mut state = self.0.drag_state.borrow_mut();
-        let Some(state) = state.as_mut().filter(|s| s.id == id) else {
-            return Err(os_error!(UnknownDataTransfer(id)).into());
-        };
-        state.actions = actions.to_vec();
-        Ok(())
+    ) -> Result<(), UnknownTransfer> {
+        if self.0.data_transfer().set_valid_dnd_actions(id, actions) {
+            Ok(())
+        } else {
+            Err(UnknownTransfer(id))
+        }
     }
 
     fn start_drag(
@@ -568,8 +608,8 @@ impl RootActiveEventLoop for ActiveEventLoop {
         send_data: Box<dyn DataTransferSend>,
         allowed_actions: &[DndAction],
         icon: Option<DragIcon>,
-    ) -> Result<DataTransferId, RequestError> {
-        let allowed_effects = crate::dnd::dnd_actions_to_dropeffect_mask(allowed_actions);
+    ) -> Result<DataTransferId, TransferError> {
+        let allowed_effects = crate::data_transfer::dnd_actions_to_dropeffect_mask(allowed_actions);
         // Win32 would happily run a modal `DoDragDrop` with `allowed_effects == 0`, but every
         // target would see "no action allowed" and the drag would end in a guaranteed cancel
         // after burning a full modal pump. Fail fast instead - the caller asked for a drag
@@ -580,7 +620,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
             );
         }
 
-        let id = crate::dnd::next_data_transfer_id();
+        let id = crate::data_transfer::next_data_transfer_id();
         let data_object = SourceDataObject::new(send_data);
         let drop_source = DropSource::new();
 
@@ -589,7 +629,7 @@ impl RootActiveEventLoop for ActiveEventLoop {
         if let Some(icon) = icon {
             if let Some(rgba) = icon.icon.cast_ref::<winit_core::icon::RgbaIcon>() {
                 let result = unsafe {
-                    crate::dnd::apply_drag_image(
+                    crate::data_transfer::apply_drag_image(
                         data_object.interface_ptr() as *mut _,
                         rgba.width(),
                         rgba.height(),
@@ -624,19 +664,6 @@ impl rwh_06::HasDisplayHandle for ActiveEventLoop {
         unsafe { Ok(rwh_06::DisplayHandle::borrow_raw(raw)) }
     }
 }
-
-/// An operation was attempted on a data transfer ID, but that ID was invalid.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct UnknownDataTransfer(pub DataTransferId);
-
-impl fmt::Display for UnknownDataTransfer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = self.0.into_raw();
-        write!(f, "Unknown data transfer with ID {id}")
-    }
-}
-
-impl std::error::Error for UnknownDataTransfer {}
 
 #[derive(Clone)]
 pub(crate) struct OwnedDisplayHandle;
@@ -708,12 +735,7 @@ fn dur2timeout(dur: Duration) -> u32 {
     // * Greater than u32::MAX milliseconds (50 days) is rounded up to INFINITE (never time out).
     dur.as_secs()
         .checked_mul(1000)
-        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
-        .and_then(
-            |ms| {
-                if dur.subsec_nanos() % 1_000_000 > 0 { ms.checked_add(1) } else { Some(ms) }
-            },
-        )
+        .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64).div_ceil(1_000_000)))
         .map(|ms| if ms > u32::MAX as u64 { INFINITE } else { ms as u32 })
         .unwrap_or(INFINITE)
 }
@@ -1112,6 +1134,85 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     userdata.send_window_event(window, Focused(false));
 }
 
+/// When a modal dialog is moved, moves its (disabled) owner by the same delta, so the dialog keeps
+/// its position relative to the owner instead of the other way around.
+unsafe fn move_modal_owner(window: HWND, userdata: &WindowData, x: i32, y: i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsIconic, IsZoomed};
+
+    let (owner, previous) = {
+        let mut state = userdata.window_state_lock();
+        let Some(owner) = state.modal_owner else { return };
+        // Minimized and maximized windows are placed by the system, don't drag the owner along.
+        // Their position isn't recorded either, so restoring them moves the owner by nothing.
+        if unsafe { IsIconic(window) } != 0 || unsafe { IsZoomed(window) } != 0 {
+            return;
+        }
+        let previous = state.last_outer_position.replace((x, y));
+        // Only drag the owner along while the dialog is shown and holds it disabled. The position
+        // is still recorded above, so moving a hidden dialog doesn't move the owner later on.
+        if !state.modal_owner_disabled {
+            return;
+        }
+        (owner as HWND, previous)
+    };
+
+    let Some((previous_x, previous_y)) = previous else { return };
+    let (dx, dy) = (x - previous_x, y - previous_y);
+    if (dx, dy) == (0, 0) || unsafe { IsZoomed(owner) } != 0 {
+        return;
+    }
+
+    let mut rect = unsafe { std::mem::zeroed() };
+    if unsafe { GetWindowRect(owner, &mut rect) } == 0 {
+        return;
+    }
+    unsafe {
+        SetWindowPos(
+            owner,
+            std::ptr::null_mut(),
+            rect.left + dx,
+            rect.top + dy,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
+/// Repositions any anchored windows owned by `parent`. Win32 does not reposition owned windows
+/// when their owner moves (unlike Wayland subsurfaces or X11's override-redirect popups), so this
+/// has to be done manually whenever `parent` receives a `WM_WINDOWPOSCHANGED` that moved it.
+unsafe fn reposition_owned_windows(parent: HWND) {
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        use windows_sys::Win32::UI::WindowsAndMessaging::GWL_WNDPROC;
+
+        if unsafe { GetWindow(hwnd, GW_OWNER) } != lparam as HWND {
+            return true.into(); // continue enumeration
+        }
+
+        // Only winit's own windows keep a `WindowData` pointer in `GWL_USERDATA`, so skip any
+        // owned window that runs a different window procedure (dialogs, tooltips, helpers)
+        let window_proc = unsafe { util::get_window_long(hwnd, GWL_WNDPROC) };
+        if window_proc != public_window_callback as *const () as isize {
+            return true.into(); // continue enumeration
+        }
+
+        let userdata_ptr = unsafe { util::get_window_long(hwnd, GWL_USERDATA) } as *mut WindowData;
+        if !userdata_ptr.is_null() {
+            let userdata = unsafe { &*userdata_ptr };
+            if userdata.window_state_lock().window_flags.contains(WindowFlags::ANCHORED) {
+                window::reposition_owned_popup(hwnd, &userdata.window_state);
+            }
+        }
+
+        true.into() // continue enumeration
+    }
+
+    unsafe {
+        EnumThreadWindows(GetCurrentThreadId(), Some(enum_proc), parent as LPARAM);
+    }
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 // This is the callback that is called by `DispatchMessage` in the events loop.
@@ -1318,12 +1419,14 @@ unsafe fn public_window_callback_inner(
         WM_DESTROY => {
             use winit_core::event::WindowEvent::Destroyed;
             unsafe { RevokeDragDrop(window) };
+            crate::window::forget_modal_owner(&userdata.window_state);
             userdata.send_window_event(window, Destroyed);
             result = ProcResult::Value(0);
         },
 
         WM_NCDESTROY => {
             unsafe { util::set_window_long(window, GWL_USERDATA, 0) };
+            userdata.event_loop_runner.unregister_window(WindowId::from_raw(window as usize));
             userdata.userdata_removed.set(true);
             result = ProcResult::Value(0);
         },
@@ -1449,6 +1552,9 @@ unsafe fn public_window_callback_inner(
                 let physical_position =
                     unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
                 userdata.send_window_event(window, Moved(physical_position));
+
+                unsafe { move_modal_owner(window, userdata, (*windowpos).x, (*windowpos).y) };
+                unsafe { reposition_owned_windows(window) };
             }
 
             // This is necessary for us to still get sent WM_SIZE.
@@ -1603,31 +1709,25 @@ unsafe fn public_window_callback_inner(
 
                 // Google Japanese Input and ATOK have both flags, so
                 // first, receive composing result if exist.
-                if (lparam as u32 & GCS_RESULTSTR) != 0 {
-                    if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.window_state_lock().ime_state = ImeState::Enabled;
-
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        );
-                        userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
-                    }
+                if (lparam as u32 & GCS_RESULTSTR) != 0
+                    && let Some(text) = unsafe { ime_context.get_composed_text() }
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Enabled;
+                    userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                 }
 
                 // Next, receive preedit range for next composing if exist.
-                if (lparam as u32 & GCS_COMPSTR) != 0 {
-                    if let Some((text, first, last)) =
+                if (lparam as u32 & GCS_COMPSTR) != 0
+                    && let Some((text, first, last)) =
                         unsafe { ime_context.get_composing_text_and_cursor() }
-                    {
-                        userdata.window_state_lock().ime_state = ImeState::Preedit;
-                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
+                {
+                    userdata.window_state_lock().ime_state = ImeState::Preedit;
+                    let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
-                        );
-                    }
+                    userdata.send_window_event(
+                        window,
+                        WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                    );
                 }
             }
 
@@ -1646,10 +1746,6 @@ unsafe fn public_window_callback_inner(
                     // trying receiving composing result and commit if exists.
                     let ime_context = unsafe { ImeContext::current(window) };
                     if let Some(text) = unsafe { ime_context.get_composed_text() } {
-                        userdata.send_window_event(
-                            window,
-                            WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        );
                         userdata.send_window_event(window, WindowEvent::Ime(Ime::Commit(text)));
                     }
                 }
@@ -1832,6 +1928,7 @@ unsafe fn public_window_callback_inner(
                 device_id: None,
                 delta: LineDelta(0.0, value * scroll_lines_multiplier as f32),
                 phase: TouchPhase::Moved,
+                source: ScrollSource::Unknown,
             });
 
             result = ProcResult::Value(0);
@@ -1841,7 +1938,7 @@ unsafe fn public_window_callback_inner(
             use winit_core::event::MouseScrollDelta::LineDelta;
 
             let value = (wparam >> 16) as i16;
-            let value = -value as f32 / WHEEL_DELTA as f32; // NOTE: inverted! See https://github.com/rust-windowing/winit/pull/2105/
+            let value = inverted_wheel_delta(value); // NOTE: inverted! See https://github.com/rust-windowing/winit/pull/2105/
 
             update_modifiers(window, userdata);
 
@@ -1865,6 +1962,7 @@ unsafe fn public_window_callback_inner(
                 device_id: None,
                 delta: LineDelta(value * scroll_characters_multiplier as f32, 0.0),
                 phase: TouchPhase::Moved,
+                source: ScrollSource::Unknown,
             });
 
             result = ProcResult::Value(0);
@@ -2630,7 +2728,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
         }
         if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
             let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
-            let delta = -button_data as f32 / WHEEL_DELTA as f32;
+            let delta = inverted_wheel_delta(button_data);
             userdata.send_device_event(device_id, MouseWheel { delta: LineDelta(delta, 0.0) });
         }
 
@@ -2849,5 +2947,21 @@ fn pen_flags_to_button(flags: u32) -> TabletToolButton {
         TabletToolButton::Other(PEN_FLAG_ERASER as u16)
     } else {
         TabletToolButton::Contact
+    }
+}
+
+fn inverted_wheel_delta(value: i16) -> f32 {
+    -(value as f32) / WHEEL_DELTA as f32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inverted_wheel_delta_handles_minimum_value() {
+        assert_eq!(inverted_wheel_delta(i16::MIN), 32768.0 / WHEEL_DELTA as f32);
+        assert_eq!(inverted_wheel_delta(120), -1.0);
+        assert_eq!(inverted_wheel_delta(-120), 1.0);
     }
 }

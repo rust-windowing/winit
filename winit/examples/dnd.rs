@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use image::imageops::FilterType;
@@ -7,7 +6,7 @@ use image::{DynamicImage, GenericImageView, RgbImage};
 use softbuffer::{Context, Surface};
 use tracing::{error, info, warn};
 use winit::application::ApplicationHandler;
-use winit::data_transfer::{DataTransferId, DataTransferSendBuilder, SendData, TypeHint};
+use winit::data_transfer::{DataTransferId, DataTransferSendBuilder, TypeHint};
 use winit::event::{ButtonSource, MouseButton, WindowEvent};
 use winit::event_loop::{
     ActiveEventLoop, AsyncRequestSerial, DndAction, DragIcon, EventLoop, OwnedDisplayHandle,
@@ -98,14 +97,6 @@ impl ApplicationHandler for Application {
                 let result = event_loop.start_drag(
                     window_id,
                     DataTransferSendBuilder::new(self.drag_image_data.clone())
-                        .with_type(TypeHint::UriList, |_, _| {
-                            let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                            let root = manifest_dir.parent().unwrap();
-                            let this_file = root.join(file!());
-                            let icon_file = this_file.parent().unwrap().join("data/icon.png");
-
-                            SendData::from_file_paths([icon_file])
-                        })
                         .with_type(TypeHint::Plaintext, |_, _| Some("Winit example".to_string()))
                         .with_type(TypeHint::Html, |_, _| {
                             Some("<span><strong>Winit</strong> example</span>".to_string())
@@ -161,13 +152,6 @@ impl ApplicationHandler for Application {
                             return;
                         };
                         info!("URIs: {uris:#?}");
-
-                        // If you only want to support dropping files, rather than arbitrary URIs,
-                        // you can use the `try_as_file_paths` helper method.
-                        let Ok(uris_as_paths) = value.try_as_file_paths() else {
-                            return;
-                        };
-                        info!("URIs as file paths: {uris_as_paths:#?}");
                     },
                     Some(TypeHint::Image { extension_hint: ext }) => {
                         let Ok(bytes) = value.try_as_bytes() else {
